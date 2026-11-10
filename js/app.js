@@ -1,5 +1,5 @@
 import {
-  parseSave, serializeSave, injuryHistory, ATTRS, ATTR_NAMES, PHYSICAL, attrMin, skillName, skillCategory, sortSkills, isEliteSkill, isFreeSkill, ELITE_REQUIREMENTS, ELITE_MIN, ATTR_MAX, activeSkills, isLeveled, CATEGORIES, SKILL_MAX_LEVEL, SKILL_CATEGORIES, POSITIONS, MODE_NAMES, phaseName, BUMP_PHASES, BUMP_DAY, POT_MIN, POT_MAX, regressionYear, injuryName, PHASE_POST_DRAFT, PHASE_PRE_DRAFT, PHASE_PRE_LOTTERY, PHASE_FREE_AGENCY, leagueRookies, draftYear, jerseyNumber,
+  parseSave, serializeSave, FT_MAX, injuryHistory, ATTRS, ATTR_NAMES, PHYSICAL, attrMin, skillName, skillCategory, sortSkills, isEliteSkill, isFreeSkill, ELITE_REQUIREMENTS, ELITE_MIN, ATTR_MAX, activeSkills, isLeveled, CATEGORIES, SKILL_MAX_LEVEL, SKILL_CATEGORIES, POSITIONS, MODE_NAMES, phaseName, BUMP_PHASES, BUMP_DAY, POT_MIN, POT_MAX, regressionYear, injuryName, PHASE_POST_DRAFT, PHASE_PRE_DRAFT, PHASE_PRE_LOTTERY, PHASE_FREE_AGENCY, leagueRookies, draftYear, jerseyNumber,
   setBlessed, playerName, heightStr, avgRating, lastSeasonMpg, leaguePlayers, snapshot, restore, diffPlayer, jerseyClashes, fixJerseyNumbers, undoJerseyNumbers, levelOf, cloneData, MINOR_INJURY, potCap, ceilTotal, canGrow,
 } from './savefile.js';
 import { collegeProduction, productionWord, setDevPlans, PLAN_ATTRS, DEFAULT_PARAMS, runProgression, buildSkillProfiles, rankSkillsFor, unlockSkill, mulberry32, runRookieBump, injuryRisk, earnsNaturalLongevity, productionScores, spendHeldPoints } from './progression.js';
@@ -70,7 +70,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.326.4';
+const APP_VERSION = '0.326.5';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -869,6 +869,7 @@ async function loadFile(file) {
     if (!isCollege() && applyStreaks()) state.dirty = true;
     if (!isCollege() && (applyRisers() + settleRisers())) state.dirty = true;
     if (!isCollege() && stashReturn()) state.dirty = true;
+    if (!isCollege() && capFreeThrows()) state.dirty = true;
     // Coaching changes land at the end of the season: every CPU chair filled before camp. Your own empty chair waits for you.
     if (!isCollege() && isComplete() && league().season.phase >= 2 && league().season.phase <= 6) {
       cpuCoachMoves();
@@ -1365,7 +1366,20 @@ function seasonFileName() {
     return `${who} Year ${y - start + 1} ${y}`;
   } catch { return gameFileName(state.fileName); }
 }
+// Free throws top out at 15/20: whatever raised one (the game's own progression, camp, training, a riser, an event),
+// it comes back down to 15, and so does its ceiling.
+function capFreeThrows() {
+  let n = 0;
+  for (const L of state.data?.seasonLeagues || []) for (const p of [...L.teams.flatMap(t => t.roster), ...(L.freeAgents || []), ...(L.draftClass || [])]) {
+    const a = p.attributes?.FTS;
+    if (!a) continue;
+    if (a[0] > FT_MAX) { a[0] = FT_MAX; n++; }
+    if (a[1] > FT_MAX) { a[1] = FT_MAX; n++; }
+  }
+  return n;
+}
 function buildExport() {
+  capFreeThrows();
   markStreaksOut();
   restoreCap = null;
   if (state.leagueFile) return buildLeagueExport();

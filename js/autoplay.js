@@ -6,7 +6,7 @@
 //    +4 on every rating.
 
 const SKILL_KEYS = ['LAY', 'DNK', 'INS', 'MID', 'TPT', 'FTS', 'DRB', 'PAS', 'ORE', 'DRE', 'STL', 'BLK'];
-const CAP20 = k => (k === 'FTS' ? 16 : 20);
+const CAP20 = k => (k === 'FTS' ? 15 : 20);
 // Which rating each tendency is about (pump fake, run play, take charge are gameplay-only).
 export const TEND_ATTR = {
   dunk: 'DNK', floater: 'LAY', post: 'INS', hook: 'INS', twoPoint: 'MID', fades: 'MID', threePoint: 'TPT',
@@ -37,7 +37,7 @@ export function addCeilings(p, n) {
   const w = allocWeights(p);
   let added = 0;
   while (added < n) {
-    const k = SKILL_KEYS.filter(x => ceil(x) < CAP20(x)).sort((a, b) => w[b] * (1 - ceil(b) / 22) - w[a] * (1 - ceil(a) / 22))[0];
+    const k = SKILL_KEYS.filter(x => ceil(x) < CAP20(x)).sort((a, b) => w[b] * (1 - ceil(b) / (CAP20(b) + 2)) - w[a] * (1 - ceil(a) / (CAP20(a) + 2)))[0];
     if (!k) break;
     p.attributes[k][1] = ceil(k) + 1;
     added++;

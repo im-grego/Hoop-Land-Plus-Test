@@ -66,7 +66,7 @@ export function rookieLine(p, bands = DEFAULT_RECOVERY) {
 }
 
 // Prospect floor: the rookie line plus natural development (+2 a rating),
-// never past their ceiling, 20, or 16 for free throws.
+// never past their ceiling, 20, or 15 for free throws.
 export const FLOOR_DEVELOPMENT = 2;
 export function floorVector(p, bands = DEFAULT_RECOVERY) {
   return withDevelopment(p, rookieLine(p, bands));
@@ -75,7 +75,7 @@ function withDevelopment(p, line) {
   return line.map((v, i) => {
     const k = SKILL_ATTRS[i];
     const top = Math.max(p.attributes[k][0], p.attributes[k][1]);
-    return Math.max(v, Math.min(v + FLOOR_DEVELOPMENT, top, k === 'FTS' ? 16 : 20));
+    return Math.max(v, Math.min(v + FLOOR_DEVELOPMENT, top, capFor(k)));
   });
 }
 
@@ -102,8 +102,8 @@ export function applySummerLeague(p, original, bands = DEFAULT_RECOVERY) {
   });
   return gains;
 }
-// Free throws are capped at 16 in this league; everything else at 20.
-export const capFor = k => (k === 'FTS' ? 16 : 20);
+// Free throws are capped at 15 in this league; everything else at 20.
+export const capFor = k => (k === 'FTS' ? 15 : 20);
 
 export function ceilingVector(p) {
   return SKILL_ATTRS.map(k => Math.min(capFor(k), Math.max(p.attributes[k][0], p.attributes[k][1])));

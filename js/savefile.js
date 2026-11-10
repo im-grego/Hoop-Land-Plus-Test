@@ -111,6 +111,9 @@ export const CATEGORIES = [
 ];
 export const categoryOf = k => CATEGORIES.findIndex(c => c.attrs.includes(k));
 export const ATTR_MAX = 20;
+// Free throws top out at 15/20 in this league (a 15 is an elite shooter at the line); every other rating at 20.
+export const FT_MAX = 15;
+export const attrCap = k => (k === 'FTS' ? FT_MAX : ATTR_MAX);
 export const attrMin = k => (PHYSICAL.includes(k) ? 8 : 0);
 export const SKILL_MAX_LEVEL = 3;
 // Skills with no levels: they are only equipped or not (stored as level 1).
@@ -442,7 +445,7 @@ export const ceilTotal = p => SKILL_KEYS.reduce((a, k) => a + (p.attributes?.[k]
 // room under his potential (the ceiling rises with it). Physicals have no ceiling: they move freely.
 export function canGrow(p, k, max = 20) {
   const a = p.attributes?.[k];
-  if (!a || a[0] >= max) return false;
+  if (!a || a[0] >= Math.min(max, attrCap(k))) return false;
   if (PHYSICAL.includes(k)) return true;
   return a[0] < a[1] || ceilTotal(p) < potCap(p);
 }

@@ -2,7 +2,7 @@
 // and what happened (read back from the bracket the next time a file comes in).
 import { shownLevel as levelOf } from './regression.js';
 import { seasonLine } from './storylines.js';
-import { playerName, levelOf as rawLevel } from './savefile.js';
+import { playerName, levelOf as rawLevel, attrCap } from './savefile.js';
 
 export const thisPlayoffs = L => (L.season.playoffs || []).find(x => x.yr === L.season.currentYear) || null;
 export const playoffsOf = (L, yr) => (L.season.playoffs || []).find(x => x.yr === yr) || null;
@@ -139,7 +139,7 @@ export function riserCase(p, leagueIdx, yr) {
   const lv = Math.min(5, Math.floor(score + hash(p.id, yr)() * 0.99));
   return lv > 0 ? { lv, why } : null;
 }
-// Two rating points a level, round-robin over his three best skills (no higher than 20). Returns what moved.
+// Two rating points a level, round-robin over his three best skills (no higher than 20; free throws 15). Returns what moved.
 export function applyRise(p, lv) {
   const at = k => p.attributes?.[k];
   const keys = RISE_KEYS.filter(at).sort((a, b) => at(b)[0] - at(a)[0]).slice(0, 3), add = {};
@@ -147,7 +147,7 @@ export function applyRise(p, lv) {
   let n = lv * 2;
   for (let j = 0; n > 0 && j < 40; j++) {
     const k = keys[j % keys.length], a = at(k);
-    if (a[0] >= 20) continue;
+    if (a[0] >= attrCap(k)) continue;
     a[0]++; if (a[1] < a[0]) a[1] = a[0];
     add[k] = (add[k] || 0) + 1; n--;
   }

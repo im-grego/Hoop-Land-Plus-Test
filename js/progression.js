@@ -5,7 +5,7 @@
 
 import { secsOf } from './gameclock.js';
 import { coachMult, durMult, durLongevity } from './traits.js';
-import { ATTRS, ATTR_MAX, SKILL_MAX_LEVEL, CATEGORIES, POT_MIN, POT_MAX, MINOR_INJURY, lastSeasonMpg, activeSkills, isLeveled, injuryHistory, injuryPart, canGrow, growthRoom, potCap, levelOf } from './savefile.js';
+import { ATTRS, ATTR_MAX, attrCap, SKILL_MAX_LEVEL, CATEGORIES, POT_MIN, POT_MAX, MINOR_INJURY, lastSeasonMpg, activeSkills, isLeveled, injuryHistory, injuryPart, canGrow, growthRoom, potCap, levelOf } from './savefile.js';
 
 // Categories the bump awards points in (Physical is left alone).
 export const AWARD_CATEGORIES = [0, 1, 2, 3];
@@ -222,9 +222,10 @@ export function pointsFor(p, mpgInfo, params, rng) {
 // blended with how strong they already are.
 function attrWeight(p, k, params) {
   const [cur, ceil] = p.attributes[k];
-  if (cur >= ATTR_MAX) return 0;
-  const room = Math.max(1, ceil - cur);
-  return room * ((1 - params.strengthBias) + params.strengthBias * (cur / ATTR_MAX) * 2) * breakPush(p, cur, ceil) * (PLANS.get(p.id)?.includes(k) ? 3 : 1);
+  const cap = attrCap(k);   // free throws are measured against 15, so a 12 there counts like a 16 elsewhere
+  if (cur >= cap) return 0;
+  const room = Math.max(1, Math.min(ceil, cap) - cur);
+  return room * ((1 - params.strengthBias) + params.strengthBias * (cur / cap) * 2) * breakPush(p, cur, ceil) * (PLANS.get(p.id)?.includes(k) ? 3 : 1);
 }
 // Development plans (your players): a focus picks a group of ratings that pull three times their share of his camp
 // points. Set by the app before camp runs: { pid: [rating keys] }.
@@ -240,12 +241,12 @@ function breakPush(p, cur, ceil) {
   return p.age <= 24 ? 2.5 : p.age <= 26 ? 1.5 : 1;
 }
 
-const trainCap = k => (k === 'FTS' ? 16 : ATTR_MAX);
+const trainCap = attrCap;
 
 // Development coach: spend `points` straight into ratings in the four skill
 // categories, weighted toward where the player has room and strengths.
 // Ceilings don't stop it (they rise with the rating), except free throws at
-// 16. At most `trainMaxPerAttr` per rating. Returns points applied.
+// 15. At most `trainMaxPerAttr` per rating. Returns points applied.
 export function trainPoints(p, points, params, rng) {
   const gained = {};
   // Only where his potential leaves room: up to a ceiling, or past it while his ceilings are under his potential.

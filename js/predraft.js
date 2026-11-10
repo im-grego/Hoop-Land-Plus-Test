@@ -132,7 +132,7 @@ function testPlayer(p, salt, skipAth) {
   const shoot = {
     spot: shot(25, 0.25, 0.03, A(p, 'TPT'), 2.4),
     dribble: shot(30, 0.22, 0.031, A(p, 'MID') * 0.6 + A(p, 'DRB') * 0.4, 2.4),
-    // Free throws: FTS (16 is a real-world elite cap) with a little mid-range touch.
+    // Free throws: FTS (15 is the elite cap) with a little mid-range touch.
     ft: shot(10, 0.36, 0.032, A(p, 'FTS') * 0.8 + A(p, 'MID') * 0.2, 2.0),
   };
   // The rest of the measurements and drills draw from their own stream, so the ones above keep their values.
