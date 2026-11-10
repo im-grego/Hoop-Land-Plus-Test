@@ -70,7 +70,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.326.3';
+const APP_VERSION = '0.326.4';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10588,7 +10588,7 @@ function attrRow(p, snap, k, ceilMode) {
     <div class="body">
       <div class="top">
         <span class="lbl">${k} <span class="muted">${ATTR_NAMES[k]}</span></span>
-        <span>${down ? `<span class="down">${reg}</span>` : cur}${t ? ` <span class="temp-num" title="${esc(tmp.src)}: temporary">${t > 0 ? '+' : '−'}${Math.abs(t)}</span>` : ''}${delta ? ` <span class="${delta > 0 ? 'up' : 'down'}">(${delta > 0 ? '+' : ''}${delta})</span>` : ''}${phys ? '' : ` <span class="${down ? '' : 'gold'}">/ ${down ? cur : ceil}</span>`}</span>
+        <span>${down ? `<span class="down">${reg}</span>` : cur}${t ? ` <span class="${t > 0 ? 'up' : 'down'}" title="${esc(tmp.src)}: temporary">(${t > 0 ? '+' : '−'}${Math.abs(t)})</span>` : ''}${delta ? ` <span class="${delta > 0 ? 'up' : 'down'}">(${delta > 0 ? '+' : ''}${delta})</span>` : ''}${phys ? '' : ` <span class="${down ? '' : 'gold'}">/ ${down ? cur : ceil}</span>`}</span>
       </div>
       <div class="${barClass(k)}">
         ${down ? `<div class="lost" style="left:${reg / ATTR_MAX * 100}%;width:${(Math.min(cur, ATTR_MAX) - reg) / ATTR_MAX * 100}%"></div>` : `<div class="room" style="width:${Math.min(ceil, ATTR_MAX) / ATTR_MAX * 100}%"></div>`}
