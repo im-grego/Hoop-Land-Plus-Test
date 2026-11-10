@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.330.1';
+const APP_VERSION = '0.330.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -19449,7 +19449,9 @@ function olyField() {
 const olyPoGp = p => { const s = (p.stats || []).filter(x => x.league === state.leagueIdx && (x.season || []).some(r => r.GP > 0)).sort((a, b) => b.yr - a.yr)[0]; return [...(s?.playoffs || []), ...(s?.finals || [])].reduce((a, r) => a + (r.GP || 0), 0); };
 const olyName = k => { if (typeof k !== 'number') return k; const e = findPlayer(k); return e ? playerName(e.p) : 'Unknown'; };
 const olyTag = c => `${OLY.flagHtml(c, 1.4)}<b class="oly-c">${esc(OLY.code(c))}</b>`;
-const MEDAL = { gold: '<span class="medal m-gold">1</span>', silver: '<span class="medal m-silver">2</span>', bronze: '<span class="medal m-bronze">3</span>' };
+const MEDAL = { gold: '<span class="rank-no medal-box m-gold">1</span>', silver: '<span class="rank-no medal-box m-silver">2</span>', bronze: '<span class="rank-no medal-box m-bronze">3</span>' };
+// Next to a medal team: the medal box and the award icon, and a trophy for the gold.
+const olyMedalMark = (R, c) => { const m = R && ['gold', 'silver', 'bronze'].find(k => R.medals[k] === c); return m ? ` ${MEDAL[m]}🥇${m === 'gold' ? '🏆' : ''}` : ''; };
 // Every tournament a player went to, with the medal and the league players he played with (for his page).
 function olyRecord(pid) {
   const st = olyStore();
@@ -19538,7 +19540,7 @@ screens.olympics = (args = {}) => {
   const leagueN = t => t.roster.filter(x => x.pid != null).length;
   // ---- Teams: a card for each nation; tap one for its roster.
   const card = t => { const star = t.roster.find(x => x.pid != null) || t.roster[0], via = OLY_VIA(F.via?.[t.c] || (t.c === F.host ? 'host' : ''));
-    const place = R ? R.finish?.indexOf(t.c) : -1, medal = place >= 0 && place <= 2 ? MEDAL[['gold', 'silver', 'bronze'][place]] : '';
+    const medal = olyMedalMark(R, t.c);
     return `<button class="oly-card tap" data-act="olyPick" data-c="${t.c}"><span class="oly-card-top">${flag(t.c, 2.4)}${medal}<span class="oly-via" title="${esc(via[1])}">${via[0]}</span></span>
       <span class="oly-card-name">${esc(OLY.nation(t.c))}</span>
       <span class="oly-bar"><span style="width:${Math.max(8, Math.min(100, (t.str - 70) * 3.6))}%"></span></span>
@@ -19551,7 +19553,7 @@ screens.olympics = (args = {}) => {
     const row = (x, i) => `<div class="oly-prow ${i === 0 ? 'cap' : ''}"><span class="grow">${i === 0 ? '<span title="Captain">©️</span> ' : ''}${who(x)}${x.nat ? ' <span title="Naturalized">🛂</span>' : ''}${x.pro ? ' <span title="Draft prospect">🎓</span>' : ''} <span class="muted small">${esc(POSITIONS[x.pos] ?? '')} · ${x.pro ? `prospect, ${x.age}` : esc(league().teams.find(t => t.id === x.tid)?.shortName || 'FA')}</span></span>${lv(x.lv)}
       ${!done && !x.nat && !x.pro ? `${mine(x) ? `<button class="btn tiny off" data-act="olyHome" data-id="${x.pid}" title="Keep him home to rest (costs a little morale)">🏠</button>` : ''}<button class="btn tiny off" data-act="olyDrop" data-c="${T.c}" data-id="${x.pid}" title="Leave him off">✕</button>` : ''}</div>`;
     const edit = !done && avail.length ? `<select class="sel-team" data-change="olyAdd" data-c="${T.c}"><option value="">➕ Add a player…</option>${avail.slice(0, 30).map(p => `<option value="${p.id}">${esc(playerName(p))} · Lv ${shownLevel(p)}</option>`).join('')}</select>${(v.edits?.[T.c]?.add || []).length || (v.edits?.[T.c]?.drop || []).length ? `<button class="btn small off" data-act="olyReset" data-c="${T.c}">↺ Federation's picks</button>` : ''}` : '';
-    return `<fieldset class="frame"><legend>${flag(T.c, 2)} ${esc(OLY.nation(T.c))}</legend>
+    return `<fieldset class="frame"><legend>${flag(T.c, 2)} ${esc(OLY.nation(T.c))}${olyMedalMark(R, T.c)}</legend>
       <div class="oly-chips"><span class="oly-chip">${via[0]} ${esc(via[1])}</span><span class="oly-chip">💪 ${T.str}</span>${T.coach?.name ? `<span class="oly-chip ${T.coach.cid ? 'tap' : ''}" ${T.coach.cid ? `data-act="nav" data-to="coach" data-arg="${T.coach.cid}"` : ''}>📋 ${esc(T.coach.name)}</span>` : ''}${R?.hero?.c === T.c ? `<span class="oly-chip up">🔥 ${esc(olyName(R.hero.k))}'s run</span>` : ''}</div>
       <div class="stack">${lg.map(row).join('')}</div>
       ${home.length ? `<p class="note small muted" style="margin-top:6px">🏠 From the home leagues: ${home.map(x => esc(`${x.fn} ${x.ln}`)).join(', ')}</p>` : ''}
@@ -19581,7 +19583,7 @@ screens.olympics = (args = {}) => {
   // ---- Groups.
   const groupsTab = `<div class="oly-groups">${F.groups.map((g, gi) => {
     const rows = R ? R.standings[gi] : g.map(c => ({ c, w: 0, l: 0, pf: 0, pa: 0 }));
-    return `<div class="oly-group"><div class="oly-group-h">Group ${'ABCD'[gi]}</div>${rows.map((r, i) => `<div class="oly-prow tap" data-act="olyPick" data-c="${r.c}"><span class="grow">${R ? `<span class="muted small">${i + 1}.</span> ` : ''}${flag(r.c)} ${esc(OLY.nation(r.c))}</span>${R ? `<span>${r.w}-${r.l} <span class="muted small">${r.pf - r.pa > 0 ? '+' : ''}${r.pf - r.pa}</span></span>` : `<span class="muted small">💪 ${F.field.find(x => x.c === r.c).str}</span>`}</div>`).join('')}</div>`;
+    return `<div class="oly-group"><div class="oly-group-h">Group ${'ABCD'[gi]}</div>${rows.map((r, i) => `<div class="oly-prow tap" data-act="olyPick" data-c="${r.c}"><span class="grow">${R ? `<span class="muted small">${i + 1}.</span> ` : ''}${flag(r.c)} ${esc(OLY.nation(r.c))}${olyMedalMark(R, r.c)}</span>${R ? `<span>${r.w}-${r.l} <span class="muted small">${r.pf - r.pa > 0 ? '+' : ''}${r.pf - r.pa}</span></span>` : `<span class="muted small">💪 ${F.field.find(x => x.c === r.c).str}</span>`}</div>`).join('')}</div>`;
   }).join('')}</div>`;
   // ---- Games: line scores, a trophy by the winner; tap for the box score.
   const lineScore = G => { const n = Math.max(4, (G.qa || []).length), hd = Array.from({ length: n }, (_, i) => (i < 4 ? i + 1 : n > 5 ? `OT${i - 3}` : 'OT'));
@@ -19592,12 +19594,12 @@ screens.olympics = (args = {}) => {
     const rows = G.box[s].filter(r => r.min > 0).sort((a, b) => b.min - a.min), tot = k => rows.reduce((a, r) => a + r[k], 0);
     return `<h4 class="ov-h">${flag(c)} ${esc(OLY.nation(c))}${won ? ' 🏆' : ''}</h4><table class="oly-box"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>${rows.map(r => { const x = t.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === r.k) || { fn: r.k, ln: '' }; return `<tr><td>${who(x)}</td><td>${r.min}</td><td><b>${r.pts}</b></td><td>${r.reb}</td><td>${r.ast}</td></tr>`; }).join('')}<tr class="tot"><td>Team</td><td>${tot('min')}</td><td>${tot('pts')}</td><td>${tot('reb')}</td><td>${tot('ast')}</td></tr></tbody></table>`; }).join('')}<button class="btn small off" data-act="olyGame" data-g="">← All games</button></fieldset>` : '';
   const stages = R ? [...new Set(R.games.map(G => G.stage.startsWith('Group') ? 'Group stage' : G.stage))].reverse() : [];
-  const gamesTab = R ? (boxTab || `<details class="cmb-fold"><summary>🗂️ Group standings</summary>${groupsTab}</details>` + stages.map(st => `<fieldset class="frame"><legend>${st === 'Gold Medal Game' || st === 'Final' ? '🥇 ' : st === 'Bronze Medal Game' ? '🥉 ' : ''}${esc(st)}</legend><div class="stack">${R.games.map((G, i) => [G, i]).filter(([G]) => (G.stage.startsWith('Group') ? 'Group stage' : G.stage) === st).reverse().map(([G, i]) => `<div class="tap" data-act="olyGame" data-g="${i}">${st === 'Group stage' ? `<span class="muted small">${esc(G.stage)}</span>` : ''}${lineScore(G)}</div>`).join('')}</div></fieldset>`).join('')) : '';
+  const gamesTab = R ? (boxTab || `<details class="cmb-fold"><summary>🗂️ Group standings</summary>${groupsTab}</details>` + stages.map(st => `<fieldset class="frame"><legend>${st === 'Gold Medal Game' || st === 'Final' ? '🏆 ' : st === 'Bronze Medal Game' ? '🥇 ' : ''}${esc(st)}</legend><div class="stack">${R.games.map((G, i) => [G, i]).filter(([G]) => (G.stage.startsWith('Group') ? 'Group stage' : G.stage) === st).reverse().map(([G, i]) => `<div class="tap" data-act="olyGame" data-g="${i}">${st === 'Group stage' ? `<span class="muted small">${esc(G.stage)}</span>` : ''}${lineScore(G)}</div>`).join('')}</div></fieldset>`).join('')) : '';
   // ---- Results: the podium, the MVP, the All-Star Five, then what it did to the league (folded).
   const lineOf = k => R.lines[k], per = (L, k) => (L[k] / Math.max(1, L.gp)).toFixed(1);
   const xOf = (k, c) => F.field.find(t => t.c === c)?.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === k) || { fn: String(k), ln: '' };
   const after = v.after || {};
-  const pod = m => `<div class="oly-pod ${m}">${MEDAL[m]}${OLY.flagHtml(R.medals[m], 3)}<span class="oly-pod-code">${esc(OLY.code(R.medals[m]))}</span><span class="small">${esc(OLY.nation(R.medals[m]))}</span></div>`;
+  const pod = m => `<div class="oly-pod ${m}"><span>${MEDAL[m]}🥇${m === 'gold' ? '🏆' : ''}</span>${OLY.flagHtml(R.medals[m], 3)}<span class="oly-pod-code">${esc(OLY.code(R.medals[m]))}</span><span class="small">${esc(OLY.nation(R.medals[m]))}</span></div>`;
   const effects = !R ? [] : [
     [(R.injuries || []).length, '🩹 Injuries', () => R.injuries.map(i => `<p class="note small" style="margin:0">${who({ pid: i.k })} · ${esc(injuryName(i.inj))}, out ~${i.gamesOut} games</p>`).join('')],
     [(after.xp || []).length, '⭐ XP earned', () => { const yours = after.xp.filter(x => mine({ pid: x.pid }));
