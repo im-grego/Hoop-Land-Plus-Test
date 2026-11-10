@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.330.2';
+const APP_VERSION = '0.330.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -19451,7 +19451,13 @@ const olyName = k => { if (typeof k !== 'number') return k; const e = findPlayer
 const olyTag = c => `${OLY.flagHtml(c, 1.4)}<b class="oly-c">${esc(OLY.code(c))}</b>`;
 const MEDAL = { gold: '<span class="rank-no medal-box m-gold">1</span>', silver: '<span class="rank-no medal-box m-silver">2</span>', bronze: '<span class="rank-no medal-box m-bronze">3</span>' };
 // Next to a medal team: the medal box and the award icon, and a trophy for the gold.
-const olyMedalMark = (R, c) => { const m = R && ['gold', 'silver', 'bronze'].find(k => R.medals[k] === c); return m ? ` ${MEDAL[m]}🥇${m === 'gold' ? '🏆' : ''}` : ''; };
+const olyMedalMark = (R, c) => { const m = R && ['gold', 'silver', 'bronze'].find(k => R.medals[k] === c); return m ? ` ${MEDAL[m]}` : ''; };
+// In a game's line score or box score: the champion gets the trophy, the silver team (the final's loser) and the bronze
+// game's winner a medal; every other winner is just in gold.
+const olyGameMark = (G, c) => { const won = (G.sa > G.sb ? G.a : G.b) === c;
+  if (/Gold Medal Game|^Final$/.test(G.stage)) return won ? ' 🏆' : ' 🥇';
+  if (G.stage === 'Bronze Medal Game') return won ? ' 🥇' : '';
+  return ''; };
 // Every tournament a player went to, with the medal and the league players he played with (for his page).
 function olyRecord(pid) {
   const st = olyStore();
@@ -19587,19 +19593,19 @@ screens.olympics = (args = {}) => {
   }).join('')}</div>`;
   // ---- Games: line scores, a trophy by the winner; tap for the box score.
   const lineScore = G => { const n = Math.max(4, (G.qa || []).length), hd = Array.from({ length: n }, (_, i) => (i < 4 ? i + 1 : n > 5 ? `OT${i - 3}` : 'OT'));
-    const row = (c, q, sc, won) => `<tr class="${won ? 'won' : ''}"><th>${flag(c)}${won ? ' 🏆' : ''}</th>${hd.map((_, i) => `<td>${q?.[i] ?? '–'}</td>`).join('')}<td class="tot">${sc}</td></tr>`;
+    const row = (c, q, sc, won) => `<tr class="${won ? 'won' : ''}"><th>${flag(c)}${olyGameMark(G, c)}</th>${hd.map((_, i) => `<td>${q?.[i] ?? '–'}</td>`).join('')}<td class="tot">${sc}</td></tr>`;
     return `<table class="oly-ls"><thead><tr><th></th>${hd.map(h => `<th>${h}</th>`).join('')}<th>T</th></tr></thead><tbody>${row(G.a, G.qa, G.sa, G.sa > G.sb)}${row(G.b, G.qb, G.sb, G.sb > G.sa)}</tbody></table>`; };
   const gi = args.g != null && args.g !== '' ? +args.g : null, G = R && gi != null ? R.games[gi] : null;
   const boxTab = G ? `<fieldset class="frame"><legend>${esc(G.stage)}</legend>${lineScore(G)}${[0, 1].map(s => { const c = s ? G.b : G.a, t = F.field.find(x => x.c === c), won = s ? G.sb > G.sa : G.sa > G.sb;
     const rows = G.box[s].filter(r => r.min > 0).sort((a, b) => b.min - a.min), tot = k => rows.reduce((a, r) => a + r[k], 0);
-    return `<h4 class="ov-h">${flag(c)} ${esc(OLY.nation(c))}${won ? ' 🏆' : ''}</h4><table class="oly-box"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>${rows.map(r => { const x = t.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === r.k) || { fn: r.k, ln: '' }; return `<tr><td>${who(x)}</td><td>${r.min}</td><td><b>${r.pts}</b></td><td>${r.reb}</td><td>${r.ast}</td></tr>`; }).join('')}<tr class="tot"><td>Team</td><td>${tot('min')}</td><td>${tot('pts')}</td><td>${tot('reb')}</td><td>${tot('ast')}</td></tr></tbody></table>`; }).join('')}<button class="btn small off" data-act="olyGame" data-g="">← All games</button></fieldset>` : '';
+    return `<h4 class="ov-h ${won ? 'oly-won' : ''}">${flag(c)} ${esc(OLY.nation(c))}${olyGameMark(G, c)}</h4><table class="oly-box"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>${rows.map(r => { const x = t.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === r.k) || { fn: r.k, ln: '' }; return `<tr><td>${who(x)}</td><td>${r.min}</td><td><b>${r.pts}</b></td><td>${r.reb}</td><td>${r.ast}</td></tr>`; }).join('')}<tr class="tot"><td>Team</td><td>${tot('min')}</td><td>${tot('pts')}</td><td>${tot('reb')}</td><td>${tot('ast')}</td></tr></tbody></table>`; }).join('')}<button class="btn small off" data-act="olyGame" data-g="">← All games</button></fieldset>` : '';
   const stages = R ? [...new Set(R.games.map(G => G.stage.startsWith('Group') ? 'Group stage' : G.stage))].reverse() : [];
   const gamesTab = R ? (boxTab || `<details class="cmb-fold"><summary>🗂️ Group standings</summary>${groupsTab}</details>` + stages.map(st => `<fieldset class="frame"><legend>${st === 'Gold Medal Game' || st === 'Final' ? '🏆 ' : st === 'Bronze Medal Game' ? '🥇 ' : ''}${esc(st)}</legend><div class="stack">${R.games.map((G, i) => [G, i]).filter(([G]) => (G.stage.startsWith('Group') ? 'Group stage' : G.stage) === st).reverse().map(([G, i]) => `<div class="tap" data-act="olyGame" data-g="${i}">${st === 'Group stage' ? `<span class="muted small">${esc(G.stage)}</span>` : ''}${lineScore(G)}</div>`).join('')}</div></fieldset>`).join('')) : '';
   // ---- Results: the podium, the MVP, the All-Star Five, then what it did to the league (folded).
   const lineOf = k => R.lines[k], per = (L, k) => (L[k] / Math.max(1, L.gp)).toFixed(1);
   const xOf = (k, c) => F.field.find(t => t.c === c)?.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === k) || { fn: String(k), ln: '' };
   const after = v.after || {};
-  const pod = m => `<div class="oly-pod ${m}"><span>${MEDAL[m]}🥇${m === 'gold' ? '🏆' : ''}</span>${OLY.flagHtml(R.medals[m], 3)}<span class="oly-pod-code">${esc(OLY.code(R.medals[m]))}</span><span class="small">${esc(OLY.nation(R.medals[m]))}</span></div>`;
+  const pod = m => `<div class="oly-pod ${m}">${MEDAL[m]}${OLY.flagHtml(R.medals[m], 3)}<span class="oly-pod-code">${esc(OLY.code(R.medals[m]))}</span><span class="small">${esc(OLY.nation(R.medals[m]))}</span></div>`;
   const effects = !R ? [] : [
     [(R.injuries || []).length, '🩹 Injuries', () => R.injuries.map(i => `<p class="note small" style="margin:0">${who({ pid: i.k })} · ${esc(injuryName(i.inj))}, out ~${i.gamesOut} games</p>`).join('')],
     [(after.xp || []).length, '⭐ XP earned', () => { const yours = after.xp.filter(x => mine({ pid: x.pid }));

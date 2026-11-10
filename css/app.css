@@ -1881,7 +1881,7 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .oly-pod.bronze { border-top: 2px solid #cd7f32; }
 .oly-pod .medal { width: 1.8em; height: 1.8em; font-size: 0.95em; }
 .oly-pod-code { font-weight: 800; font-size: 1.15em; letter-spacing: 0.06em; }
-.flag { display: inline-block; vertical-align: middle; background-image: url(../img/flags.png); background-repeat: no-repeat; image-rendering: pixelated; box-shadow: 0 0 0 2px #0b1f45, 0 2px 0 2px #00000055; border-radius: 0; margin-right: 4px; flex: none; }
+.flag { display: inline-block; vertical-align: middle; background-image: url(../img/flags.png); background-repeat: no-repeat; image-rendering: pixelated; box-shadow: 0 0 0 1px #00000055; border-radius: 1px; margin-right: 4px; flex: none; }
 .col-box { margin-bottom: 14px; }
 .col-box .statline { margin-top: 2px; }
 .col-box .outlook-top .status { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
@@ -1889,3 +1889,8 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .medal-box { margin-right: 2px; min-width: 22px; color: #1b1b1b; }
 .medal-box.m-gold { background: #f5c542; } .medal-box.m-silver { background: #c9d1d9; } .medal-box.m-bronze { background: #cd7f32; }
 .oly-pod .medal-box { font-size: 15px; min-width: 28px; }
+
+/* A game's winner: the row (code and score) in gold. */
+.oly-ls tr.won th .oly-code, .oly-ls tr.won td { color: var(--gold, #f5c542); }
+.oly-ls tr.won th .oly-code { background: #f5c54226; }
+.ov-h.oly-won { color: var(--gold, #f5c542); }
