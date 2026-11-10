@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.329.5';
+const APP_VERSION = '0.329.6';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -19441,7 +19441,7 @@ function olyField() {
   if (cur.field) return cur;   // the tournament is over: what was played
   const prevEv = Object.entries(st).filter(([yy, v]) => +yy < y && v.field && OLY.eventOf(+yy) === ev).sort((a, b) => b[0] - a[0])[0]?.[1];
   const prevIds = Object.fromEntries((prevEv?.field?.field || []).map(t => [t.c, t.roster.filter(x => x.pid != null).map(x => x.pid)]));
-  return { ...cur, field: OLY.buildField({ yr: y, event: ev, qual: ev === 'olympics' ? olyQual(y) : null, coaches: olyCoaches(), players: olyPlayers(), level: shownLevel, prevIds, edits: cur.edits || {}, home: cur.home || [], seed: olySeed(), poGp: olyPoGp }) };
+  return { ...cur, field: OLY.buildField({ yr: y, event: ev, qual: ev === 'olympics' ? olyQual(y) : null, coaches: olyCoaches(), players: olyPlayers(), level: shownLevel, prevIds, edits: cur.edits || {}, home: cur.home || [], seed: olySeed(), poGp: olyPoGp, prospects: isCollege() ? [] : (league().draftClass || []) }) };
 }
 // His playoff games in the season just played (his latest season on record).
 const olyPoGp = p => { const s = (p.stats || []).filter(x => x.league === state.leagueIdx && (x.season || []).some(r => r.GP > 0)).sort((a, b) => b.yr - a.yr)[0]; return [...(s?.playoffs || []), ...(s?.finals || [])].reduce((a, r) => a + (r.GP || 0), 0); };
@@ -19530,8 +19530,8 @@ screens.olympics = (args = {}) => {
     const lg = T.roster.filter(x => x.pid != null), home = T.roster.filter(x => x.pid == null), via = OLY_VIA(F.via?.[T.c] || (T.c === F.host ? 'host' : ''));
     const onIds = new Set(T.roster.map(x => x.pid));
     const avail = (T.eligible || []).filter(id => !onIds.has(id)).map(id => findPlayer(id)?.p).filter(Boolean).sort((a, b) => shownLevel(b) - shownLevel(a));
-    const row = (x, i) => `<div class="oly-prow ${i === 0 ? 'cap' : ''}"><span class="grow">${i === 0 ? '<span title="Captain">©️</span> ' : ''}${who(x)}${x.nat ? ' <span title="Naturalized">🛂</span>' : ''} <span class="muted small">${esc(POSITIONS[x.pos] ?? '')} · ${esc(league().teams.find(t => t.id === x.tid)?.shortName || 'FA')}</span></span>${lv(x.lv)}
-      ${!done && !x.nat ? `${mine(x) ? `<button class="btn tiny off" data-act="olyHome" data-id="${x.pid}" title="Keep him home to rest (costs a little morale)">🏠</button>` : ''}<button class="btn tiny off" data-act="olyDrop" data-c="${T.c}" data-id="${x.pid}" title="Leave him off">✕</button>` : ''}</div>`;
+    const row = (x, i) => `<div class="oly-prow ${i === 0 ? 'cap' : ''}"><span class="grow">${i === 0 ? '<span title="Captain">©️</span> ' : ''}${who(x)}${x.nat ? ' <span title="Naturalized">🛂</span>' : ''}${x.pro ? ' <span title="Draft prospect">🎓</span>' : ''} <span class="muted small">${esc(POSITIONS[x.pos] ?? '')} · ${x.pro ? `prospect, ${x.age}` : esc(league().teams.find(t => t.id === x.tid)?.shortName || 'FA')}</span></span>${lv(x.lv)}
+      ${!done && !x.nat && !x.pro ? `${mine(x) ? `<button class="btn tiny off" data-act="olyHome" data-id="${x.pid}" title="Keep him home to rest (costs a little morale)">🏠</button>` : ''}<button class="btn tiny off" data-act="olyDrop" data-c="${T.c}" data-id="${x.pid}" title="Leave him off">✕</button>` : ''}</div>`;
     const edit = !done && avail.length ? `<select class="sel-team" data-change="olyAdd" data-c="${T.c}"><option value="">➕ Add a player…</option>${avail.slice(0, 30).map(p => `<option value="${p.id}">${esc(playerName(p))} · Lv ${shownLevel(p)}</option>`).join('')}</select>${(v.edits?.[T.c]?.add || []).length || (v.edits?.[T.c]?.drop || []).length ? `<button class="btn small off" data-act="olyReset" data-c="${T.c}">↺ Federation's picks</button>` : ''}` : '';
     return `<fieldset class="frame"><legend>${flag(T.c, 2)} ${esc(OLY.nation(T.c))}</legend>
       <div class="oly-chips"><span class="oly-chip">${via[0]} ${esc(via[1])}</span><span class="oly-chip">💪 ${T.str}</span>${T.coach?.name ? `<span class="oly-chip ${T.coach.cid ? 'tap' : ''}" ${T.coach.cid ? `data-act="nav" data-to="coach" data-arg="${T.coach.cid}"` : ''}>📋 ${esc(T.coach.name)}</span>` : ''}${R?.hero?.c === T.c ? `<span class="oly-chip up">🔥 ${esc(olyName(R.hero.k))}'s run</span>` : ''}</div>
@@ -19546,6 +19546,7 @@ screens.olympics = (args = {}) => {
   const snubs = F.field.flatMap(t => t.snubs.map(s => ({ ...s, c: t.c })));
   const outs = F.field.flatMap(t => t.withdrew.map(s => ({ ...s, c: t.c })));
   const nats = F.field.flatMap(t => t.roster.filter(x => x.nat).map(x => ({ ...x, c: t.c })));
+  const pros = F.field.flatMap(t => t.roster.filter(x => x.pro).map(x => ({ ...x, c: t.c })));
   const snubCard = ([c, xs]) => { const g = new Map(); for (const x of xs.sort((a, b) => b.lv - a.lv)) (g.get(OLY_SNUB(x.why)) || g.set(OLY_SNUB(x.why), []).get(OLY_SNUB(x.why))).push(x);
     return `<div class="oly-group"><div class="oly-group-h">${flag(c)} ${esc(OLY.nation(c))}</div>${[...g.entries()].map(([why, ys]) => `<p class="note small" style="margin:0"><span class="muted">${esc(why)}:</span> ${ys.map(y => `${who(y)} ${lv(y.lv)}`).join(' · ')}</p>`).join('')}</div>`; };
   const outCard = ([c, xs]) => `<div class="oly-group"><div class="oly-group-h">${flag(c)} ${esc(OLY.nation(c))}</div>${xs.sort((a, b) => b.lv - a.lv).map(x => { const o = OLY_OUT[x.why] || ['🚫', x.why]; return `<p class="note small" style="margin:0"><span title="${esc(o[1])}">${o[0]}</span> ${who(x)} ${lv(x.lv)} <span class="muted">${esc(o[1])}</span></p>`; }).join('')}</div>`;
@@ -19556,6 +19557,7 @@ screens.olympics = (args = {}) => {
       ${(F.oqt || []).length ? `<details class="cmb-fold"><summary>Qualifier results</summary>${F.oqt.map(q => `<p class="note small" style="margin:0">${esc(q.city)}: ${flag(q.final.a)} ${q.final.sa} – ${q.final.sb} ${flag(q.final.b)} · ${flag(q.winner)} goes</p>`).join('')}</details>` : ''}
     </fieldset>
     ${nats.length ? `<fieldset class="frame"><legend>🛂 Naturalized</legend><div class="oly-chips">${nats.map(x => `<span class="oly-chip">${flag(x.c)} ${who(x)}</span>`).join('')}</div></fieldset>` : ''}
+    ${pros.length ? `<fieldset class="frame"><legend>🎓 Prospects</legend><p class="note small muted">Not in the league yet, but already playing for their country.</p><div class="oly-chips">${pros.map(x => `<span class="oly-chip">${flag(x.c)} ${who(x)} ${lv(x.lv)}</span>`).join('')}</div></fieldset>` : ''}
     ${snubs.length ? `<fieldset class="frame"><legend>😤 Snubs</legend><div class="oly-groups">${byC(snubs).map(snubCard).join('')}</div></fieldset>` : ''}
     ${outs.length ? `<fieldset class="frame"><legend>🚫 Sitting This One Out</legend><div class="oly-groups">${byC(outs).map(outCard).join('')}</div></fieldset>` : ''}`;
   // ---- Groups.
@@ -19668,7 +19670,7 @@ function olyRun() {
     const SK = ATTRS.filter(k => !PHYSICAL.includes(k));
     for (const Lr of Object.values(R.lines)) {
       const p = typeof Lr.k === 'number' ? P(Lr.k) : null;
-      if (!p || p.age > 24 || Lr.gp < 4 || Lr.min / Lr.gp < 20 || rng() > 0.4) continue;
+      if (!p || p.age > 24 || Lr.gp < 4 || Lr.min / Lr.gp < 20 || F.field.some(t => t.roster.some(x => x.pid === p.id && x.pro)) || rng() > 0.4) continue;
       const room = SK.filter(k => p.attributes[k] && p.attributes[k][0] < Math.min(p.attributes[k][1], attrCap(k)));
       if (!room.length) continue;
       const k = room[Math.floor(rng() * room.length)];

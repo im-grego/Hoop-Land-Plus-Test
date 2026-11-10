@@ -66,10 +66,20 @@ export function flagHtml(c, s = 2) {
 export const nation = c => NATIONS[c]?.[1] || c;
 const SQUAD = 12;
 const grp = pos => (pos <= 2 ? 'g' : pos >= 6 ? 'b' : 'w');   // guards, wings, bigs
+// His passing and rebounding (out of 20), for the box score: a passing big racks up assists, a big guard rebounds.
+const skillsOf = p => ({ pas: p.attributes?.PAS?.[0] ?? null, rb: Math.max(p.attributes?.DRE?.[0] ?? 0, p.attributes?.ORE?.[0] ?? 0) || null });
 
 // A hometown in a US state ("Atlanta, GA") makes him American, whatever the country field says.
 const US_STATES = new Set('AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' '));
-export const countryOf = p => { const m = /,\s*([A-Z]{2})\s*$/.exec(p.home || ''); return m && US_STATES.has(m[1]) ? 'US' : p.ctry === 'GB' ? 'UK' : p.ctry; };
+const BY_NAME = () => (BY_NAME.m ||= Object.fromEntries(Object.entries(NATIONS).flatMap(([c, n]) => [[n[1].toLowerCase(), c], [n[0].toLowerCase(), c]])));
+export const countryOf = p => {
+  const m = /,\s*([A-Z]{2})\s*$/.exec(p.home || '');
+  if (m && US_STATES.has(m[1])) return 'US';
+  const c = String(p.ctry || '');
+  if (c === 'GB') return 'UK';
+  if (c.length > 2) return { 'united states': 'US', usa: 'US', england: 'UK', 'united kingdom': 'UK' }[c.toLowerCase()] || BY_NAME()[c.toLowerCase()] || c;   // some prospects carry the full name
+  return c;
+};
 // The pool: the league's players by country (not retired, 39 or younger). `level(p)` is the app's shown level. Only
 // countries the game has a flag for field a team.
 function pools(players, level) {
@@ -164,13 +174,13 @@ export function strength(roster, c, host) {
 // seven spots from last summer's World Cup (the two best from the Americas and from Europe, the best from Africa, Asia
 // and Oceania), then four qualifying tournaments for the rest. `qual`: last summer's World Cup finish (codes, best
 // first); `coaches`: { c: { name, cid } }.
-export function buildField({ yr, players, level, prevIds = {}, edits = {}, home = [], seed, poGp, event = 'olympics', qual = null, coaches = {} }) {
+export function buildField({ yr, players, level, prevIds = {}, edits = {}, home = [], seed, poGp, event = 'olympics', qual = null, coaches = {}, prospects = [] }) {
   const rng = mulberry32(seed ^ 0x0717c);
   const [host, city] = event === 'worldcup' ? wcHostOf(yr) : hostOf(yr), by = pools(players, level), homeSet = new Set(home);
   const used = new Set(players.map(p => `${p.fn} ${p.ln}`.toLowerCase()));
   const teams = Object.keys(NATIONS).filter(c => flagIdx(c) >= 0).map(c => {
     const sel = selectTeam(c, by[c] || [], rng, new Set(prevIds[c] || []), edits[c], homeSet, poGp);
-    const roster = sel.picked.map(x => ({ pid: x.p.id, fn: x.p.fn, ln: x.p.ln, pos: x.p.pos, age: x.p.age, lv: x.lv, tid: x.p.tid }));
+    const roster = sel.picked.map(x => ({ pid: x.p.id, fn: x.p.fn, ln: x.p.ln, pos: x.p.pos, age: x.p.age, lv: x.lv, tid: x.p.tid, ...skillsOf(x.p) }));
     // The best of the country's own league are in the running too: a fringe league player doesn't beat a better pro
     // from home (unless you added him).
     const added = new Set(edits[c]?.add || []);
@@ -183,6 +193,7 @@ export function buildField({ yr, players, level, prevIds = {}, edits = {}, home 
       eligible: sel.eligible.map(x => x.p.id), str: 0 };
   });
   naturalize(teams, by, rng);
+  addProspects(teams, prospects, level);
   // The national coach: the one the app hands in (a league coach), or the federation's own man.
   for (const t of teams) {
     t.str = +strength(t.roster, t.c, host).toFixed(1);
@@ -231,6 +242,20 @@ export function buildField({ yr, players, level, prevIds = {}, edits = {}, home 
   return { yr, event, host, city, field, groups, via, oqt, out: teams.filter(t => !field.includes(t)).slice(0, 4).map(t => t.c) };
 }
 
+// High-pedigree prospects (4 stars and up, not in the league yet) play for their country only when it's thin: three
+// or fewer league players. Up to two a team, in place of the weakest home pros, if they're close to them.
+function addProspects(teams, prospects, level) {
+  for (const t of teams) {
+    if (t.roster.filter(x => x.pid != null).length > 3) continue;
+    const mine = prospects.filter(p => countryOf(p) === t.c && (p.pot || 0) >= 8).map(p => ({ p, lv: level(p) - 6 }))   // pre-draft ratings run high.sort((a, b) => b.lv - a.lv).slice(0, 2);
+    for (const x of mine) {
+      const worst = t.roster.reduce((m, y, j) => (y.pid == null && (m < 0 || y.lv < t.roster[m].lv) ? j : m), -1);
+      if (worst < 0 || x.lv < t.roster[worst].lv - 6) continue;
+      t.roster[worst] = { pid: x.p.id, fn: x.p.fn, ln: x.p.ln, pos: x.p.pos, age: x.p.age, lv: x.lv, tid: null, pro: true, ...skillsOf(x.p) };
+    }
+    t.roster.sort((a, b) => b.lv - a.lv);
+  }
+}
 // One naturalized player a team (FIBA's rule): a country with no more than three league players can bring in a
 // league player who won't make his own country's team (usually an American a few levels short of Team USA). The
 // thinnest teams ask first.
@@ -247,7 +272,7 @@ function naturalize(teams, by, rng) {
     const x = pool.splice(Math.floor(rng() * Math.min(pool.length, 20)), 1)[0];
     const worst = t.roster.reduce((m, y, j) => (y.pid == null && (m < 0 || y.lv < t.roster[m].lv) ? j : m), -1);
     if (worst < 0 || x.lv <= t.roster[worst].lv) continue;
-    t.roster[worst] = { pid: x.p.id, fn: x.p.fn, ln: x.p.ln, pos: x.p.pos, age: x.p.age, lv: x.lv, tid: x.p.tid, nat: x.c };
+    t.roster[worst] = { pid: x.p.id, fn: x.p.fn, ln: x.p.ln, pos: x.p.pos, age: x.p.age, lv: x.lv, tid: x.p.tid, nat: x.c, ...skillsOf(x.p) };
     t.roster.sort((a, b) => b.lv - a.lv);
   }
 }
@@ -266,26 +291,34 @@ function playGame(rng, A, B, stage) {
 }
 const MIN = [30, 28, 27, 25, 24, 21, 18, 15, 12, 10, 6, 4];
 function box(rng, T, pts, ot = 0) {
-  const rows = T.roster.map((x, i) => ({ x, min: Math.max(1, Math.round(MIN[i] + (rng() - 0.5) * 6)) }));
-  // Five on the floor for 40 minutes (plus five an overtime): 200 minutes, squared up on the starters.
-  const want = 200 + 25 * ot, have = rows.reduce((a, r) => a + r.min, 0);
-  for (let i = 0, d = want - have; d !== 0; i = (i + 1) % 5) { const st = Math.sign(d); if (rows[i].min + st >= 1) { rows[i].min += st; d -= st; } }
-  // Shares of the scoring by minutes and level, no one over about 30% (FIBA games spread it around).
-  // A hero on a heater takes a much bigger share (up to about 40%).
+  // How far each player stands above his own team (the 3rd to 8th men): a Giannis on a thin Greece is far above, a
+  // Tatum on Team USA barely. The further above, the more he plays and the more of the offense runs through him.
+  const lvs = T.roster.map(x => x.lv), mid = lvs.slice(2, 8).reduce((a, b) => a + b, 0) / Math.max(1, lvs.slice(2, 8).length);
+  const dom = x => Math.max(0, (x.lv - mid) / 10);
+  const rows = T.roster.map((x, i) => ({ x, d: dom(x), min: Math.max(1, Math.round(MIN[i] + (i < 3 ? Math.min(6, dom(x) * 3) : 0) + (rng() - 0.5) * 6)) }));
+  // Five on the floor for 40 minutes (plus five an overtime): 200 minutes. The bench gives back what the stars take.
+  const want = 200 + 25 * ot;
+  for (let guard = 0, d = want - rows.reduce((a, r) => a + r.min, 0); d !== 0 && guard < 500; guard++) {
+    const st = Math.sign(d), order = st < 0 ? [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4];
+    const i = order[guard % order.length];
+    if (rows[i] && rows[i].min + st >= 1 && rows[i].min + st <= 40) { rows[i].min += st; d -= st; }
+  }
+  // Scoring shares: minutes, level and how far above his team he is. Deep teams spread it (no one much past a
+  // quarter); a lone star can take well over a third. A hero on a heater takes even more.
   const isHero = r => T.hero != null && (r.x.pid ?? `${r.x.fn} ${r.x.ln}`) === T.hero;
-  let w = rows.map(r => r.min * Math.pow(Math.max(40, r.x.lv) / 80, 3) * (0.6 + rng() * 0.8) * (isHero(r) ? 1.8 : 1));
-  for (let k = 0; k < 3; k++) { const sw = w.reduce((a, b) => a + b, 0) || 1; w = w.map((v, i) => Math.min(v, sw * (isHero(rows[i]) ? 0.42 : 0.3))); }
+  const cap = r => (isHero(r) ? 0.42 : 0.2 + Math.min(0.15, r.d * 0.075));
+  let w = rows.map(r => r.min * Math.pow(Math.max(40, r.x.lv) / 80, 4) * (1 + r.d * 0.6) * (0.75 + rng() * 0.5) * (isHero(r) ? 1.6 : 1));
+  for (let k = 0; k < 4; k++) { const sw = w.reduce((a, b) => a + b, 0) || 1; w = w.map((v, i) => Math.min(v, sw * cap(rows[i]))); }
   const sw = w.reduce((a, b) => a + b, 0) || 1;
   const pts0 = w.map(v => Math.floor(pts * v / sw));
   let left = pts - pts0.reduce((a, b) => a + b, 0);
   for (let i = 0; left > 0; i = (i + 1) % rows.length) if (rows[i].min > 0) { pts0[i]++; left--; }
-  const out = rows.map((r, i) => {
-    const p = pts0[i];
-    const g = grp(r.x.pos), m = r.min / 30;
-    return { k: r.x.pid ?? `${r.x.fn} ${r.x.ln}`, min: r.min, pts: p,
-      reb: Math.round(m * (g === 'b' ? 7 : g === 'w' ? 4.5 : 3) * (0.5 + rng())), ast: Math.round(m * (g === 'g' ? 5 : g === 'w' ? 2.5 : 1.5) * (0.5 + rng())) };
+  return rows.map((r, i) => {
+    const g = grp(r.x.pos), m = (r.min / 30) * (Math.max(40, r.x.lv) / 80) * (1 + r.d * 0.12);
+    return { k: r.x.pid ?? `${r.x.fn} ${r.x.ln}`, min: r.min, pts: pts0[i],
+      reb: Math.round(m * (r.x.rb != null ? 0.5 + r.x.rb * 0.42 : g === 'b' ? 7 : g === 'w' ? 4.5 : 3) * (0.6 + rng() * 0.8)),
+      ast: Math.round(m * (r.x.pas != null ? Math.max(0.5, (r.x.pas - 4) * 0.36) : g === 'g' ? 5 : g === 'w' ? 2.5 : 1.5) * (0.6 + rng() * 0.8)) };
   });
-  return out;
 }
 
 // The whole tournament.
@@ -342,9 +375,9 @@ export function runGames(F, seed) {
   const finish = [medals.gold, medals.silver, medals.bronze, medals.fourth, ...qfOut, ...standings.flat().map(x => x.c).filter(c => !seeds.slice(0, 8).includes(c))
     .sort((a, b) => table[b].w - table[a].w || (table[b].pf - table[b].pa) - (table[a].pf - table[a].pa))];
   // Injuries: a league player's chance grows with his minutes (about 3% for a full tournament, more if injury-prone).
-  const injuries = [];
+  const injuries = [], prospectIds = new Set(F.field.flatMap(t => t.roster.filter(x => x.pro).map(x => x.pid)));
   for (const L of lines.values()) {
-    if (typeof L.k !== 'number') continue;
+    if (typeof L.k !== 'number' || prospectIds.has(L.k)) continue;
     const c = Math.min(0.12, 0.03 * (L.min / 160) * (F.prone?.(L.k) || 1));
     if (rng() >= c) continue;
     const r = rng(), area = ['lowerBody', 'lowerBody', 'lowerBody', 'upperBody', 'core'][Math.floor(rng() * 5)];
