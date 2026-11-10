@@ -30,11 +30,28 @@ export const NATIONS = {
   MX: ['MEX', 'Mexico', 70], PH: ['PHI', 'Philippines', 70], BS: ['BAH', 'Bahamas', 66], CM: ['CMR', 'Cameroon', 69], IL: ['ISR', 'Israel', 73],
   BE: ['BEL', 'Belgium', 72], UK: ['GBR', 'Great Britain', 71], VE: ['VEN', 'Venezuela', 70], JM: ['JAM', 'Jamaica', 64], UA: ['UKR', 'Ukraine', 72],
   KR: ['KOR', 'South Korea', 66], EG: ['EGY', 'Egypt', 66],
+  // Every other country with a flag in the game: anyone can field a team when the league gives them the players.
+  AL: ['ALB', 'Albania', 62], AT: ['AUT', 'Austria', 65], BA: ['BIH', 'Bosnia and Herzegovina', 68], BB: ['BAR', 'Barbados', 58], BD: ['BAN', 'Bangladesh', 52],
+  BG: ['BUL', 'Bulgaria', 65], BN: ['BRU', 'Brunei', 50], BY: ['BLR', 'Belarus', 61], CG: ['CGO', 'Congo', 60], CH: ['SUI', 'Switzerland', 63], CL: ['CHI', 'Chile', 60],
+  CO: ['COL', 'Colombia', 60], CR: ['CRC', 'Costa Rica', 56], CU: ['CUB', 'Cuba', 62], CY: ['CYP', 'Cyprus', 58], DK: ['DEN', 'Denmark', 62], DZ: ['ALG', 'Algeria', 58],
+  EC: ['ECU', 'Ecuador', 56], EE: ['EST', 'Estonia', 66], GH: ['GHA', 'Ghana', 60], GT: ['GUA', 'Guatemala', 54], HK: ['HKG', 'Hong Kong', 54], HN: ['HON', 'Honduras', 54],
+  HT: ['HAI', 'Haiti', 56], HU: ['HUN', 'Hungary', 65], ID: ['INA', 'Indonesia', 58], IE: ['IRL', 'Ireland', 58], IN: ['IND', 'India', 56], IQ: ['IRQ', 'Iraq', 56],
+  IR: ['IRI', 'Iran', 65], IS: ['ISL', 'Iceland', 63], KH: ['CAM', 'Cambodia', 50], KW: ['KUW', 'Kuwait', 52], KY: ['CAY', 'Cayman Islands', 50], KZ: ['KAZ', 'Kazakhstan', 60],
+  LA: ['LAO', 'Laos', 48], LB: ['LBN', 'Lebanon', 67], LK: ['SRI', 'Sri Lanka', 48], LU: ['LUX', 'Luxembourg', 56], LY: ['LBA', 'Libya', 56], MA: ['MAR', 'Morocco', 58],
+  MK: ['MKD', 'North Macedonia', 64], MT: ['MLT', 'Malta', 52], MY: ['MAS', 'Malaysia', 52], NI: ['NCA', 'Nicaragua', 52], NL: ['NED', 'Netherlands', 65], NO: ['NOR', 'Norway', 58],
+  PA: ['PAN', 'Panama', 58], PE: ['PER', 'Peru', 54], PK: ['PAK', 'Pakistan', 50], PS: ['PLE', 'Palestine', 54], PT: ['POR', 'Portugal', 64], PY: ['PAR', 'Paraguay', 58],
+  RO: ['ROU', 'Romania', 61], RU: ['RUS', 'Russia', 72], SA: ['KSA', 'Saudi Arabia', 56], SE: ['SWE', 'Sweden', 62], SG: ['SGP', 'Singapore', 50], SK: ['SVK', 'Slovakia', 61],
+  SO: ['SOM', 'Somalia', 48], SV: ['ESA', 'El Salvador', 52], SY: ['SYR', 'Syria', 58], TH: ['THA', 'Thailand', 52], TN: ['TUN', 'Tunisia', 62], TT: ['TTO', 'Trinidad and Tobago', 54],
+  TW: ['TPE', 'Chinese Taipei', 58], UG: ['UGA', 'Uganda', 58], UY: ['URU', 'Uruguay', 62], UZ: ['UZB', 'Uzbekistan', 52], VN: ['VIE', 'Vietnam', 50], WS: ['SAM', 'Samoa', 48],
+  ZA: ['RSA', 'South Africa', 56],
 };
 // FIBA's regions, for the World Cup field and the Olympic spots it hands out.
-const REGION = { US: 'AM', CA: 'AM', AR: 'AM', BR: 'AM', PR: 'AM', DO: 'AM', MX: 'AM', BS: 'AM', VE: 'AM', JM: 'AM',
-  AU: 'OC', NZ: 'OC', JP: 'AS', CN: 'AS', PH: 'AS', KR: 'AS',
-  NG: 'AF', SN: 'AF', CM: 'AF', EG: 'AF' };
+const REGION = Object.fromEntries([
+  ['AM', 'US CA AR BR PR DO MX BS VE JM CL CO CR CU EC GT HN HT NI PA PE PY SV TT UY BB KY'],
+  ['OC', 'AU NZ WS'],
+  ['AS', 'JP CN PH KR BD BN HK ID IN IQ IR KH KW KZ LA LB LK MY PK PS SA SG SY TH TW UZ VN'],
+  ['AF', 'NG SN CM EG CG DZ GH LY MA SO TN UG ZA'],
+].flatMap(([r, cs]) => cs.split(' ').map(c => [c, r]))); // everyone else: Europe
 export const regionOf = c => REGION[c] || 'EU';
 export const code = c => NATIONS[c]?.[0] || c;
 // The game's own pixel flags (img/flags.png, 15x11 each, 12 to a row, in this order).

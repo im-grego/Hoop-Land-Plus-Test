@@ -26,6 +26,8 @@ const G = {
   chinese: { f: ['Wei', 'Jun', 'Hao', 'Yang', 'Ming', 'Lei', 'Tao', 'Bo', 'Jian', 'Kai'], l: ['Zhang', 'Wang', 'Li', 'Liu', 'Chen', 'Yang', 'Huang', 'Zhao', 'Wu', 'Zhou', 'Xu', 'Sun'], skin: [0.55, 0.76] },
   korean: { f: ['Minjun', 'Seojun', 'Jiho', 'Hyunwoo', 'Jaewon', 'Donghyun', 'Sungmin', 'Taeyang', 'Junho', 'Yoonho'], l: ['Kim', 'Lee', 'Park', 'Choi', 'Jung', 'Kang', 'Cho', 'Yoon', 'Jang', 'Lim'], skin: [0.55, 0.76] },
   filipino: { f: ['Jericho', 'Kai', 'Justin', 'Carlo', 'Miguel', 'Gabriel', 'Paolo', 'Jaymar', 'Rey', 'Mark'], l: ['Santos', 'Reyes', 'Cruz', 'Bautista', 'Ocampo', 'Garcia', 'Mendoza', 'Villanueva', 'Ramos', 'Aquino'], skin: [0.4, 0.68] },
+  southasian: { f: ['Arjun', 'Rohan', 'Vikram', 'Amit', 'Rahul', 'Sanjay', 'Imran', 'Faisal', 'Hassan', 'Kasun', 'Nuwan', 'Tanvir', 'Arif', 'Kiran'], l: ['Singh', 'Sharma', 'Patel', 'Khan', 'Kumar', 'Rahman', 'Hossain', 'Perera', 'Fernando', 'Silva', 'Chowdhury', 'Iqbal', 'Ahmed', 'Reddy'], skin: [0.3, 0.6] },
+  dutch: { f: ['Daan', 'Sem', 'Lucas', 'Milan', 'Thijs', 'Bram', 'Jesse', 'Ruben', 'Lars', 'Stijn', 'Niels', 'Jasper'], l: ['de Jong', 'Jansen', 'de Vries', 'van den Berg', 'Bakker', 'Visser', 'Smit', 'Meijer', 'Mulder', 'Bos', 'Vos', 'Dekker'], skin: [0.75, 0.95] },
   vietnamese: { f: ['Minh', 'Anh', 'Hieu', 'Quang', 'Duc', 'Tuan', 'Khoa', 'Long', 'Nam', 'Bao'], l: ['Nguyen', 'Tran', 'Le', 'Pham', 'Hoang', 'Vu', 'Dang', 'Bui', 'Do', 'Ngo'], skin: [0.5, 0.74] },
   caribbean: { f: ['Kemar', 'Jamal', 'Rashad', 'Dwayne', 'Tevin', 'Andre', 'Jabari', 'Dexter', 'Kirk', 'Marlon'], l: ['Brown', 'Campbell', 'Grant', 'Henry', 'Thompson', 'Clarke', 'Ferguson', 'Pinder', 'Rolle', 'Johnson', 'Bain', 'Knowles'], skin: [0.15, 0.45] },
   hispaniccaribbean: { f: ['Juan', 'Luis', 'Angel', 'Jose', 'Rafael', 'Carlos', 'Yoel', 'Elvis', 'Wilfredo', 'Dairon'], l: ['Perez', 'Santana', 'Mejia', 'Pena', 'Cabrera', 'Rosario', 'Batista', 'Guzman', 'Ramos', 'Diaz'], skin: [0.2, 0.55] },
@@ -38,7 +40,7 @@ OF('balkan', 'RS HR SI BA ME MK BG RO AL XK HU'); OF('greek', 'GR CY'); OF('turk
 OF('slavic', 'PL UA CZ SK RU BY GE AM'); OF('nordic', 'FI SE NO DK IS'); OF('british', 'UK GB IE'); OF('nigerian', 'NG GH LR SL GM');
 OF('francoafrican', 'SN ML CI GN CM GA CD CG BF BJ TG MR CV'); OF('southsudan', 'SS SD ET KE UG TZ RW'); OF('arab', 'EG LB JO TN MA DZ IR IQ SY SA AE LY');
 OF('israeli', 'IL'); OF('japanese', 'JP'); OF('chinese', 'CN TW HK MN'); OF('korean', 'KR'); OF('filipino', 'PH ID TH MY');
-OF('vietnamese', 'VN'); OF('caribbean', 'BS JM TT BB HT BM AG LC VC GD'); OF('hispaniccaribbean', 'DO PR CU');
+OF('vietnamese', 'VN KH LA'); OF('southasian', 'BD IN PK LK'); OF('dutch', 'NL'); OF('filipino', 'BN SG'); OF('arab', 'KW PS SO'); OF('slavic', 'KZ UZ'); OF('caribbean', 'KY'); OF('latin', 'NI'); OF('british', 'ZA'); OF('caribbean', 'BS JM TT BB HT BM AG LC VC GD'); OF('hispaniccaribbean', 'DO PR CU');
 
 export const isForeign = p => !!p.ctry && !['US', ''].includes(p.ctry);
 export const groupFor = ctry => G[MAP[ctry]] || null;
