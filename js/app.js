@@ -70,7 +70,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.326.5';
+const APP_VERSION = '0.326.6';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -3634,13 +3634,17 @@ screens.chemistry = (args = {}) => {
   const t = league().teams.find(x => x.id === +args.arg) || myTeam();
   if (!t) { back(); return; }
   const ch = chemOf(t);
-  const rows = ch.ps.map(p => ({ p, r: ch.net.get(p.id) })).sort((a, b) => Math.abs(b.r?.d || 0) - Math.abs(a.r?.d || 0) || (b.p.season?.morale ?? 0) - (a.p.season?.morale ?? 0));
+  // Happiest first, then the best players; the upset and furious ones in their own list at the bottom.
+  const rows = ch.ps.map(p => ({ p, r: ch.net.get(p.id) })).sort((a, b) => (b.p.season?.morale ?? 60) - (a.p.season?.morale ?? 60) || shownLevel(b.p) - shownLevel(a.p));
+  const unhappy = rows.filter(x => moraleIdx(x.p.season?.morale) <= 1), fine = rows.filter(x => moraleIdx(x.p.season?.morale) > 1);
+  const row = ({ p, r }) => `<div class="drill-row wrap"><span class="grow"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b> ${moraleTag(p)}${r ? ` <span class="${r.d > 0 ? 'up' : r.d < 0 ? 'down' : 'muted'}">${r.d > 0 ? '▲' : r.d < 0 ? '▼' : ''}${Math.abs(r.d) || '±0'}</span>` : ' <span class="muted small">no change</span>'}
+        ${r ? `<br><span class="small muted">${r.why.map(x => `${x.d > 0 ? '+' : ''}${x.d} ${esc(x.why)}`).join(' · ')}</span>` : ''}</span></div>`;
   layout({
     title: 'Chemistry',
     body: `<fieldset class="frame"><legend>💙 ${esc(t.shortName)} Locker Room · ${ch.avg}</legend>
-      <p class="note small muted">Average morale across the roster (0 to 100), and how each player's mood has moved since the offseason began: new deals, roles, promises, trades and teammates.</p>
-      <div class="stack">${rows.map(({ p, r }) => `<div class="drill-row wrap"><span class="grow"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b> ${moraleTag(p)}${r ? ` <span class="${r.d > 0 ? 'up' : r.d < 0 ? 'down' : 'muted'}">${r.d > 0 ? '▲' : r.d < 0 ? '▼' : ''}${Math.abs(r.d) || '±0'}</span>` : ' <span class="muted small">no change</span>'}
-        ${r ? `<br><span class="small muted">${r.why.map(x => `${x.d > 0 ? '+' : ''}${x.d} ${esc(x.why)}`).join(' · ')}</span>` : ''}</span></div>`).join('')}</div>
+      <p class="note small muted">Average morale across the roster, and how each player's mood has moved since the offseason began: new deals, roles, promises, trades and teammates.</p>
+      <div class="stack">${fine.map(row).join('')}</div>
+      ${unhappy.length ? `<h4 class="ov-h down">Unhappy (${unhappy.length})</h4><div class="stack">${unhappy.map(row).join('')}</div>` : ''}
     </fieldset>`,
   });
 };
@@ -10605,12 +10609,12 @@ function attrRow(p, snap, k, ceilMode) {
         <span>${down ? `<span class="down">${reg}</span>` : cur}${t ? ` <span class="${t > 0 ? 'up' : 'down'}" title="${esc(tmp.src)}: temporary">(${t > 0 ? '+' : '−'}${Math.abs(t)})</span>` : ''}${delta ? ` <span class="${delta > 0 ? 'up' : 'down'}">(${delta > 0 ? '+' : ''}${delta})</span>` : ''}${phys ? '' : ` <span class="${down ? '' : 'gold'}">/ ${down ? cur : ceil}</span>`}</span>
       </div>
       <div class="${barClass(k)}">
-        ${down ? `<div class="lost" style="left:${reg / ATTR_MAX * 100}%;width:${(Math.min(cur, ATTR_MAX) - reg) / ATTR_MAX * 100}%"></div>` : `<div class="room" style="width:${Math.min(ceil, ATTR_MAX) / ATTR_MAX * 100}%"></div>`}
+        ${down ? `<div class="lost" style="left:${(reg - Math.min(0, t)) / ATTR_MAX * 100}%;width:${(Math.min(cur, ATTR_MAX) - reg) / ATTR_MAX * 100}%"></div>` : `<div class="room" style="width:${Math.min(ceil, ATTR_MAX) / ATTR_MAX * 100}%"></div>`}
         <div class="fill" style="width:${(down ? Math.min(reg, base) : base) / ATTR_MAX * 100}%"></div>
         ${delta > 0 && !down ? `<div class="gain" style="left:${orig / ATTR_MAX * 100}%;width:${delta / ATTR_MAX * 100}%"></div>` : ''}
         ${delta < 0 && !down ? `<div class="lost" style="left:${cur / ATTR_MAX * 100}%;width:${-delta / ATTR_MAX * 100}%"></div>` : ''}
         ${t > 0 ? `<div class="temp up" title="${esc(tmp.src)}" style="left:${(cur - t) / ATTR_MAX * 100}%;width:${t / ATTR_MAX * 100}%"></div>` : ''}
-        ${t < 0 ? `<div class="temp down" title="${esc(tmp.src)}" style="left:${cur / ATTR_MAX * 100}%;width:${-t / ATTR_MAX * 100}%"></div>` : ''}
+        ${t < 0 ? `<div class="temp down" title="${esc(tmp.src)}" style="left:${(down ? reg : cur) / ATTR_MAX * 100}%;width:${-t / ATTR_MAX * 100}%"></div>` : ''}
         ${down || phys ? '' : `<div class="ceil" style="left:calc(${Math.min(ceil, ATTR_MAX) / ATTR_MAX * 100}% - 2px)"></div>`}
         ${BREAKPOINTS.map(b => `<div class="bp" style="left:${b / ATTR_MAX * 100}%"></div>`).join('')}
       </div>
