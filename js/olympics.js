@@ -9,7 +9,7 @@ export const isOlympicYear = yr => yr >= 2028 && yr % 4 === 0;
 export const isWorldCupYear = yr => yr >= 2027 && yr % 4 === 3;
 export const eventOf = yr => (isOlympicYear(yr) ? 'olympics' : isWorldCupYear(yr) ? 'worldcup' : null);
 export const EVENT_NAME = { olympics: 'Olympics', worldcup: 'World Cup' };
-const WC_HOSTS = { 2027: ['QA', 'Doha'], 2031: ['FR', 'Paris'] };
+const WC_HOSTS = { 2027: ['PH', 'Manila'], 2031: ['FR', 'Paris'] };
 const WC_ROTATION = [['AR', 'Buenos Aires'], ['JP', 'Tokyo'], ['DE', 'Berlin'], ['AU', 'Melbourne'], ['ES', 'Madrid'], ['PH', 'Manila']];
 export const wcHostOf = yr => WC_HOSTS[yr] || WC_ROTATION[((yr - 2035) / 4) % WC_ROTATION.length | 0];
 
@@ -29,12 +29,12 @@ export const NATIONS = {
   CN: ['CHN', 'China', 71], PL: ['POL', 'Poland', 73], FI: ['FIN', 'Finland', 73], GE: ['GEO', 'Georgia', 73], CZ: ['CZE', 'Czechia', 73],
   MX: ['MEX', 'Mexico', 70], PH: ['PHI', 'Philippines', 70], BS: ['BAH', 'Bahamas', 66], CM: ['CMR', 'Cameroon', 69], IL: ['ISR', 'Israel', 73],
   BE: ['BEL', 'Belgium', 72], UK: ['GBR', 'Great Britain', 71], VE: ['VEN', 'Venezuela', 70], JM: ['JAM', 'Jamaica', 64], UA: ['UKR', 'Ukraine', 72],
-  QA: ['QAT', 'Qatar', 64], KR: ['KOR', 'South Korea', 66], JO: ['JOR', 'Jordan', 66], AO: ['ANG', 'Angola', 66], CI: ['CIV', 'Ivory Coast', 66], EG: ['EGY', 'Egypt', 66],
+  KR: ['KOR', 'South Korea', 66], EG: ['EGY', 'Egypt', 66],
 };
 // FIBA's regions, for the World Cup field and the Olympic spots it hands out.
 const REGION = { US: 'AM', CA: 'AM', AR: 'AM', BR: 'AM', PR: 'AM', DO: 'AM', MX: 'AM', BS: 'AM', VE: 'AM', JM: 'AM',
-  AU: 'OC', NZ: 'OC', JP: 'AS', CN: 'AS', PH: 'AS', KR: 'AS', JO: 'AS', QA: 'AS',
-  NG: 'AF', SS: 'AF', SN: 'AF', CM: 'AF', AO: 'AF', CI: 'AF', EG: 'AF' };
+  AU: 'OC', NZ: 'OC', JP: 'AS', CN: 'AS', PH: 'AS', KR: 'AS',
+  NG: 'AF', SN: 'AF', CM: 'AF', EG: 'AF' };
 export const regionOf = c => REGION[c] || 'EU';
 export const code = c => NATIONS[c]?.[0] || c;
 // The game's own pixel flags (img/flags.png, 15x11 each, 12 to a row, in this order).
@@ -50,11 +50,16 @@ export const nation = c => NATIONS[c]?.[1] || c;
 const SQUAD = 12;
 const grp = pos => (pos <= 2 ? 'g' : pos >= 6 ? 'b' : 'w');   // guards, wings, bigs
 
-// The pool: the league's players by country (not retired, 39 or younger). `level(p)` is the app's shown level.
+// A hometown in a US state ("Atlanta, GA") makes him American, whatever the country field says.
+const US_STATES = new Set('AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' '));
+export const countryOf = p => { const m = /,\s*([A-Z]{2})\s*$/.exec(p.home || ''); return m && US_STATES.has(m[1]) ? 'US' : p.ctry === 'GB' ? 'UK' : p.ctry; };
+// The pool: the league's players by country (not retired, 39 or younger). `level(p)` is the app's shown level. Only
+// countries the game has a flag for field a team.
 function pools(players, level) {
   const by = {};
   for (const p of players) {
-    const c = p.ctry === 'GB' ? 'UK' : p.ctry;
+    const c = countryOf(p);
+    if (flagIdx(c) < 0) continue;
     if (!NATIONS[c] || p.age > 39) continue;
     (by[c] ||= []).push({ p, lv: level(p) });
   }
@@ -146,7 +151,7 @@ export function buildField({ yr, players, level, prevIds = {}, edits = {}, home 
   const rng = mulberry32(seed ^ 0x0717c);
   const [host, city] = event === 'worldcup' ? wcHostOf(yr) : hostOf(yr), by = pools(players, level), homeSet = new Set(home);
   const used = new Set(players.map(p => `${p.fn} ${p.ln}`.toLowerCase()));
-  const teams = Object.keys(NATIONS).map(c => {
+  const teams = Object.keys(NATIONS).filter(c => flagIdx(c) >= 0).map(c => {
     const sel = selectTeam(c, by[c] || [], rng, new Set(prevIds[c] || []), edits[c], homeSet, poGp);
     const roster = sel.picked.map(x => ({ pid: x.p.id, fn: x.p.fn, ln: x.p.ln, pos: x.p.pos, age: x.p.age, lv: x.lv, tid: x.p.tid }));
     // The best of the country's own league are in the running too: a fringe league player doesn't beat a better pro
