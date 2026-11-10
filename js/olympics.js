@@ -67,7 +67,7 @@ export const nation = c => NATIONS[c]?.[1] || c;
 const SQUAD = 12;
 const grp = pos => (pos <= 2 ? 'g' : pos >= 6 ? 'b' : 'w');   // guards, wings, bigs
 // His passing and rebounding (out of 20), for the box score: a passing big racks up assists, a big guard rebounds.
-const skillsOf = p => ({ pas: p.attributes?.PAS?.[0] ?? null, rb: Math.max(p.attributes?.DRE?.[0] ?? 0, p.attributes?.ORE?.[0] ?? 0) || null });
+const skillsOf = p => ({ pas: p.attributes?.PAS?.[0] ?? null, rb: Math.max(p.attributes?.DRE?.[0] ?? 0, p.attributes?.ORE?.[0] ?? 0) || null, st: p.attributes?.STL?.[0] ?? null, bk: p.attributes?.BLK?.[0] ?? null, pot: p.pot || 0 });
 
 // A hometown in a US state ("Atlanta, GA") makes him American, whatever the country field says.
 const US_STATES = new Set('AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' '));
@@ -312,7 +312,10 @@ function box(rng, T, pts, ot = 0) {
   // Tatum on Team USA barely. The further above, the more he plays and the more of the offense runs through him.
   const lvs = T.roster.map(x => x.lv), mid = lvs.slice(2, 8).reduce((a, b) => a + b, 0) / Math.max(1, lvs.slice(2, 8).length);
   const dom = x => Math.max(0, (x.lv - mid) / 10);
-  const rows = T.roster.map((x, i) => ({ x, d: dom(x), min: Math.max(1, Math.round(MIN[i] + (i < 3 ? Math.min(6, dom(x) * 3) : 0) + (rng() - 0.5) * 6)) }));
+  // A prospect plays a modest role, unless he's a great one (4.5 stars and up) on a thin team.
+  const thin = T.roster.filter(x => x.pid != null && !x.pro).length <= 3;
+  const modest = x => x.pro && !(thin && (x.pot || 0) >= 9);
+  const rows = T.roster.map((x, i) => ({ x, d: modest(x) ? 0 : dom(x), min: Math.max(1, Math.round(MIN[i] + (i < 3 && !modest(x) ? Math.min(6, dom(x) * 3) : 0) - (modest(x) ? 5 : 0) + (rng() - 0.5) * 6)) }));
   // Five on the floor for 40 minutes (plus five an overtime): 200 minutes. The bench gives back what the stars take.
   const want = 200 + 25 * ot;
   for (let guard = 0, d = want - rows.reduce((a, r) => a + r.min, 0); d !== 0 && guard < 500; guard++) {
@@ -324,7 +327,7 @@ function box(rng, T, pts, ot = 0) {
   // quarter); a lone star can take well over a third. A hero on a heater takes even more.
   const isHero = r => T.hero != null && (r.x.pid ?? `${r.x.fn} ${r.x.ln}`) === T.hero;
   const cap = r => (isHero(r) ? 0.42 : 0.2 + Math.min(0.15, r.d * 0.075));
-  let w = rows.map(r => r.min * Math.pow(Math.max(40, r.x.lv) / 80, 4) * (1 + r.d * 0.6) * (0.75 + rng() * 0.5) * (isHero(r) ? 1.6 : 1));
+  let w = rows.map(r => r.min * Math.pow(Math.max(40, r.x.lv) / 80, 4) * (1 + r.d * 0.6) * (0.75 + rng() * 0.5) * (isHero(r) ? 1.6 : 1) * (modest(r.x) ? 0.65 : 1));
   for (let k = 0; k < 4; k++) { const sw = w.reduce((a, b) => a + b, 0) || 1; w = w.map((v, i) => Math.min(v, sw * cap(rows[i]))); }
   const sw = w.reduce((a, b) => a + b, 0) || 1;
   const pts0 = w.map(v => Math.floor(pts * v / sw));
@@ -334,7 +337,8 @@ function box(rng, T, pts, ot = 0) {
     const g = grp(r.x.pos), m = (r.min / 30) * (Math.max(40, r.x.lv) / 80) * (1 + r.d * 0.12);
     return { k: r.x.pid ?? `${r.x.fn} ${r.x.ln}`, min: r.min, pts: pts0[i],
       reb: Math.round(m * (r.x.rb != null ? 0.5 + r.x.rb * 0.42 : g === 'b' ? 7 : g === 'w' ? 4.5 : 3) * (0.6 + rng() * 0.8)),
-      ast: Math.round(m * (r.x.pas != null ? Math.max(0.5, (r.x.pas - 4) * 0.36) : g === 'g' ? 5 : g === 'w' ? 2.5 : 1.5) * (0.6 + rng() * 0.8)) };
+      ast: Math.round(m * (r.x.pas != null ? Math.max(0.5, (r.x.pas - 4) * 0.36) : g === 'g' ? 5 : g === 'w' ? 2.5 : 1.5) * (0.6 + rng() * 0.8)),
+      stl: Math.round(m * (r.x.st != null ? r.x.st * 0.08 : 0.9) * (0.4 + rng() * 1.2)), blk: Math.round(m * (r.x.bk != null ? r.x.bk * 0.08 : g === 'b' ? 1.1 : 0.4) * (0.4 + rng() * 1.2)) };
   });
 }
 
@@ -378,9 +382,9 @@ export function runGames(F, seed) {
   // Tournament lines, the MVP (from the medal teams, best line) and the All-Star Five.
   const lines = new Map();
   for (const G of games) G.box.forEach((b, side) => { const c = side ? G.b : G.a; for (const r of b) {
-    const L = lines.get(r.k) || lines.set(r.k, { k: r.k, c, gp: 0, pts: 0, reb: 0, ast: 0, min: 0 }).get(r.k);
+    const L = lines.get(r.k) || lines.set(r.k, { k: r.k, c, gp: 0, pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, min: 0 }).get(r.k);
     if (r.min > 0) L.gp++;
-    L.pts += r.pts; L.reb += r.reb; L.ast += r.ast; L.min += r.min;
+    L.pts += r.pts; L.reb += r.reb; L.ast += r.ast; L.stl += r.stl || 0; L.blk += r.blk || 0; L.min += r.min;
   } });
   const val = L => (L.pts + L.reb * 0.8 + L.ast * 1.1) / Math.max(1, L.gp);
   const all = [...lines.values()].filter(L => L.gp >= 3);

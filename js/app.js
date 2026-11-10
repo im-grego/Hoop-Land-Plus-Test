@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.329.7';
+const APP_VERSION = '0.329.8';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -12902,7 +12902,6 @@ screens.prospect = (args) => {
   layout({
     title: 'Prospect',
     body: `
-      ${olyBox(p)}
       <div class="pros-head">
         <button class="mvbtn pros-add ${onBoard(p.id) ? 'on' : ''}" data-act="toggleBoard" data-id="${p.id}" aria-label="${onBoard(p.id) ? 'Remove from' : 'Add to'} your board">${onBoard(p.id) ? '✓' : '+'}</button>
         <h2 class="team-title">${esc(playerName(p))}</h2>
@@ -12915,7 +12914,7 @@ screens.prospect = (args) => {
       ${uiTabs('prospect', [
         ['over', 'Overview', `<fieldset class="frame"><legend>Scouting Report</legend>${scoutList(p)}</fieldset>
       <fieldset class="frame"><legend>Player Comps</legend>${compRow('Ceiling', c.ceiling)}${compRow('Floor', c.floor)}</fieldset>${outlookBox(p)}`],
-        ['stats', 'Stats', collegeBox(p) || '<p class="note muted">No college stats on record.</p>'],
+        ['stats', 'Stats', (intlBox(p) + collegeBox(p)) || '<p class="note muted">No college stats on record.</p>'],
         ['game', 'Traits', `${traitsBox(p, true)}${scouted(p.id) || workoutDone(p.id) ? playStyleBox(p) : '<fieldset class="frame"><legend>Play Style</legend><p class="note small muted">Send a scout to see how he plays.</p></fieldset>'}`],
         ['work', 'Workout', `${workoutBox(p)}${revealBox(p)}${combineBox(p)}`],
         ['rate', 'Ratings', `<fieldset class="frame"><legend>Ratings</legend>
@@ -19467,6 +19466,19 @@ function olyBox(p) {
   return `<fieldset class="frame"><legend>${OLY.logoSvg(26)} International</legend><div class="stack">${rec.map(r => r.left ? `<div class="small mv-row aw-row"><span class="mv-l">${OLY.flagHtml(r.c, 1.4)}<b>Left off</b> · ${esc(OLY.EVENT_NAME[r.ev])} · ${esc(OLY.nation(r.c))} <span class="muted">(🎓 lacking international experience)</span></span><span class="muted mv-r">${r.yr}</span></div>` : `<div class="small mv-row aw-row"><span class="mv-l">${OLY.flagHtml(r.c, 1.4)}<b>${r.medal ? `${MEDAL[r.medal]} ${r.medal[0].toUpperCase() + r.medal.slice(1)}` : 'Competed'}</b>${r.pro ? ' <span title="As a draft prospect">🎓</span>' : ''} · ${esc(OLY.EVENT_NAME[r.ev])} · ${esc(OLY.nation(r.c))}${r.nat ? ' <span class="muted">(naturalized)</span>' : ''}${r.mvp ? ' · <span class="gold">MVP</span>' : ''}${r.mates.length ? `<br><span class="muted">With ${r.mates.slice(0, 5).map(id => esc(olyName(id))).join(', ')}</span>` : ''}</span><span class="muted mv-r">${r.yr}${r.line?.gp ? ` · ${(r.line.pts / r.line.gp).toFixed(1)} pts` : ''}</span></div>`).join('')}</div></fieldset>`;
 }
 // A league coach's national-team record (for his page).
+// A prospect's international tournaments, laid out like his college line: a blurb, then PTS · REB · AST · STL · BLK.
+function intlBox(p) {
+  return olyRecord(p.id).filter(r => !r.left && r.line?.gp).map(r => {
+    const L = r.line, f = k => (L[k] / L.gp).toFixed(1), mpg = L.min / L.gp;
+    const st = olyStore()[r.yr], team = st?.field?.field?.find(t => t.c === r.c), lead = team?.roster.find(x => x.pid != null && x.pid !== p.id);
+    const role = mpg >= 28 ? `led ${OLY.nation(r.c)}` : mpg >= 20 ? `started for ${OLY.nation(r.c)}` : `came off the bench for ${OLY.nation(r.c)}${lead ? ` behind ${olyName(lead.pid)}` : ''}`;
+    const medal = r.medal ? `, and came home with ${r.medal}` : '';
+    return `<fieldset class="frame"><legend>🌍 International · ${esc(OLY.EVENT_NAME[r.ev])} ${r.yr}</legend>
+      <p class="note small college-head">${OLY.flagHtml(r.c, 2.4)}<span><b>${esc(OLY.nation(r.c))}</b>${r.medal ? ` ${MEDAL[r.medal]}` : ''}<br><span class="muted">${L.gp} games · ${mpg.toFixed(1)} MPG</span></span></p>
+      <p class="note small">Before he was drafted, he ${esc(role)} at the ${r.yr} ${esc(OLY.EVENT_NAME[r.ev])}${esc(medal)}.</p>
+      <div class="statline">${[['PTS', f('pts')], ['REB', f('reb')], ['AST', f('ast')], ['STL', f('stl')], ['BLK', f('blk')]].map(([k, v]) => `<div><span class="muted small">${k}</span><b>${v}</b></div>`).join('')}</div></fieldset>`;
+  }).join('') + olyRecord(p.id).filter(r => r.left).map(r => `<p class="note small muted">${OLY.flagHtml(r.c, 1.4)} Left off ${esc(OLY.nation(r.c))}'s ${r.yr} ${esc(OLY.EVENT_NAME[r.ev])} team: 🎓 lacking international experience.</p>`).join('');
+}
 function olyCoachBox(c) {
   const st = olyStore();
   const rows = Object.entries(st).filter(([, v]) => v.result).map(([yr, v]) => {
