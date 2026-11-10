@@ -70,7 +70,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.326.6';
+const APP_VERSION = '0.326.7';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -9020,13 +9020,13 @@ function risersBox(L = league()) {
 
 // Hot and cold streaks (in season, every team). The game keeps a streak on each player (games in a row playing well,
 // positive, or badly, negative). A file loaded during the regular season turns a real streak into ratings for the
-// stretch ahead: hot (a streak of 3+ and producing at or above players his age at his position) is +1 to layup, inside,
+// stretch ahead: hot (a streak of 5+ and producing at or above players his age at his position) is +1 to layup, inside,
 // mid-range, three, dribbling, passing, offensive rebounding and steals (+4 levels); cold (-3 or worse and producing at
 // or below them) is -1 to layup, inside, mid-range, three, dribbling and offensive rebounding (-3 levels).
 // It lasts until the next file comes in: if the boosted file went out to the game, the next load takes it back off,
 // then the new streaks are read fresh. Behind the testing switch for now.
 const HOT_KEYS = ['LAY', 'INS', 'MID', 'TPT', 'DRB', 'PAS', 'ORE', 'STL'], COLD_KEYS = ['LAY', 'INS', 'MID', 'TPT', 'DRB', 'ORE'];
-const STREAK_MIN = 3;
+const HOT_MIN = 5, COLD_MIN = 3;   // a hot streak needs 5 games in a row; a cold one 3 (the game's slumps run shorter)
 const streakKey = () => `hlc:streaks:${saveTag()}`;
 function streakStore() { try { return JSON.parse(localStorage.getItem(streakKey())) || { list: {} }; } catch { return { list: {} }; } }
 function streakSave(v) { try { localStorage.setItem(streakKey(), JSON.stringify(v)); } catch { /* ignore */ } }
@@ -9062,7 +9062,7 @@ function applyStreaks() {
       if (risen[p.id]) continue;   // a playoff riser's boost and a streak never stack
       const s0 = p.gameStatus?.streak || 0, z = prod.get(p.id), l = seasonLine(p, state.leagueIdx, L.season.currentYear);
       if (z == null || !l || l.gp < 5) continue;
-      const kind = s0 >= STREAK_MIN && z >= 0 ? 'hot' : s0 <= -STREAK_MIN && z <= 0 ? 'cold' : null;
+      const kind = s0 >= HOT_MIN && z >= 0 ? 'hot' : s0 <= -COLD_MIN && z <= 0 ? 'cold' : null;
       if (!kind) continue;
       const keys = kind === 'hot' ? HOT_KEYS : COLD_KEYS, d = kind === 'hot' ? 1 : -1, add = {}, base = {};
       for (const k of keys) {
@@ -9090,7 +9090,7 @@ function streaksBox() {
   const line = ({ x, e }) => `<p class="note small" style="margin:0"><b class="tap ${isUserTeam(e.team || {}) ? 'gold' : ''}" data-act="openPlayer" data-id="${e.p.id}">${esc(playerName(e.p))}</b> <span class="muted">${esc(e.team?.shortName || '')} · ${Math.abs(x.streak)} straight</span></p>`;
   const sort = a => a.sort((p, q) => isUserTeam(q.e.team || {}) - isUserTeam(p.e.team || {}) || Math.abs(q.x.streak) - Math.abs(p.x.streak));
   const hot = sort(rows.filter(r => r.x.kind === 'hot')), cold = sort(rows.filter(r => r.x.kind === 'cold'));
-  return `<fieldset class="frame"><legend>🔥 Streaks</legend>${infoBtn('streaks', '<p class="small"><b>Hot and cold streaks</b>: a player on a streak of 3+ games who is producing at or above players his age at his position heats up: +1 to layup, inside, mid-range, three, dribbling, passing, offensive rebounding and steals. A cold streak of 3+ while producing at or below them is -1 to layup, inside, mid-range, three, dribbling and offensive rebounding.</p><p class="small muted">It lasts until the next file you load, then the streaks are read again.</p>', 'Streaks')}<div class="stack">
+  return `<fieldset class="frame"><legend>🔥 Streaks</legend>${infoBtn('streaks', '<p class="small"><b>Hot and cold streaks</b>: a player on a streak of 5+ games who is producing at or above players his age at his position heats up: +1 to layup, inside, mid-range, three, dribbling, passing, offensive rebounding and steals. A cold streak of 3+ while producing at or below them is -1 to layup, inside, mid-range, three, dribbling and offensive rebounding.</p><p class="small muted">It lasts until the next file you load, then the streaks are read again.</p>', 'Streaks')}<div class="stack">
     ${hot.length ? `<h4 class="ov-h up">🔥 Heating up (${hot.length})</h4>${hot.slice(0, 8).map(line).join('')}` : ''}
     ${cold.length ? `<h4 class="ov-h down">❄️ Cooling off (${cold.length})</h4>${cold.slice(0, 8).map(line).join('')}` : ''}</div></fieldset>`;
 }
