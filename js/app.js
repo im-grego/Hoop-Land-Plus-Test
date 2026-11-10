@@ -20009,7 +20009,7 @@ function dbxShareBox() {
 actions.dbxConnectOnce = async () => {
   const installed = runningInstalled();
   const w = window.open('', '_blank');
-  const url = await dropboxAuthUrl(BUILT_IN_APP_KEY, installed ? null : `${location.origin}/`);
+  const url = await dropboxAuthUrl(BUILT_IN_APP_KEY, installed ? null : new URL(".", location.href).href.split("?")[0]);
   if (w) w.location = url; else location.assign(url);
   render();
   toast(installed ? 'Allow access, then paste the code here' : 'Allow access in the new tab', '', 4000);
