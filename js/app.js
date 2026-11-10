@@ -70,7 +70,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.326.1';
+const APP_VERSION = '0.326.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -866,8 +866,8 @@ async function loadFile(file) {
     const planned = !isCollege() && applyClassPlan();
     if (!isCollege() && settleRetirees(league())) state.dirty = true;
     if (!isCollege() && playoffRotations()) state.dirty = true;
-    if (!isCollege() && (applyRisers() + settleRisers())) state.dirty = true;
     if (!isCollege() && applyStreaks()) state.dirty = true;
+    if (!isCollege() && (applyRisers() + settleRisers())) state.dirty = true;
     if (!isCollege() && stashReturn()) state.dirty = true;
     // Coaching changes land at the end of the season: every CPU chair filled before camp. Your own empty chair waits for you.
     if (!isCollege() && isComplete() && league().season.phase >= 2 && league().season.phase <= 6) {
@@ -9013,6 +9013,12 @@ const streakKey = () => `hlc:streaks:${saveTag()}`;
 function streakStore() { try { return JSON.parse(localStorage.getItem(streakKey())) || { list: {} }; } catch { return { list: {} }; } }
 function streakSave(v) { try { localStorage.setItem(streakKey(), JSON.stringify(v)); } catch { /* ignore */ } }
 const streakOf = id => streakStore().list?.[id]?.kind || null;
+function tempDelta(p) {
+  const st = streakStore().list?.[p.id];
+  if (st) return { src: st.kind === 'hot' ? 'Hot streak' : 'Cold streak', add: st.add };
+  const L = league(), rs = riseStore()[L.season.currentYear], x = rs && !rs.out ? rs.list?.[p.id] : null;
+  return x ? { src: 'Playoff riser', add: x.add } : null;
+}
 const streakIcon = p => { const k = streakOf(p.id); return k === 'hot' ? ' <span title="Hot streak">🔥</span>' : k === 'cold' ? ' <span title="Cold streak">❄️</span>' : ''; };
 function applyStreaks() {
   const L = league(), st = streakStore();
@@ -9033,7 +9039,9 @@ function applyStreaks() {
   if (labOn() && L.season.phase === 9) {
     const ps = L.teams.flatMap(t => FA.signedRoster(t));
     const prod = productionScores(ps, state.leagueIdx, L.season.currentYear, state.params);
+    const risen = riseStore()[L.season.currentYear]?.list || {};
     for (const p of ps) {
+      if (risen[p.id]) continue;   // a playoff riser's boost and a streak never stack
       const s0 = p.gameStatus?.streak || 0, z = prod.get(p.id), l = seasonLine(p, state.leagueIdx, L.season.currentYear);
       if (z == null || !l || l.gp < 5) continue;
       const kind = s0 >= STREAK_MIN && z >= 0 ? 'hot' : s0 <= -STREAK_MIN && z <= 0 ? 'cold' : null;
@@ -10399,6 +10407,7 @@ screens.player = (args) => {
           <button class="btn square" data-act="potAdj" data-dir="1" aria-label="Higher potential">+</button>
         </div>
         <div class="stack">
+          ${(tmp => tmp ? `<p class="note small temp-note">${tmp.src === 'Hot streak' ? '🔥' : tmp.src === 'Cold streak' ? '❄️' : '📈'} <b>${esc(tmp.src)}</b>: the white part of a bar is temporary${tmp.src === 'Playoff riser' ? ', for the playoffs' : ', until the next file comes in'}.</p>` : '')(tempDelta(p))}
           ${ATTRS.map(k => attrRow(p, snap, k, ceilMode)).join('')}
         </div>
         <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">Edit Ceilings</button></div>
@@ -10560,9 +10569,11 @@ const barClass = k => `bar${RATING_GROUP[k] ? ` c-${RATING_GROUP[k]}` : ''}`;
 // Breakpoints on every rating bar: 10, 14 and 18 of 20, where a rating starts costing more to raise in the game.
 const BREAKPOINTS = [10, 14, 18];
 function attrRow(p, snap, k, ceilMode) {
+  const tmp = tempDelta(p), t = tmp?.add?.[k] || 0;
   const phys = PHYSICAL.includes(k);
   const [cur] = p.attributes[k], ceil = phys ? cur : p.attributes[k][1];
-  const orig = snap.attributes[k][0];
+  // A temporary change (streak, playoff riser) shows only as the white part: it isn't this offseason's gain or loss.
+  const orig0 = snap.attributes[k][0], orig = t && orig0 === cur - t ? orig0 + t : orig0;
   const delta = cur - orig;
   const base = Math.min(cur, orig);
   // Declining: the game shows his peak minus this year's regression. The bar
@@ -10575,13 +10586,15 @@ function attrRow(p, snap, k, ceilMode) {
     <div class="body">
       <div class="top">
         <span class="lbl">${k} <span class="muted">${ATTR_NAMES[k]}</span></span>
-        <span>${down ? `<span class="down">${reg}</span>` : cur}${delta ? ` <span class="${delta > 0 ? 'up' : 'down'}">(${delta > 0 ? '+' : ''}${delta})</span>` : ''}${phys ? '' : ` <span class="${down ? '' : 'gold'}">/ ${down ? cur : ceil}</span>`}</span>
+        <span>${down ? `<span class="down">${reg}</span>` : cur}${t ? ` <span class="temp-num" title="${esc(tmp.src)}: temporary">${t > 0 ? '+' : '−'}${Math.abs(t)}</span>` : ''}${delta ? ` <span class="${delta > 0 ? 'up' : 'down'}">(${delta > 0 ? '+' : ''}${delta})</span>` : ''}${phys ? '' : ` <span class="${down ? '' : 'gold'}">/ ${down ? cur : ceil}</span>`}</span>
       </div>
       <div class="${barClass(k)}">
         ${down ? `<div class="lost" style="left:${reg / ATTR_MAX * 100}%;width:${(Math.min(cur, ATTR_MAX) - reg) / ATTR_MAX * 100}%"></div>` : `<div class="room" style="width:${Math.min(ceil, ATTR_MAX) / ATTR_MAX * 100}%"></div>`}
         <div class="fill" style="width:${(down ? Math.min(reg, base) : base) / ATTR_MAX * 100}%"></div>
         ${delta > 0 && !down ? `<div class="gain" style="left:${orig / ATTR_MAX * 100}%;width:${delta / ATTR_MAX * 100}%"></div>` : ''}
         ${delta < 0 && !down ? `<div class="lost" style="left:${cur / ATTR_MAX * 100}%;width:${-delta / ATTR_MAX * 100}%"></div>` : ''}
+        ${t > 0 ? `<div class="temp up" title="${esc(tmp.src)}" style="left:${(cur - t) / ATTR_MAX * 100}%;width:${t / ATTR_MAX * 100}%"></div>` : ''}
+        ${t < 0 ? `<div class="temp down" title="${esc(tmp.src)}" style="left:${cur / ATTR_MAX * 100}%;width:${-t / ATTR_MAX * 100}%"></div>` : ''}
         ${down || phys ? '' : `<div class="ceil" style="left:calc(${Math.min(ceil, ATTR_MAX) / ATTR_MAX * 100}% - 2px)"></div>`}
         ${BREAKPOINTS.map(b => `<div class="bp" style="left:${b / ATTR_MAX * 100}%"></div>`).join('')}
       </div>
