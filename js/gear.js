@@ -18,6 +18,8 @@ const rgb = h => [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
 const lum = h => { const [r, g, b] = rgb(h); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
 const dist = (a, b) => Math.hypot(...rgb(a).map((v, i) => v - rgb(b)[i]));
 export const isBlackish = v => HEX.test(v) && lum(v) <= 0.14;
+// A black jersey (141020, 202020, 000000): every channel dark. Navy and deep purple are colors, not black: white gear.
+export const isBlackJersey = v => HEX.test(v) && rgb(v).every(c => c <= 0x30);
 const isWhiteish = v => HEX.test(v) && lum(v) >= 0.93;
 export const resolve = (team, v) => { const c = team.teamColors || []; const t = { PRI: c[0], SEC: c[1], TER: c[2] }[v]; return String(t || v || '').toUpperCase(); };
 
@@ -27,7 +29,7 @@ export function targets(team) {
     // Jerseys 1 and 2 always wear white (even a black second jersey, like the Nets'); 3 and 4 follow the jersey.
     if (i <= 1) return 'FFFFFF';
     const jersey = resolve(team, u.jersey);
-    return isBlackish(jersey) ? BLACK : 'FFFFFF';
+    return isBlackJersey(jersey) ? BLACK : 'FFFFFF';
   });
 }
 
