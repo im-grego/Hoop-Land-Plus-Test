@@ -10407,7 +10407,7 @@ screens.player = (args) => {
           <button class="btn square" data-act="potAdj" data-dir="1" aria-label="Higher potential">+</button>
         </div>
         <div class="stack">
-          ${(tmp => tmp ? `<p class="note small temp-note">${tmp.src === 'Hot streak' ? '🔥' : tmp.src === 'Cold streak' ? '❄️' : '📈'} <b>${esc(tmp.src)}</b>: the white part of a bar is temporary${tmp.src === 'Playoff riser' ? ', for the playoffs' : ', until the next file comes in'}.</p>` : '')(tempDelta(p))}
+          ${(tmp => tmp ? `<p class="note small temp-note">${tmp.src === 'Hot streak' ? '🔥' : tmp.src === 'Cold streak' ? '❄️' : '📈'} <b>${esc(tmp.src)}</b>: ${tmp.src === 'Cold streak' ? 'the faded part of a bar is what the slump takes off' : 'the white part of a bar is temporary'}${tmp.src === 'Playoff riser' ? ', for the playoffs' : ', until the next file comes in'}.</p>` : '')(tempDelta(p))}
           ${ATTRS.map(k => attrRow(p, snap, k, ceilMode)).join('')}
         </div>
         <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">Edit Ceilings</button></div>
