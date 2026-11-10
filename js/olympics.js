@@ -5,6 +5,13 @@ import { mulberry32 } from './progression.js';
 import { nameFor } from './names.js';
 
 export const isOlympicYear = yr => yr >= 2028 && yr % 4 === 0;
+// The World Cup: the summer before each Olympics (2027, 2031, ...), sixteen teams, and where most Olympic spots are won.
+export const isWorldCupYear = yr => yr >= 2027 && yr % 4 === 3;
+export const eventOf = yr => (isOlympicYear(yr) ? 'olympics' : isWorldCupYear(yr) ? 'worldcup' : null);
+export const EVENT_NAME = { olympics: 'Olympics', worldcup: 'World Cup' };
+const WC_HOSTS = { 2027: ['QA', 'Doha'], 2031: ['FR', 'Paris'] };
+const WC_ROTATION = [['AR', 'Buenos Aires'], ['JP', 'Tokyo'], ['DE', 'Berlin'], ['AU', 'Melbourne'], ['ES', 'Madrid'], ['PH', 'Manila']];
+export const wcHostOf = yr => WC_HOSTS[yr] || WC_ROTATION[((yr - 2035) / 4) % WC_ROTATION.length | 0];
 
 // Hosts: the real ones, then a rotation.
 const HOSTS = { 2028: ['US', 'Los Angeles'], 2032: ['AU', 'Brisbane'] };
@@ -22,7 +29,13 @@ export const NATIONS = {
   CN: ['CHN', 'China', 71], PL: ['POL', 'Poland', 73], FI: ['FIN', 'Finland', 73], GE: ['GEO', 'Georgia', 73], CZ: ['CZE', 'Czechia', 73],
   MX: ['MEX', 'Mexico', 70], PH: ['PHI', 'Philippines', 70], BS: ['BAH', 'Bahamas', 66], CM: ['CMR', 'Cameroon', 69], IL: ['ISR', 'Israel', 73],
   BE: ['BEL', 'Belgium', 72], UK: ['GBR', 'Great Britain', 71], VE: ['VEN', 'Venezuela', 70], JM: ['JAM', 'Jamaica', 64], UA: ['UKR', 'Ukraine', 72],
+  QA: ['QAT', 'Qatar', 64], KR: ['KOR', 'South Korea', 66], JO: ['JOR', 'Jordan', 66], AO: ['ANG', 'Angola', 66], CI: ['CIV', 'Ivory Coast', 66], EG: ['EGY', 'Egypt', 66],
 };
+// FIBA's regions, for the World Cup field and the Olympic spots it hands out.
+const REGION = { US: 'AM', CA: 'AM', AR: 'AM', BR: 'AM', PR: 'AM', DO: 'AM', MX: 'AM', BS: 'AM', VE: 'AM', JM: 'AM',
+  AU: 'OC', NZ: 'OC', JP: 'AS', CN: 'AS', PH: 'AS', KR: 'AS', JO: 'AS', QA: 'AS',
+  NG: 'AF', SS: 'AF', SN: 'AF', CM: 'AF', AO: 'AF', CI: 'AF', EG: 'AF' };
+export const regionOf = c => REGION[c] || 'EU';
 export const code = c => NATIONS[c]?.[0] || c;
 export const nation = c => NATIONS[c]?.[1] || c;
 const SQUAD = 12;
@@ -115,10 +128,14 @@ export function strength(roster, c, host) {
   return s + (c === 'US' ? 0 : 2) + (c === host ? 1.5 : 0);
 }
 
-// Build the field: rosters for every nation, then the host plus the eleven strongest.
-export function buildField({ yr, players, level, prevIds = {}, edits = {}, home = [], seed, poGp }) {
+// Build the field: rosters for every nation, then who's in. The World Cup: the host and the fifteen strongest, with at
+// least three teams from the Americas, two from Africa, one from Asia and one from Oceania. The Olympics: the host,
+// seven spots from last summer's World Cup (the two best from the Americas and from Europe, the best from Africa, Asia
+// and Oceania), then four qualifying tournaments for the rest. `qual`: last summer's World Cup finish (codes, best
+// first); `coaches`: { c: { name, cid } }.
+export function buildField({ yr, players, level, prevIds = {}, edits = {}, home = [], seed, poGp, event = 'olympics', qual = null, coaches = {} }) {
   const rng = mulberry32(seed ^ 0x0717c);
-  const [host, city] = hostOf(yr), by = pools(players, level), homeSet = new Set(home);
+  const [host, city] = event === 'worldcup' ? wcHostOf(yr) : hostOf(yr), by = pools(players, level), homeSet = new Set(home);
   const used = new Set(players.map(p => `${p.fn} ${p.ln}`.toLowerCase()));
   const teams = Object.keys(NATIONS).map(c => {
     const sel = selectTeam(c, by[c] || [], rng, new Set(prevIds[c] || []), edits[c], homeSet, poGp);
@@ -132,13 +149,76 @@ export function buildField({ yr, players, level, prevIds = {}, edits = {}, home 
     roster.length = 0; roster.push(...pool2.slice(0, SQUAD).sort((a, b) => b.lv - a.lv));
     sel.snubs.unshift(...cut.slice(0, 2).map(x => ({ p: { id: x.pid }, lv: x.lv, why: 'beaten out by a pro from home' })));
     return { c, roster, withdrew: sel.withdrew.map(x => ({ pid: x.p.id, lv: x.lv, why: x.why })), snubs: sel.snubs.map(x => ({ pid: x.p.id, lv: x.lv, why: x.why })),
-      eligible: sel.eligible.map(x => x.p.id), str: +strength(roster, c, host).toFixed(1) };
-  }).sort((a, b) => b.str - a.str);
-  const field = [teams.find(t => t.c === host), ...teams.filter(t => t.c !== host).slice(0, 11)].filter(Boolean).sort((a, b) => b.str - a.str);
-  // Groups by pots (snake): A gets 1, 6, 7, 12; B 2, 5, 8, 11; C 3, 4, 9, 10.
-  const order = [[0, 5, 6, 11], [1, 4, 7, 10], [2, 3, 8, 9]];
-  const groups = order.map(ix => ix.map(i => field[i].c));
-  return { yr, host, city, field, groups, out: teams.filter(t => !field.includes(t)).slice(0, 4).map(t => t.c) };
+      eligible: sel.eligible.map(x => x.p.id), str: 0 };
+  });
+  naturalize(teams, by, rng);
+  // The national coach: the one the app hands in (a league coach), or the federation's own man.
+  for (const t of teams) {
+    t.str = +strength(t.roster, t.c, host).toFixed(1);
+    const nm = coaches[t.c] ? null : nameFor(rng, t.c, used);
+    t.coach = coaches[t.c] || (nm ? { name: `${nm.fn} ${nm.ln}` } : null);
+  }
+  teams.sort((a, b) => b.str - a.str);
+  const T = Object.fromEntries(teams.map(t => [t.c, t]));
+  let field, oqt = null;
+  const via = {};
+  if (event === 'worldcup') {
+    // The host, then the strongest, keeping the regional minimums.
+    const pick = [T[host]].filter(Boolean), rest = teams.filter(t => t.c !== host);
+    for (const [rg, n] of [['AM', 3], ['AF', 2], ['AS', 1], ['OC', 1]]) {
+      const need = Math.max(0, n - pick.filter(x => regionOf(x.c) === rg).length);
+      pick.push(...rest.filter(t => regionOf(t.c) === rg && !pick.includes(t)).slice(0, need));
+    }
+    for (const t of rest) { if (pick.length >= 16) break; if (!pick.includes(t)) pick.push(t); }
+    field = pick.sort((a, b) => b.str - a.str);
+  } else {
+    // Olympic spots from the World Cup finish (or, without one, from how the teams stack up today).
+    const order = (qual?.length ? qual.filter(c => T[c]) : teams.map(t => t.c)).filter(c => c !== host);
+    const quota = { AM: 2, EU: 2, AF: 1, AS: 1, OC: 1 }, got = {}, inn = [host];
+    via[host] = 'host';
+    for (const c of order) { const rg = regionOf(c); if ((got[rg] || 0) < quota[rg]) { got[rg] = (got[rg] || 0) + 1; inn.push(c); via[c] = 'World Cup'; } }
+    // Four qualifying tournaments: the next sixteen, snake-seeded into four brackets of four; each winner goes.
+    const next = [...order.filter(c => !inn.includes(c)), ...teams.map(t => t.c).filter(c => !inn.includes(c) && !order.includes(c))].slice(0, 16);
+    const nextT = next.map(c => T[c]).sort((a, b) => b.str - a.str);
+    const cities = ['Valencia', 'Piraeus', 'Riga', 'San Juan'];
+    const w = G => (G.sa > G.sb ? G.a : G.b);
+    oqt = [0, 1, 2, 3].map(i => {
+      const g = [nextT[i], nextT[7 - i], nextT[8 + i], nextT[15 - i]].filter(Boolean);
+      if (g.length < 2) return null;
+      const s1 = playGame(rng, g[0], g[g.length - 1], 'Semifinal'), s2 = g.length >= 4 ? playGame(rng, g[1], g[2], 'Semifinal') : null;
+      const fin = s2 ? playGame(rng, T[w(s1)], T[w(s2)], 'Final') : s1;
+      const winner = w(fin);
+      inn.push(winner); via[winner] = `qualifier in ${cities[i]}`;
+      return { city: cities[i], teams: g.map(t => t.c), winner, final: { a: fin.a, b: fin.b, sa: fin.sa, sb: fin.sb } };
+    }).filter(Boolean);
+    field = inn.map(c => T[c]).filter(Boolean).sort((a, b) => b.str - a.str);
+  }
+  const groups = event === 'worldcup'
+    ? [[0, 7, 8, 15], [1, 6, 9, 14], [2, 5, 10, 13], [3, 4, 11, 12]].map(ix => ix.map(i => field[i].c))
+    // Groups by pots (snake): A gets 1, 6, 7, 12; B 2, 5, 8, 11; C 3, 4, 9, 10.
+    : [[0, 5, 6, 11], [1, 4, 7, 10], [2, 3, 8, 9]].map(ix => ix.map(i => field[i].c));
+  return { yr, event, host, city, field, groups, via, oqt, out: teams.filter(t => !field.includes(t)).slice(0, 4).map(t => t.c) };
+}
+
+// One naturalized player a team (FIBA's rule): a country with no more than three league players can bring in a
+// league player who won't make his own country's team (usually an American a few levels short of Team USA). The
+// thinnest teams ask first.
+function naturalize(teams, by, rng) {
+  const taken = new Set(teams.flatMap(t => t.roster.map(x => x.pid).filter(v => v != null)));
+  const out = new Set(teams.flatMap(t => t.withdrew.map(w => w.pid)));
+  const pool = Object.entries(by).filter(([, xs]) => xs.length > 14).flatMap(([c, xs]) => xs.map(x => ({ ...x, c })))
+    // Rotation players, not stars (a Jordan Clarkson, an Anthony Randolph): nobody a contender would build around.
+    .filter(x => !taken.has(x.p.id) && !out.has(x.p.id) && x.p.age <= 33 && x.lv >= 74 && x.lv <= 84 && !((x.p.season?.injury?.gamesOut || 0) > 0)).sort((a, b) => b.lv - a.lv);
+  const lg = t => t.roster.filter(x => x.pid != null).length;
+  const thin = teams.filter(t => lg(t) <= 3).sort((a, b) => lg(a) - lg(b));
+  for (const t of thin) {
+    if (rng() > 0.45 || !pool.length) continue;
+    const x = pool.splice(Math.floor(rng() * Math.min(pool.length, 20)), 1)[0];
+    const worst = t.roster.reduce((m, y, j) => (y.pid == null && (m < 0 || y.lv < t.roster[m].lv) ? j : m), -1);
+    if (worst < 0 || x.lv <= t.roster[worst].lv) continue;
+    t.roster[worst] = { pid: x.p.id, fn: x.p.fn, ln: x.p.ln, pos: x.p.pos, age: x.p.age, lv: x.lv, tid: x.p.tid, nat: x.c };
+    t.roster.sort((a, b) => b.lv - a.lv);
+  }
 }
 
 // One game: a margin from the strength gap, FIBA scoring (40 minutes, about 85 a side), box scores for both teams.
@@ -194,7 +274,7 @@ export function runGames(F, seed) {
   F.groups.forEach((g, gi) => {
     for (const c of g) table[c] = { c, g: gi, w: 0, l: 0, pf: 0, pa: 0 };
     for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
-      const G = playGame(rng, T[g[i]], T[g[j]], `Group ${'ABC'[gi]}`);
+      const G = playGame(rng, T[g[i]], T[g[j]], `Group ${'ABCD'[gi]}`);
       games.push(G);
       const [wa, wb] = G.sa > G.sb ? [table[G.a], table[G.b]] : [table[G.b], table[G.a]];
       wa.w++; wb.l++;
@@ -203,8 +283,9 @@ export function runGames(F, seed) {
   });
   const rank = a => a.sort((x, y) => y.w - x.w || (y.pf - y.pa) - (x.pf - x.pa));
   const standings = F.groups.map(g => rank(g.map(c => table[c])));
-  // Quarterfinals: the top two of each group and the two best thirds, seeded 1 v 8, 2 v 7, 3 v 6, 4 v 5.
-  const firsts = rank(standings.map(s => s[0])), seconds = rank(standings.map(s => s[1])), thirds = rank(standings.map(s => s[2])).slice(0, 2);
+  // Quarterfinals, seeded 1 v 8, 2 v 7, 3 v 6, 4 v 5: three groups send their top two and the two best thirds; four
+  // groups send their top two.
+  const firsts = rank(standings.map(s => s[0])), seconds = rank(standings.map(s => s[1])), thirds = F.groups.length === 3 ? rank(standings.map(s => s[2])).slice(0, 2) : [];
   const seeds = [...firsts, ...seconds, ...thirds].map(x => x.c);
   const win = G => (G.sa > G.sb ? G.a : G.b), lose = G => (G.sa > G.sb ? G.b : G.a);
   const qf = [[0, 7], [3, 4], [1, 6], [2, 5]].map(([i, j]) => playGame(rng, T[seeds[i]], T[seeds[j]], 'Quarterfinal'));
@@ -225,7 +306,23 @@ export function runGames(F, seed) {
   const weight = L => val(L) * (L.c === medals.gold ? 1.25 : L.c === medals.silver ? 1.1 : L.c === medals.bronze ? 1.05 : 0.9);
   const ranked = all.sort((a, b) => weight(b) - weight(a));
   const mvp = ranked.find(L => [medals.gold, medals.silver].includes(L.c)) || ranked[0];
-  return { hero, games, standings: standings.map(s => s.map(x => ({ ...x }))), seeds, medals, mvp: mvp?.k ?? null, allStar: ranked.slice(0, 5).map(L => L.k), lines: Object.fromEntries([...lines.values()].map(L => [L.k, L])) };
+  // Where everyone finished: the medals and fourth, the quarterfinal losers, then the rest by their group record.
+  const qfOut = qf.map(lose).sort((a, b) => seeds.indexOf(a) - seeds.indexOf(b));
+  const finish = [medals.gold, medals.silver, medals.bronze, medals.fourth, ...qfOut, ...standings.flat().map(x => x.c).filter(c => !seeds.slice(0, 8).includes(c))
+    .sort((a, b) => table[b].w - table[a].w || (table[b].pf - table[b].pa) - (table[a].pf - table[a].pa))];
+  // Injuries: a league player's chance grows with his minutes (about 3% for a full tournament, more if injury-prone).
+  const injuries = [];
+  for (const L of lines.values()) {
+    if (typeof L.k !== 'number') continue;
+    const c = Math.min(0.12, 0.03 * (L.min / 160) * (F.prone?.(L.k) || 1));
+    if (rng() >= c) continue;
+    const r = rng(), area = ['lowerBody', 'lowerBody', 'lowerBody', 'upperBody', 'core'][Math.floor(rng() * 5)];
+    const part = area === 'lowerBody' ? [3, 3, 5, 6, 7, 10][Math.floor(rng() * 6)] : area === 'upperBody' ? 1 + Math.floor(rng() * 6) : [3, 4, 5][Math.floor(rng() * 3)];
+    const major = r > 0.95;
+    injuries.push({ k: L.k, c: L.c, area, part, minorSeverity: major ? 0 : [1, 3, 4, 5, 6, 7, 8, 9, 10][Math.floor(rng() * 9)], majorSeverity: major ? 1 + Math.floor(rng() * 4) : 0,
+      gamesOut: major ? 25 + Math.floor(rng() * 35) : r > 0.75 ? 12 + Math.floor(rng() * 14) : 2 + Math.floor(rng() * 9) });
+  }
+  return { hero, finish, injuries, games, standings: standings.map(s => s.map(x => ({ ...x }))), seeds, medals, mvp: mvp?.k ?? null, allStar: ranked.slice(0, 5).map(L => L.k), lines: Object.fromEntries([...lines.values()].map(L => [L.k, L])) };
 }
 
 // ---- The logo: five pixel rings (blue, black, red over yellow, green), interlocked, on a white badge.

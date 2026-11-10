@@ -1,5 +1,5 @@
 import {
-  parseSave, serializeSave, FT_MAX, injuryHistory, ATTRS, ATTR_NAMES, PHYSICAL, attrMin, skillName, skillCategory, sortSkills, isEliteSkill, isFreeSkill, ELITE_REQUIREMENTS, ELITE_MIN, ATTR_MAX, activeSkills, isLeveled, CATEGORIES, SKILL_MAX_LEVEL, SKILL_CATEGORIES, POSITIONS, MODE_NAMES, phaseName, BUMP_PHASES, BUMP_DAY, POT_MIN, POT_MAX, regressionYear, injuryName, PHASE_POST_DRAFT, PHASE_PRE_DRAFT, PHASE_PRE_LOTTERY, PHASE_FREE_AGENCY, leagueRookies, draftYear, jerseyNumber,
+  parseSave, serializeSave, FT_MAX, attrCap, injuryHistory, ATTRS, ATTR_NAMES, PHYSICAL, attrMin, skillName, skillCategory, sortSkills, isEliteSkill, isFreeSkill, ELITE_REQUIREMENTS, ELITE_MIN, ATTR_MAX, activeSkills, isLeveled, CATEGORIES, SKILL_MAX_LEVEL, SKILL_CATEGORIES, POSITIONS, MODE_NAMES, phaseName, BUMP_PHASES, BUMP_DAY, POT_MIN, POT_MAX, regressionYear, injuryName, PHASE_POST_DRAFT, PHASE_PRE_DRAFT, PHASE_PRE_LOTTERY, PHASE_FREE_AGENCY, leagueRookies, draftYear, jerseyNumber,
   setBlessed, playerName, heightStr, avgRating, lastSeasonMpg, leaguePlayers, snapshot, restore, diffPlayer, jerseyClashes, fixJerseyNumbers, undoJerseyNumbers, levelOf, cloneData, MINOR_INJURY, potCap, ceilTotal, canGrow,
 } from './savefile.js';
 import { collegeProduction, productionWord, setDevPlans, PLAN_ATTRS, DEFAULT_PARAMS, runProgression, buildSkillProfiles, rankSkillsFor, unlockSkill, mulberry32, runRookieBump, injuryRisk, earnsNaturalLongevity, productionScores, spendHeldPoints } from './progression.js';
@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.328.1';
+const APP_VERSION = '0.329.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -868,6 +868,7 @@ async function loadFile(file) {
     if (!isCollege() && settleRetirees(league())) state.dirty = true;
     if (!isCollege() && playoffRotations()) state.dirty = true;
     if (!isCollege() && applyStreaks()) state.dirty = true;
+    if (!isCollege() && applyFatigue()) state.dirty = true;
     if (!isCollege() && (applyRisers() + settleRisers())) state.dirty = true;
     if (!isCollege() && stashReturn()) state.dirty = true;
     if (!isCollege() && capFreeThrows()) state.dirty = true;
@@ -1387,6 +1388,7 @@ function capFreeThrows() {
 function buildExport() {
   capFreeThrows();
   markStreaksOut();
+  markFatigueOut();
   restoreCap = null;
   if (state.leagueFile) return buildLeagueExport();
   state.data.seasonLeagues.forEach((L, li) => { if (state.summer[li]) markSummerDone(L); });
@@ -1651,7 +1653,8 @@ const CALENDAR = [
     done: () => faDone(3) },
   { key: 'vote', date: 'Jul 25', title: 'Board of Governors', blurb: 'Rule changes go to a league-wide vote (two-thirds to pass), and the commissioner has the final word.',
     done: () => !!calFlags().vote || !!calFlags().medical || !!calFlags().dev },
-  { key: 'olympics', date: 'Jul 27', title: 'Olympics', blurb: 'Twelve national teams for gold: the rosters, the snubs and withdrawals, then the Games themselves.',
+  { key: 'olympics', get date() { return olyEv() === 'worldcup' ? 'Aug 30' : 'Jul 27'; }, get title() { return olyName0(); },
+    get blurb() { return olyEv() === 'worldcup' ? 'Sixteen national teams, a World Cup champion, and seven Olympic spots for next summer.' : 'Twelve national teams for gold: how they qualified, the rosters, the snubs and withdrawals, then the Games themselves.'; },
     done: () => !!calFlags().olympics || !!calFlags().medical || !!calFlags().dev },
   { key: 'medical', date: 'Sep 14', title: 'Medical, Positions & Plans', blurb: 'Surgery or rehab for the injured, position changes, and a development plan for each player before camp starts.',
     done: () => !!calFlags().medical || !!calFlags().dev },
@@ -2096,7 +2099,7 @@ function stepActions(key) {
     case 'review': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="review">📜 Begin</button><button class="btn" data-act="calDone" data-k="review">⏭ Skip</button></div>`;
     case 'expansion': return `<div class="btn-set"><button class="btn focus wide" data-act="nav" data-to="expansion">🏟️ Begin</button></div>`;
     case 'owner': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="ownerday">🤝 Begin</button><button class="btn" data-act="calDone" data-k="owner">⏭ Skip</button></div>`;
-    case 'olympics': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="olympics">${OLY.logoSvg(26)} Begin</button><button class="btn" data-act="olySkip">⏭ Sim It</button></div>`;
+    case 'olympics': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="olympics">${olyLogo(26)} Begin</button><button class="btn" data-act="olySkip">⏭ Sim It</button></div>`;
     case 'vote': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="vote">🗳️ Begin</button><button class="btn" data-act="voteSkip">⏭ Skip</button></div>`;
     case 'medical': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="medical">🩺 Begin</button><button class="btn" data-act="calDone" data-k="medical">⏭ Skip</button></div>`;
     case 'exhib': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="exhib">🏀 Begin</button><button class="btn" data-act="calDone" data-k="exhib">⏭ Skip</button></div>`;
@@ -5305,7 +5308,7 @@ screens.coach = args => {
   const sug = t ? suggestStyle(t) : null;
   layout({
     title: `${c.fn} ${c.ln}`,
-    body: `${uiTabs('coach', [
+    body: `${olyCoachBox(c)}${uiTabs('coach', [
         ['pro', 'Profile', `<fieldset class="frame"><legend>${t ? esc(`${t.city} ${t.name}`) : 'Available'}</legend><div class="stack">
         <p class="note"><b>${esc(coachArch(c))}</b> · <span class="gold">${star}</span> potential · ${c.age}y${c.yrs ? ` · ${c.yrs} yrs experience` : ''}</p>
         ${blurb ? `<p class="note">${esc(blurb)}</p>` : ''}
@@ -9051,12 +9054,18 @@ function streakStore() { try { return JSON.parse(localStorage.getItem(streakKey(
 function streakSave(v) { try { localStorage.setItem(streakKey(), JSON.stringify(v)); } catch { /* ignore */ } }
 const streakOf = id => streakStore().list?.[id]?.kind || null;
 function tempDelta(p) {
-  const st = streakStore().list?.[p.id];
-  if (st) return { src: st.kind === 'hot' ? 'Hot streak' : 'Cold streak', add: st.add };
-  const L = league(), rs = riseStore()[L.season.currentYear], x = rs && !rs.out ? rs.list?.[p.id] : null;
-  return x ? { src: 'Playoff riser', add: x.add } : null;
+  const st = streakStore().list?.[p.id], fx = fxOf(p.id);
+  let out = null;
+  if (st) out = { src: st.kind === 'hot' ? 'Hot streak' : 'Cold streak', add: { ...st.add } };
+  else {
+    const L = league(), rs = riseStore()[L.season.currentYear], x = rs && !rs.out ? rs.list?.[p.id] : null;
+    if (x) out = { src: 'Playoff riser', add: { ...x.add } };
+  }
+  // Fatigue (💤) rides along with any of them: it only touches speed and stamina.
+  if (fx) out = out ? { src: out.src, also: fx.src, add: { ...out.add, ...fx.add } } : { src: fx.src, add: { ...fx.add } };
+  return out;
 }
-const streakIcon = p => { const k = streakOf(p.id); return k === 'hot' ? ' <span title="Hot streak">🔥</span>' : k === 'cold' ? ' <span title="Cold streak">❄️</span>' : ''; };
+const streakIcon = p => { const k = streakOf(p.id), f = fxOf(p.id); return (k === 'hot' ? ' <span title="Hot streak">🔥</span>' : k === 'cold' ? ' <span title="Cold streak">❄️</span>' : '') + (f ? ` <span title="${esc(f.src)}">💤</span>` : ''); };
 function applyStreaks() {
   const L = league(), st = streakStore();
   let n = 0;
@@ -10444,7 +10453,12 @@ screens.player = (args) => {
           <button class="btn square" data-act="potAdj" data-dir="1" aria-label="Higher potential">+</button>
         </div>
         <div class="stack">
-          ${(tmp => tmp ? `<p class="note small temp-note">${tmp.src === 'Hot streak' ? '🔥' : tmp.src === 'Cold streak' ? '❄️' : '📈'} <b>${esc(tmp.src)}</b>: ${tmp.src === 'Cold streak' ? 'the faded part of a bar is what the slump takes off' : 'the white part of a bar is temporary'}${tmp.src === 'Playoff riser' ? ', for the playoffs' : ', until the next file comes in'}.</p>` : '')(tempDelta(p))}
+          ${(tmp => {
+            if (!tmp) return '';
+            const FATIGUE = { 'Tired legs': 'the faded part of speed and stamina is what the summer took out of him, for the first two weeks of the season', 'Playing hurt': 'the faded part of speed and stamina is what playing through it costs, until he heals' };
+            const line = src => FATIGUE[src] ? `💤 <b>${esc(src)}</b>: ${FATIGUE[src]}.` : `${src === 'Hot streak' ? '🔥' : src === 'Cold streak' ? '❄️' : '📈'} <b>${esc(src)}</b>: ${src === 'Cold streak' ? 'the faded part of a bar is what the slump takes off' : 'the white part of a bar is temporary'}${src === 'Playoff riser' ? ', for the playoffs' : ', until the next file comes in'}.`;
+            return [tmp.src, tmp.also].filter(Boolean).map(src => `<p class="note small temp-note">${line(src)}</p>`).join('');
+          })(tempDelta(p))}
           ${ATTRS.map(k => attrRow(p, snap, k, ceilMode)).join('')}
         </div>
         <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">Edit Ceilings</button></div>
@@ -19377,91 +19391,147 @@ actions.rotSuggest = () => {
   toast('🔁 Rotations set', `${mine.map(t => t.shortName).join(', ')}${mood.length ? ` · morale: ${mood.join(', ')}` : ''}`, 5000);
 };
 actions.stepWrap = d => { calFlags()[d.k] = true; state.undo = null; goHome(); nextUp(); };
-// ---- The Olympics (every four summers; behind the testing switch for now). Twelve national teams from the league's
-// players by country, filled out with pros from each country's own league; groups, a knockout bracket, box scores,
-// medals. What goes into the save: morale for medalists, snubs and anyone you kept home, and Ego for the MVP.
+// ---- The Olympics and the World Cup (behind the testing switch for now). The World Cup the summer before each
+// Olympics (2027, 2031, ...): sixteen teams, and its finish hands out most of the Olympic spots; qualifying tournaments
+// fill the rest. Twelve to sixteen national teams from the league's players by country (one naturalized player
+// allowed), filled out with pros from each country's own league; groups, a knockout bracket, box scores, medals.
+// What goes into the save: morale (medalists, snubs, anyone you kept home, league teammates who played together), Ego
+// for the MVP, injuries picked up there, a bump for young players who played big minutes, and a few weeks of fatigue
+// for the ones who carried the load.
 const olyKey = () => `hlc:olympics:${saveTag()}`;
 function olyStore() { try { return JSON.parse(localStorage.getItem(olyKey())) || {}; } catch { return {}; } }
 function olySave(v) { try { localStorage.setItem(olyKey(), JSON.stringify(v)); } catch { /* ignore */ } }
 const olyYr = () => draftYear(league());
-const olyOn = () => !isCollege() && labOn() && OLY.isOlympicYear(olyYr());
-const olySeed = () => { let h = olyYr() * 7919; for (const ch of saveTag()) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0; return h >>> 0; };
+const olyEv = () => OLY.eventOf(olyYr());
+const olyOn = () => !isCollege() && labOn() && !!olyEv();
+const olyName0 = () => OLY.EVENT_NAME[olyEv()] || 'Olympics';
+const olyLogo = (size, ev = olyEv()) => (ev === 'worldcup' ? OLY.logo2Svg(size) : OLY.logoSvg(size));
+const olySeed = (y = olyYr()) => { let h = y * 7919; for (const ch of saveTag()) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0; return h >>> 0; };
 // Everyone under contract, everyone whose deal is up and every free agent: the federations call the league's players first.
 const olyPlayers = () => league().teams.flatMap(t => t.roster.filter(p => [FA.STATUS_SIGNED, FA.STATUS_DRAFTED, FA.STATUS_EXPIRING].includes(p.status))).concat((league().freeAgents || []).filter(p => p.status === FA.STATUS_FREE));
+// National coaches: Team USA takes the best American head coach in the league (by his potential, then experience);
+// every other country a coach of its own from the league's benches or the coaching pool, if it has one.
+function olyCoaches() {
+  const { staff, pool } = allCoaches(), out = {};
+  const rank = (a, b) => (b.c.pot || 0) - (a.c.pot || 0) || (b.c.yrs || 0) - (a.c.yrs || 0);
+  const heads = staff.filter(x => x.c.pos === 1).sort(rank);
+  const us = heads.find(x => (x.c.ctry || 'US') === 'US');
+  if (us) out.US = { name: `${us.c.fn} ${us.c.ln}`, cid: us.c.id };
+  for (const x of [...heads, ...staff.filter(x => x.c.pos !== 1).sort(rank), ...pool.sort(rank)]) {
+    const c = x.c.ctry === 'GB' ? 'UK' : x.c.ctry;
+    if (c && c !== 'US' && OLY.NATIONS[c] && !out[c]) out[c] = { name: `${x.c.fn} ${x.c.ln}`, cid: x.c.id };
+  }
+  return out;
+}
+const olyProne = pid => { const p = findPlayer(pid)?.p, d = p?.traits?.durability || 10; return d <= 4 ? 1.6 : d >= 16 ? 0.6 : 1; };
+// Last summer's World Cup finish, for the Olympic spots: the one played here, or (in a save that skipped it, or
+// started after it) the one the app plays quietly with the league as it stands.
+function olyQual(y) {
+  const st = olyStore(), w = st[y - 1];
+  if (w?.result?.finish) return w.result.finish;
+  if (w?.quiet) return w.quiet;
+  const F = OLY.buildField({ yr: y - 1, players: olyPlayers(), level: shownLevel, seed: olySeed(y - 1), event: 'worldcup' });
+  const R = OLY.runGames(F, olySeed(y - 1));
+  st[y - 1] = { quiet: R.finish, quietGold: R.medals.gold };
+  olySave(st);
+  return R.finish;
+}
 function olyField() {
-  const st = olyStore(), y = olyYr(), cur = st[y] || {};
-  if (cur.field) return cur;   // the Games are over: what was played
-  const prev = st[y - 4]?.field?.field || [];
-  const prevIds = Object.fromEntries(prev.map(t => [t.c, t.roster.filter(x => x.pid != null).map(x => x.pid)]));
-  return { ...cur, field: OLY.buildField({ yr: y, players: olyPlayers(), level: shownLevel, prevIds, edits: cur.edits || {}, home: cur.home || [], seed: olySeed(), poGp: olyPoGp }) };
+  const st = olyStore(), y = olyYr(), ev = olyEv(), cur = st[y] || {};
+  if (cur.field) return cur;   // the tournament is over: what was played
+  const prevEv = Object.entries(st).filter(([yy, v]) => +yy < y && v.field && OLY.eventOf(+yy) === ev).sort((a, b) => b[0] - a[0])[0]?.[1];
+  const prevIds = Object.fromEntries((prevEv?.field?.field || []).map(t => [t.c, t.roster.filter(x => x.pid != null).map(x => x.pid)]));
+  return { ...cur, field: OLY.buildField({ yr: y, event: ev, qual: ev === 'olympics' ? olyQual(y) : null, coaches: olyCoaches(), players: olyPlayers(), level: shownLevel, prevIds, edits: cur.edits || {}, home: cur.home || [], seed: olySeed(), poGp: olyPoGp }) };
 }
 // His playoff games in the season just played (his latest season on record).
 const olyPoGp = p => { const s = (p.stats || []).filter(x => x.league === state.leagueIdx && (x.season || []).some(r => r.GP > 0)).sort((a, b) => b.yr - a.yr)[0]; return [...(s?.playoffs || []), ...(s?.finals || [])].reduce((a, r) => a + (r.GP || 0), 0); };
 const olyName = k => { if (typeof k !== 'number') return k; const e = findPlayer(k); return e ? playerName(e.p) : 'Unknown'; };
 const olyTag = c => `<b class="oly-c">${esc(OLY.code(c))}</b>`;
 const MEDAL = { gold: '<span class="medal m-gold">1</span>', silver: '<span class="medal m-silver">2</span>', bronze: '<span class="medal m-bronze">3</span>' };
-// Every Olympics a player went to, with the medal (for his page).
+// Every tournament a player went to, with the medal and the league players he played with (for his page).
 function olyRecord(pid) {
   const st = olyStore();
   return Object.entries(st).filter(([, v]) => v.result).map(([yr, v]) => {
     const t = v.field.field.find(T => T.roster.some(x => x.pid === pid));
     if (!t) return null;
     const m = Object.entries(v.result.medals).find(([k, c]) => c === t.c && MEDAL[k])?.[0];
-    return { yr: +yr, c: t.c, medal: m || null, mvp: v.result.mvp === pid, line: v.result.lines[pid] };
+    const mates = t.roster.filter(x => x.pid != null && x.pid !== pid).map(x => x.pid);
+    return { yr: +yr, ev: OLY.eventOf(+yr), c: t.c, medal: m || null, mvp: v.result.mvp === pid, line: v.result.lines[pid], nat: t.roster.find(x => x.pid === pid)?.nat, mates };
   }).filter(Boolean);
 }
 function olyBox(p) {
   const rec = olyRecord(p.id);
   if (!rec.length) return '';
-  return `<fieldset class="frame"><legend>${OLY.logoSvg(26)} Olympics</legend><div class="stack">${rec.map(r => `<div class="small mv-row aw-row"><span class="mv-l"><b>${r.medal ? `${MEDAL[r.medal]} ${r.medal[0].toUpperCase() + r.medal.slice(1)}` : 'Competed'}</b> · ${esc(OLY.nation(r.c))}${r.mvp ? ' · <span class="gold">MVP</span>' : ''}</span><span class="muted mv-r">${r.yr}${r.line?.gp ? ` · ${(r.line.pts / r.line.gp).toFixed(1)} pts` : ''}</span></div>`).join('')}</div></fieldset>`;
+  return `<fieldset class="frame"><legend>${OLY.logoSvg(26)} International</legend><div class="stack">${rec.map(r => `<div class="small mv-row aw-row"><span class="mv-l"><b>${r.medal ? `${MEDAL[r.medal]} ${r.medal[0].toUpperCase() + r.medal.slice(1)}` : 'Competed'}</b> · ${esc(OLY.EVENT_NAME[r.ev])} · ${esc(OLY.nation(r.c))}${r.nat ? ' <span class="muted">(naturalized)</span>' : ''}${r.mvp ? ' · <span class="gold">MVP</span>' : ''}${r.mates.length ? `<br><span class="muted">With ${r.mates.slice(0, 5).map(id => esc(olyName(id))).join(', ')}</span>` : ''}</span><span class="muted mv-r">${r.yr}${r.line?.gp ? ` · ${(r.line.pts / r.line.gp).toFixed(1)} pts` : ''}</span></div>`).join('')}</div></fieldset>`;
 }
-// The story of the Games, for the results page and Hoop Gram.
+// A league coach's national-team record (for his page).
+function olyCoachBox(c) {
+  const st = olyStore();
+  const rows = Object.entries(st).filter(([, v]) => v.result).map(([yr, v]) => {
+    const t = v.field.field.find(T => T.coach?.cid === c.id);
+    if (!t) return null;
+    const m = Object.entries(v.result.medals).find(([k, x]) => x === t.c && MEDAL[k])?.[0];
+    return { yr, ev: OLY.eventOf(+yr), c: t.c, m, place: v.result.finish?.indexOf(t.c) };
+  }).filter(Boolean);
+  if (!rows.length) return '';
+  return `<fieldset class="frame"><legend>${OLY.logoSvg(26)} National Team</legend><div class="stack">${rows.map(r => `<p class="note small" style="margin:0">${r.m ? MEDAL[r.m] : ''} <b>${esc(OLY.nation(r.c))}</b> · ${esc(OLY.EVENT_NAME[r.ev])} ${r.yr}${r.m ? '' : r.place != null && r.place >= 0 ? ` · finished ${ordinal(r.place + 1)}` : ''}</p>`).join('')}</div></fieldset>`;
+}
+// The story of the tournament, for the results page and Hoop Gram.
 function olyHeadline(F, R) {
+  const evName = OLY.EVENT_NAME[F.event || 'olympics'], wc = F.event === 'worldcup';
   const gold = R.games[R.games.length - 1], w = gold.sa > gold.sb ? [gold.a, gold.sa, gold.b, gold.sb] : [gold.b, gold.sb, gold.a, gold.sa];
   const L = R.lines[R.mvp];
   const upset = w[0] !== 'US' && F.field.find(t => t.c === 'US') ? ` ${R.medals.silver === 'US' ? 'Team USA settles for silver.' : R.medals.bronze === 'US' ? 'Team USA leaves with bronze.' : 'Team USA leaves without a medal.'}` : '';
   const H = R.hero, hp = H && R.medals ? Object.entries(R.medals).find(([, c]) => c === H.c)?.[0] : null;
-  const heroLine = H && hp ? ` The story of the Games: ${olyName(H.k)} carried ${OLY.nation(H.c)} ${hp === 'gold' ? 'all the way to gold' : hp === 'fourth' ? 'to the semifinals' : `to ${hp}`} (${(R.lines[H.k].pts / Math.max(1, R.lines[H.k].gp)).toFixed(1)} points a game).` : '';
-  return `${OLY.nation(w[0])} wins gold in ${F.city}, beating ${OLY.nation(w[2])} ${w[1]}-${w[3]}${gold.ot ? ' in overtime' : ''}.${upset} ${olyName(R.mvp)} is the tournament MVP${L?.gp ? ` (${(L.pts / L.gp).toFixed(1)} points, ${(L.reb / L.gp).toFixed(1)} rebounds, ${(L.ast / L.gp).toFixed(1)} assists a game)` : ''}. ${OLY.nation(R.medals.bronze)} takes bronze over ${OLY.nation(R.medals.fourth)}.${heroLine}`;
+  const heroLine = H && hp ? ` The story of the ${wc ? 'tournament' : 'Games'}: ${olyName(H.k)} carried ${OLY.nation(H.c)} ${hp === 'gold' ? 'all the way to gold' : hp === 'fourth' ? 'to the semifinals' : `to ${hp}`} (${(R.lines[H.k].pts / Math.max(1, R.lines[H.k].gp)).toFixed(1)} points a game).` : '';
+  return `${OLY.nation(w[0])} wins ${wc ? 'the World Cup' : 'gold'} in ${F.city}, beating ${OLY.nation(w[2])} ${w[1]}-${w[3]}${gold.ot ? ' in overtime' : ''}.${upset} ${olyName(R.mvp)} is the ${evName} MVP${L?.gp ? ` (${(L.pts / L.gp).toFixed(1)} points, ${(L.reb / L.gp).toFixed(1)} rebounds, ${(L.ast / L.gp).toFixed(1)} assists a game)` : ''}. ${OLY.nation(R.medals.bronze)} takes bronze over ${OLY.nation(R.medals.fourth)}.${heroLine}`;
 }
 function olyPosts() {
   const v = olyStore()[olyYr()];
   if (!v?.result || isCollege()) return [];
-  const F = v.field, R = v.result, out = [];
+  const F = v.field, R = v.result, out = [], evName = OLY.EVENT_NAME[F.event || 'olympics'];
   const teamOf = pid => findPlayer(pid)?.team || myTeam() || league().teams[0];
   const mvpTeam = typeof R.mvp === 'number' ? teamOf(R.mvp) : myTeam() || league().teams[0];
-  out.push({ team: mvpTeam, score: 99, tag: '🥇 Olympics', pid: typeof R.mvp === 'number' ? R.mvp : null, handle: '@HoopGramWorld', likes: 40000 + olySeed() % 20000, text: olyHeadline(F, R) });
+  out.push({ team: mvpTeam, score: 99, tag: `🥇 ${evName}`, pid: typeof R.mvp === 'number' ? R.mvp : null, handle: '@HoopGramWorld', likes: 40000 + olySeed() % 20000, text: olyHeadline(F, R) });
   const gold = F.field.find(t => t.c === R.medals.gold);
   for (const x of (gold?.roster || []).filter(x => x.pid != null && isUserTeam(findPlayer(x.pid)?.team || {})).slice(0, 2))
-    out.push({ team: teamOf(x.pid), score: 95, tag: '🥇 Olympics', pid: x.pid, handle: '@HoopGramNBA', likes: 12000 + x.pid * 37 % 5000, text: `${olyName(x.pid)} is coming home with a gold medal. ${OLY.nation(R.medals.gold)} champion.` });
+    out.push({ team: teamOf(x.pid), score: 95, tag: `🥇 ${evName}`, pid: x.pid, handle: '@HoopGramNBA', likes: 12000 + x.pid * 37 % 5000, text: `${olyName(x.pid)} is coming home with a gold medal. ${OLY.nation(R.medals.gold)} champion.` });
+  for (const i of (R.injuries || []).filter(i => typeof i.k === 'number').slice(0, 2))
+    out.push({ team: teamOf(i.k), score: 90, tag: '🩹 Injury', pid: i.k, handle: '@HoopGramNBA', likes: 9000 + i.k * 13 % 3000, text: `${olyName(i.k)} got hurt playing for ${OLY.nation(i.c)} at the ${evName}: ${injuryName(i.inj)}, out about ${i.gamesOut} games. His team will not be thrilled.` });
   const us = F.field.find(t => t.c === 'US'), snub = us?.snubs?.[0];
-  if (snub) out.push({ team: teamOf(snub.pid), score: 80, tag: '😤 Snubbed', pid: snub.pid, handle: '@HoopGramNBA', likes: 8000 + snub.pid * 31 % 4000, text: `${olyName(snub.pid)} watched the Olympics from home. Left off Team USA: ${snub.why}. He'll remember it.` });
+  if (snub) out.push({ team: teamOf(snub.pid), score: 80, tag: '😤 Snubbed', pid: snub.pid, handle: '@HoopGramNBA', likes: 8000 + snub.pid * 31 % 4000, text: `${olyName(snub.pid)} watched the ${evName} from home. Left off Team USA: ${snub.why}. He'll remember it.` });
   return out;
 }
 screens.olympics = (args = {}) => {
   if (!olyOn()) { back(); return; }
-  const v = olyField(), F = v.field, R = v.result, done = !!R;
+  const v = olyField(), F = v.field, R = v.result, done = !!R, ev = F.event || olyEv(), wc = ev === 'worldcup', evName = OLY.EVENT_NAME[ev];
   const sel = args.c && F.field.some(t => t.c === args.c) ? args.c : (F.field.find(t => t.roster.some(x => x.pid != null && isUserTeam(findPlayer(x.pid)?.team || {})))?.c || 'US');
   const T = F.field.find(t => t.c === sel) || F.field[0];
   const mine = x => x.pid != null && isUserTeam(findPlayer(x.pid)?.team || {});
   const lvTag = lv => `<span class="muted small">Lv ${lv}</span>`;
   const who = x => x.pid != null ? `<b class="tap ${mine(x) ? 'gold' : ''}" data-act="openPlayer" data-id="${x.pid}">${esc(olyName(x.pid))}</b>` : `<b>${esc(`${x.fn} ${x.ln}`)}</b>`;
+  const natTag = x => (x.nat ? ` <span class="small up" title="Naturalized">🛂 naturalized (${esc(OLY.code(x.nat))})</span>` : '');
   const teamPick = `<select class="sel-team" data-change="olyTeam">${F.field.map(t => `<option value="${t.c}" ${t.c === T.c ? 'selected' : ''}>${esc(OLY.code(t.c))} · ${esc(OLY.nation(t.c))}${t.c === F.host ? ' (host)' : ''}</option>`).join('')}</select>`;
-  const rosterRows = T.roster.map(x => `<div class="drill-row"><span class="grow">${who(x)} <span class="muted small">${esc(POSITIONS[x.pos] ?? '')} · ${x.age}y</span> ${lvTag(x.lv)}${x.pid == null ? ' <span class="muted small">· plays at home</span>' : x.tid != null ? ` <span class="muted small">· ${esc(league().teams.find(t => t.id === x.tid)?.shortName || 'FA')}</span>` : ''}</span>
-    ${!done && x.pid != null ? `${mine(x) ? `<button class="btn tiny off" data-act="olyHome" data-id="${x.pid}" title="Keep him home: rest over the summer">🏠</button>` : ''}<button class="btn tiny off" data-act="olyDrop" data-c="${T.c}" data-id="${x.pid}" title="Leave him off">✕</button>` : ''}</div>`).join('');
+  const rosterRows = T.roster.map(x => `<div class="drill-row"><span class="grow">${who(x)} <span class="muted small">${esc(POSITIONS[x.pos] ?? '')} · ${x.age}y</span> ${lvTag(x.lv)}${natTag(x)}${x.pid == null ? ' <span class="muted small">· plays at home</span>' : x.tid != null ? ` <span class="muted small">· ${esc(league().teams.find(t => t.id === x.tid)?.shortName || 'FA')}</span>` : ''}</span>
+    ${!done && x.pid != null && !x.nat ? `${mine(x) ? `<button class="btn tiny off" data-act="olyHome" data-id="${x.pid}" title="Keep him home: rest over the summer">🏠</button>` : ''}<button class="btn tiny off" data-act="olyDrop" data-c="${T.c}" data-id="${x.pid}" title="Leave him off">✕</button>` : ''}</div>`).join('');
   const onIds = new Set(T.roster.map(x => x.pid));
   const avail = (T.eligible || []).filter(id => !onIds.has(id)).map(id => findPlayer(id)?.p).filter(Boolean).sort((a, b) => shownLevel(b) - shownLevel(a));
   const edit = !done && (avail.length || (v.edits?.[T.c]?.drop || []).length) ? `<div class="off-row"><select class="sel-team" data-change="olyAdd" data-c="${T.c}"><option value="">Add a player…</option>${avail.slice(0, 30).map(p => `<option value="${p.id}">${esc(playerName(p))} · Lv ${shownLevel(p)}</option>`).join('')}</select>${(v.edits?.[T.c]?.add || []).length || (v.edits?.[T.c]?.drop || []).length ? `<button class="btn small off" data-act="olyReset" data-c="${T.c}">↺ Federation's picks</button>` : ''}</div><p class="note small muted">Adding a player bumps the federation's last pick. Your own players can stay home (🏠) to rest: it costs a little morale.</p>` : '';
   const snubs = F.field.flatMap(t => t.snubs.map(s => ({ ...s, c: t.c }))).sort((a, b) => b.lv - a.lv);
   const outs = F.field.flatMap(t => t.withdrew.map(s => ({ ...s, c: t.c }))).sort((a, b) => b.lv - a.lv);
-  const newsTab = `<fieldset class="frame"><legend>📰 Selection News</legend><div class="stack">
-    <p class="note small">${esc(F.city)} hosts the ${F.yr} Olympics. Twelve teams: ${F.field.map(t => esc(OLY.code(t.c))).join(', ')}.${F.out.length ? ` Missed out: ${F.out.map(c => esc(OLY.nation(c))).join(', ')}.` : ''}</p>
+  const nats = F.field.flatMap(t => t.roster.filter(x => x.nat).map(x => ({ ...x, c: t.c })));
+  const qualLine = !wc && F.via ? `<h4 class="ov-h">🎟️ How they got in</h4>${F.field.map(t => `<p class="note small" style="margin:0">${olyTag(t.c)} ${esc(OLY.nation(t.c))} <span class="muted">· ${esc(F.via[t.c] || 'qualified')}</span></p>`).join('')}
+    ${(F.oqt || []).map(q => `<p class="note small" style="margin:0">Qualifier in ${esc(q.city)}: ${q.teams.map(c => esc(OLY.code(c))).join(', ')} · final ${esc(OLY.code(q.final.a))} ${q.final.sa}, ${esc(OLY.code(q.final.b))} ${q.final.sb}</p>`).join('')}` : '';
+  const newsTab = `<fieldset class="frame"><legend>📰 ${wc ? 'Tournament' : 'Selection'} News</legend><div class="stack">
+    <p class="note small">${esc(F.city)} hosts the ${F.yr} ${esc(evName)}. ${F.field.length} teams: ${F.field.map(t => esc(OLY.code(t.c))).join(', ')}.${F.out.length ? ` Missed out: ${F.out.map(c => esc(OLY.nation(c))).join(', ')}.` : ''}${wc ? ' The finish here hands out seven Olympic spots for next summer.' : ''}</p>
+    ${qualLine}
+    ${nats.length ? `<h4 class="ov-h">🛂 Naturalized (${nats.length})</h4>${nats.map(x => `<p class="note small" style="margin:0">${olyTag(x.c)} ${who(x)} ${lvTag(x.lv)} <span class="muted">· from ${esc(OLY.nation(x.nat))}</span></p>`).join('')}` : ''}
     ${snubs.length ? `<h4 class="ov-h down">😤 Snubs (${snubs.length})</h4>${snubs.slice(0, 12).map(s => `<p class="note small" style="margin:0">${olyTag(s.c)} ${who(s)} ${lvTag(s.lv)} <span class="muted">· ${esc(s.why)}</span></p>`).join('')}` : ''}
     ${outs.length ? `<h4 class="ov-h">🚫 Withdrawals (${outs.length})</h4>${outs.slice(0, 14).map(s => `<p class="note small" style="margin:0">${olyTag(s.c)} ${who(s)} ${lvTag(s.lv)} <span class="muted">· ${esc(s.why)}</span></p>`).join('')}` : ''}
   </div></fieldset>`;
   const groupsTab = `<fieldset class="frame"><legend>Groups</legend><div class="stack">${F.groups.map((g, gi) => {
     const rows = R ? R.standings[gi] : g.map(c => ({ c, w: 0, l: 0, pf: 0, pa: 0 }));
-    return `<h4 class="ov-h">Group ${'ABC'[gi]}</h4>${rows.map(r => { const t = F.field.find(x => x.c === r.c); return `<div class="drill-row tap" data-act="olyPick" data-c="${r.c}"><span class="grow">${olyTag(r.c)} ${esc(OLY.nation(r.c))} <span class="muted small">· strength ${t.str}</span></span>${R ? `<span>${r.w}-${r.l} <span class="muted small">${r.pf - r.pa > 0 ? '+' : ''}${r.pf - r.pa}</span></span>` : ''}</div>`; }).join('')}`;
+    return `<h4 class="ov-h">Group ${'ABCD'[gi]}</h4>${rows.map(r => { const t = F.field.find(x => x.c === r.c); return `<div class="drill-row tap" data-act="olyPick" data-c="${r.c}"><span class="grow">${olyTag(r.c)} ${esc(OLY.nation(r.c))} <span class="muted small">· strength ${t.str}</span></span>${R ? `<span>${r.w}-${r.l} <span class="muted small">${r.pf - r.pa > 0 ? '+' : ''}${r.pf - r.pa}</span></span>` : ''}</div>`; }).join('')}`;
   }).join('')}</div></fieldset>`;
   // The line score: quarters (and overtimes), the final, a trophy by the winner.
   const lineScore = G => { const n = Math.max(4, (G.qa || []).length), hd = Array.from({ length: n }, (_, i) => (i < 4 ? i + 1 : n > 5 ? `OT${i - 3}` : 'OT'));
@@ -19476,25 +19546,31 @@ screens.olympics = (args = {}) => {
   const lineOf = k => R.lines[k];
   const leaders = R ? Object.values(R.lines).filter(L => L.gp >= 3).sort((a, b) => b.pts / b.gp - a.pts / a.gp).slice(0, 10) : [];
   const xOf = (k, c) => F.field.find(t => t.c === c)?.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === k) || { fn: String(k), ln: '' };
-  const resultsTab = R ? `<fieldset class="frame"><legend>${OLY.logoSvg(30)} ${F.yr} ${esc(F.city)}</legend>
+  const after = v.after || {};
+  const resultsTab = R ? `<fieldset class="frame"><legend>${olyLogo(30, ev)} ${F.yr} ${esc(F.city)}</legend>
       <p class="note">${esc(olyHeadline(F, R))}</p>
-      <div class="stack">${['gold', 'silver', 'bronze'].map(m => `<p class="note" style="margin:0">${MEDAL[m]} ${olyTag(R.medals[m])} ${esc(OLY.nation(R.medals[m]))}</p>`).join('')}</div>
+      <div class="stack">${['gold', 'silver', 'bronze'].map(m => `<p class="note" style="margin:0">${MEDAL[m]} ${olyTag(R.medals[m])} ${esc(OLY.nation(R.medals[m]))}${F.field.find(t => t.c === R.medals[m])?.coach?.name ? ` <span class="muted small">· coach ${esc(F.field.find(t => t.c === R.medals[m]).coach.name)}</span>` : ''}</p>`).join('')}</div>
       <h4 class="ov-h">⭐ MVP</h4><p class="note small">${who(xOf(R.mvp, lineOf(R.mvp)?.c))} ${olyTag(lineOf(R.mvp)?.c)}</p>
       <h4 class="ov-h">All-Star Five</h4>${R.allStar.map(k => `<p class="note small" style="margin:0">${who(xOf(k, lineOf(k)?.c))} ${olyTag(lineOf(k)?.c)} <span class="muted">${(lineOf(k).pts / lineOf(k).gp).toFixed(1)} pts · ${(lineOf(k).reb / lineOf(k).gp).toFixed(1)} reb · ${(lineOf(k).ast / lineOf(k).gp).toFixed(1)} ast</span></p>`).join('')}
       <h4 class="ov-h">Scoring leaders</h4>${leaders.map(L => `<p class="note small" style="margin:0">${who(xOf(L.k, L.c))} ${olyTag(L.c)} <span class="muted">${(L.pts / L.gp).toFixed(1)} pts in ${L.gp}</span></p>`).join('')}
+      ${(R.injuries || []).length ? `<h4 class="ov-h down">🩹 Injuries</h4>${R.injuries.map(i => `<p class="note small" style="margin:0">${who({ pid: i.k })} ${olyTag(i.c)} <span class="muted">· ${esc(injuryName(i.inj))}, out about ${i.gamesOut} games</span></p>`).join('')}` : ''}
+      ${(after.dev || []).length ? `<h4 class="ov-h up">📈 Came back better</h4>${after.dev.map(d => `<p class="note small" style="margin:0">${who({ pid: d.pid })} <span class="up">+1 ${esc(ATTR_NAMES[d.k] || d.k)}</span> <span class="muted">· big minutes for ${esc(OLY.nation(d.c))}</span></p>`).join('')}` : ''}
+      ${(after.tired || []).length ? `<h4 class="ov-h">💤 Tired legs</h4><p class="note small muted">${after.tired.map(id => esc(olyName(id))).join(', ')}: -1 speed and stamina for the first two weeks of the season.</p>` : ''}
+      ${(after.bonds || []).length ? `<h4 class="ov-h">🤝 Teammates</h4><p class="note small muted">League teammates who played together for their country: ${after.bonds.map(b => `${esc(olyName(b[0]))} and ${esc(olyName(b[1]))}`).join('; ')}. A little morale for both.</p>` : ''}
     </fieldset>` : '';
   const gamesTab = R ? (boxTab || `<fieldset class="frame"><legend>Games</legend><div class="stack">${[...R.games.map((G, i) => [G, i])].reverse().map(([G, i]) => gameRow(G, i)).join('')}</div></fieldset>`) : '';
   // A team with a star and few league players: the captain up top, the league players under him, the rest named in a line.
   const leagueGuys = T.roster.filter(x => x.pid != null), homeGuys = T.roster.filter(x => x.pid == null);
   const thin = leagueGuys.length && leagueGuys.length <= 4 && homeGuys.length >= 6 && !(!done && edit);
-  const rosterView = thin ? `<h4 class="ov-h gold">Captain</h4><div class="stack"><div class="drill-row"><span class="grow">${who(leagueGuys[0])} <span class="muted small">${esc(POSITIONS[leagueGuys[0].pos] ?? '')} · ${leagueGuys[0].age}y</span> ${lvTag(leagueGuys[0].lv)}</span></div></div>
-      ${leagueGuys.length > 1 ? `<h4 class="ov-h">Notable players</h4><div class="stack">${leagueGuys.slice(1).map(x => `<p class="note small" style="margin:0">${who(x)} ${lvTag(x.lv)}</p>`).join('')}</div>` : ''}
+  const rosterView = thin ? `<h4 class="ov-h gold">Captain</h4><div class="stack"><div class="drill-row"><span class="grow">${who(leagueGuys[0])} <span class="muted small">${esc(POSITIONS[leagueGuys[0].pos] ?? '')} · ${leagueGuys[0].age}y</span> ${lvTag(leagueGuys[0].lv)}${natTag(leagueGuys[0])}</span></div></div>
+      ${leagueGuys.length > 1 ? `<h4 class="ov-h">Notable players</h4><div class="stack">${leagueGuys.slice(1).map(x => `<p class="note small" style="margin:0">${who(x)} ${lvTag(x.lv)}${natTag(x)}</p>`).join('')}</div>` : ''}
       <p class="note small muted">From the home leagues: ${homeGuys.map(x => esc(`${x.fn} ${x.ln}`)).join(', ')}.</p>` : `<div class="stack">${rosterRows}</div>`;
   const heroTag = R?.hero?.c === T.c ? `<p class="note small up">🔥 ${esc(olyName(R.hero.k))} went on a run.</p>` : '';
-  const teamsTab = `<fieldset class="frame"><legend>National Teams</legend>${teamPick}<p class="note small">${olyTag(T.c)} ${esc(OLY.nation(T.c))} · strength <b>${T.str}</b>${T.c === F.host ? ' · home crowd' : ''} · ${leagueGuys.length} from the league</p>${heroTag}${rosterView}${edit}</fieldset>`;
+  const coachLine = T.coach?.name ? `<p class="note small">Coach: ${T.coach.cid ? `<b class="tap" data-act="nav" data-to="coach" data-arg="${T.coach.cid}">${esc(T.coach.name)}</b>` : `<b>${esc(T.coach.name)}</b> <span class="muted">(national federation)</span>`}</p>` : '';
+  const teamsTab = `<fieldset class="frame"><legend>National Teams</legend>${teamPick}<p class="note small">${olyTag(T.c)} ${esc(OLY.nation(T.c))} · strength <b>${T.str}</b>${T.c === F.host ? ' · home crowd' : ''} · ${leagueGuys.length} from the league${F.via?.[T.c] && F.via[T.c] !== 'host' ? ` · in via ${esc(F.via[T.c])}` : ''}</p>${coachLine}${heroTag}${rosterView}${edit}</fieldset>`;
   layout({
-    title: 'Olympics',
-    body: `<div class="oly-head">${OLY.logoSvg(120)}<p class="note small muted">${F.yr} · ${esc(F.city)}</p></div>
+    title: evName,
+    body: `<div class="oly-head">${olyLogo(120, ev)}<p class="note small muted">${F.yr} · ${esc(F.city)}</p></div>
       ${uiTabs('oly', [
         ['results', 'Results', resultsTab],
         ['games', 'Games', gamesTab],
@@ -19502,7 +19578,7 @@ screens.olympics = (args = {}) => {
         ['groups', 'Groups', groupsTab],
         ['news', 'News', newsTab],
       ], R ? (G ? 'games' : 'results') : 'teams')}
-      ${done ? '' : `<button class="btn big focus" data-act="olyPlay">${OLY.logoSvg(26)} Start the Games</button>`}`,
+      ${done ? '' : `<button class="btn big focus" data-act="olyPlay">${olyLogo(26, ev)} Start the ${wc ? 'Tournament' : 'Games'}</button>`}`,
     action: done && isStep('olympics') ? { act: 'stepWrap', k: 'olympics', label: 'Wrap Up' } : null,
   });
 };
@@ -19517,27 +19593,122 @@ actions.olyGame = d => { (state.uiTab ||= {}).oly = 'games'; replace('olympics',
 actions.olyDrop = d => olyEdit(d.c, e => { const id = +d.id; e.add = e.add.filter(x => x !== id); if (!e.drop.includes(id)) e.drop.push(id); });
 actions.olyReset = d => olyEdit(d.c, (e, cur) => { delete cur.edits[d.c]; });
 actions.olyHome = d => olyEdit('_', (e, cur) => { const id = +d.id; cur.home ||= []; if (!cur.home.includes(id)) cur.home.push(id); });
-actions.olyPlay = async () => { if (await confirmBox('Lock the rosters and play the Games?', 'Play')) { olyRun(); render(); } };
+actions.olyPlay = async () => { if (await confirmBox(`Lock the rosters and play the ${olyName0()}?`, 'Play')) { olyRun(); render(); } };
 function olyRun() {
-  const st = olyStore(), y = olyYr(), cur = (st[y] ||= {});
-  const F = olyField().field, R = OLY.runGames(F, olySeed());
+  const st = olyStore(), y = olyYr(), cur = (st[y] ||= {}), L = league();
+  const F = olyField().field;
+  F.prone = olyProne;
+  const R = OLY.runGames(F, olySeed());
+  delete F.prone;
+  const wc = F.event === 'worldcup', evName = OLY.EVENT_NAME[F.event || 'olympics'];
   // Keep what was played (rosters without the eligible lists) and the results.
-  cur.field = { ...F, field: F.field.map(t => ({ c: t.c, str: t.str, roster: t.roster, snubs: t.snubs, withdrew: t.withdrew })) };
-  cur.result = R;
+  cur.field = { ...F, field: F.field.map(t => ({ c: t.c, str: t.str, roster: t.roster, snubs: t.snubs, withdrew: t.withdrew, coach: t.coach })) };
   if (!cur.applied) {
     cur.applied = true;
-    const P = id => findPlayer(id)?.p;
-    for (const [m, n, why] of [['gold', 6, 'Olympic gold'], ['silver', 3, 'Olympic silver'], ['bronze', 3, 'Olympic bronze']])
+    const P = id => findPlayer(id)?.p, after = { dev: [], tired: [], bonds: [] };
+    const big = wc ? [3, 2, 2] : [6, 3, 3];
+    for (const [m, n, why] of [['gold', big[0], `${evName} gold`], ['silver', big[1], `${evName} silver`], ['bronze', big[2], `${evName} bronze`]])
       for (const x of F.field.find(t => t.c === R.medals[m])?.roster || []) if (x.pid != null && P(x.pid)) moraleEvent(P(x.pid), 'olympics', n, why);
-    for (const t of F.field) for (const s of t.snubs) if (P(s.pid) && s.why !== 'left off by you') moraleEvent(P(s.pid), 'olympics', -3, `left off ${OLY.nation(t.c)}'s Olympic team`);
-    for (const id of cur.home || []) if (P(id)) moraleEvent(P(id), 'olympics', -4, 'kept home from the Olympics');
-    if (typeof R.mvp === 'number' && P(R.mvp)) drift(P(R.mvp), 'olympics', EGO_KEY, 1, 'Olympic MVP');
+    for (const t of F.field) for (const s of t.snubs) if (P(s.pid) && s.why !== 'left off by you') moraleEvent(P(s.pid), 'olympics', wc ? -2 : -3, `left off ${OLY.nation(t.c)}'s ${evName} team`);
+    for (const id of cur.home || []) if (P(id)) moraleEvent(P(id), 'olympics', wc ? -2 : -4, `kept home from the ${evName}`);
+    if (typeof R.mvp === 'number' && P(R.mvp)) drift(P(R.mvp), 'olympics', EGO_KEY, 1, `${evName} MVP`);
+    // Injuries: written into the save (only on someone who isn't already hurt).
+    for (const i of R.injuries || []) {
+      const p = P(i.k);
+      if (!p?.season || (p.season.injury?.gamesOut || 0) > 0) continue;
+      p.season.injury = { ...(p.season.injury || {}), yr: L.season.currentYear, core: 0, upperBody: 0, lowerBody: 0, [i.area]: i.part, minorSeverity: i.minorSeverity, majorSeverity: i.majorSeverity, gamesOut: i.gamesOut, ageRegression: 0, age: 0 };
+      if (p.gameStatus) p.gameStatus.injured = true;
+      i.inj = { ...p.season.injury };
+    }
+    R.injuries = (R.injuries || []).filter(i => i.inj);
+    // Young players who played big minutes come back a little better: +1 on a skill with room (40%).
+    const rng = mulberry32(olySeed() ^ 0xd0e);
+    const SK = ATTRS.filter(k => !PHYSICAL.includes(k));
+    for (const Lr of Object.values(R.lines)) {
+      const p = typeof Lr.k === 'number' ? P(Lr.k) : null;
+      if (!p || p.age > 24 || Lr.gp < 4 || Lr.min / Lr.gp < 20 || rng() > 0.4) continue;
+      const room = SK.filter(k => p.attributes[k] && p.attributes[k][0] < Math.min(p.attributes[k][1], attrCap(k)));
+      if (!room.length) continue;
+      const k = room[Math.floor(rng() * room.length)];
+      p.attributes[k][0]++;
+      after.dev.push({ pid: p.id, k, c: Lr.c });
+    }
+    // Tired legs: anyone who carried a big load deep into the tournament (6+ games at 24+ minutes), for the first two
+    // weeks of the season (the 💤 on his ratings).
+    after.tired = Object.values(R.lines).filter(Lr => typeof Lr.k === 'number' && Lr.gp >= 6 && Lr.min / Lr.gp >= 24 && P(Lr.k)).map(Lr => Lr.k);
+    fxOlympic(after.tired, L.season.currentYear);
+    // Chemistry: league teammates who played for the same country.
+    for (const t of F.field) {
+      const lg = t.roster.filter(x => x.pid != null && P(x.pid));
+      for (let i = 0; i < lg.length; i++) for (let j = i + 1; j < lg.length; j++) {
+        const a = P(lg[i].pid), b = P(lg[j].pid);
+        if (a.tid !== b.tid || a.tid == null || a.status === FA.STATUS_FREE) continue;
+        moraleEvent(a, 'olympics-mates', 2, `played with ${playerName(b)} for ${OLY.nation(t.c)}`);
+        moraleEvent(b, 'olympics-mates', 2, `played with ${playerName(a)} for ${OLY.nation(t.c)}`);
+        after.bonds.push([a.id, b.id]);
+      }
+    }
+    cur.after = after;
     state.dirty = true;
   }
+  cur.result = R;
   olySave(st);
   (state.uiTab ||= {}).oly = 'results';
 }
 actions.olySkip = () => { olyRun(); calFlags().olympics = true; state.undo = null; goHome(); nextUp(); };
+
+// ---- Fatigue (💤): a temporary -1 to speed and stamina. Two kinds: players who carried a big load at the Olympics or
+// World Cup (the first two weeks of the next season), and anyone playing through a minor injury (still hurt but not
+// sitting) until he's healed. Like streaks: what went out to the game in a file comes back off on the next load.
+const FATIGUE_KEYS = ['SPD', 'STM'];
+const fxKey = () => `hlc:fatigue:${saveTag()}`;
+function fxStore() { try { return JSON.parse(localStorage.getItem(fxKey())) || { list: {} }; } catch { return { list: {} }; } }
+function fxSave(v) { try { localStorage.setItem(fxKey(), JSON.stringify(v)); } catch { /* ignore */ } }
+function fxOlympic(pids, season) { const st = fxStore(); st.oly = { season, pids }; fxSave(st); }
+// Who's tired right now. `atExport`: the Opening Night file (the Olympic fatigue goes out with it).
+function fxWho(atExport) {
+  const L = league(), s = L.season, st = fxStore(), out = {};
+  if (!labOn() || isCollege()) return out;
+  const early = s.phase === 9 && (s.currentDay || 0) < 15, pre = atExport && s.phase < 9 && isStep('export');   // the Opening Night file, after camp
+  if (st.oly && st.oly.season === s.currentYear && (early || pre)) for (const id of st.oly.pids) out[id] = 'Tired legs';
+  if (s.phase >= 9) for (const t of L.teams) for (const p of t.roster) {
+    const i = p.season?.injury;
+    if (i && (i.gamesOut || 0) > 0 && !(i.majorSeverity > 0) && p.gameStatus && p.gameStatus.injured === false) out[p.id] = 'Playing hurt';
+  }
+  return out;
+}
+function fxApplyTo(list, who) {
+  let n = 0;
+  for (const [pid, src] of Object.entries(who)) {
+    const p = findPlayer(+pid)?.p;
+    if (!p?.attributes) continue;
+    const add = {}, base = {};
+    for (const k of FATIGUE_KEYS) { const a = p.attributes[k]; if (!a || a[0] <= attrMin(k)) continue; base[k] = [a[0], a[1], null]; a[0] -= 1; add[k] = -1; }
+    if (Object.keys(add).length) { list[pid] = { src, add, base }; n++; }
+  }
+  return n;
+}
+// On load: take back what went out last time, then read who's tired now.
+function applyFatigue() {
+  const st = fxStore();
+  let n = 0;
+  if (st.out) for (const [pid, x] of Object.entries(st.list || {})) {
+    const p = findPlayer(+pid)?.p;
+    if (!p) continue;
+    for (const [k, d] of Object.entries(x.add)) { const a = p.attributes?.[k]; if (a && a[0] <= x.base[k][0] + d) { a[0] -= d; n++; } }
+  }
+  const list = {};
+  n += fxApplyTo(list, fxWho(false));
+  fxSave({ ...st, list, out: false });
+  return n;
+}
+// At export: the Opening Night file takes the Olympic fatigue with it; whatever is on goes out with the file.
+function markFatigueOut() {
+  const st = fxStore();
+  if (!st.out && !Object.keys(st.list || {}).length) { const list = {}; if (fxApplyTo(list, fxWho(true))) st.list = list; }
+  if (Object.keys(st.list || {}).length) { st.out = true; fxSave(st); }
+}
+const fxOf = id => fxStore().list?.[id] || null;
 // ---- Player faces: from screenshots of the game's roster screen (js/faceimport.js cuts and matches them).
 screens.faces = (args = {}) => {
   const L = league(), mine = L.teams.filter(isUserTeam);
