@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.330.5';
+const APP_VERSION = '0.330.6';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -19630,7 +19630,7 @@ screens.olympics = (args = {}) => {
   const lgPlayers = F.field.reduce((a, t) => a + leagueN(t), 0);
   layout({
     title: evName,
-    body: `<div class="oly-head">${olyLogo(120, ev)}<div class="oly-title">${esc(F.city.toUpperCase())} ${F.yr}</div><div class="oly-host">${esc([F.city, OLY.regionName(F.city)].filter((x, i, a) => x && a.indexOf(x) === i).join(', '))} · ${OLY.flagHtml(F.host, 1.6)}${esc(OLY.nation(F.host))}</div></div>
+    body: `<div class="oly-head">${olyLogo(120, ev)}<div class="oly-title">${F.yr} ${esc(evName.toUpperCase())}</div><div class="oly-host">${esc([F.city, OLY.regionName(F.city)].filter((x, i, a) => x && a.indexOf(x) === i).join(', '))} · ${OLY.flagHtml(F.host, 1.6)}${esc(OLY.nation(F.host))}</div></div>
       ${uiTabs('oly', [
         ['results', 'Results', resultsTab],
         ['games', 'Games', gamesTab],
