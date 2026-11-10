@@ -16,6 +16,11 @@ export const wcHostOf = yr => WC_HOSTS[yr] || WC_ROTATION[((yr - 2035) / 4) % WC
 // Hosts: the real ones, then a rotation.
 const HOSTS = { 2028: ['US', 'Los Angeles'], 2032: ['AU', 'Brisbane'] };
 const ROTATION = [['ES', 'Madrid'], ['DE', 'Berlin'], ['JP', 'Osaka'], ['FR', 'Lyon'], ['IT', 'Milan'], ['CA', 'Toronto'], ['TR', 'Istanbul'], ['BR', 'Rio de Janeiro'], ['US', 'Chicago'], ['GR', 'Athens']];
+// The state or region of each host city, for the header ("Los Angeles, California").
+const HOST_REGION = { 'Los Angeles': 'California', Brisbane: 'Queensland', Madrid: 'Community of Madrid', Berlin: 'Berlin', Osaka: 'Osaka', Lyon: 'Auvergne-Rhône-Alpes',
+  Milan: 'Lombardy', Toronto: 'Ontario', Istanbul: 'Istanbul', 'Rio de Janeiro': 'Rio de Janeiro', Chicago: 'Illinois', Athens: 'Attica', Manila: 'Metro Manila',
+  Paris: 'Île-de-France', 'Buenos Aires': 'Buenos Aires', Tokyo: 'Tokyo', Melbourne: 'Victoria', Doha: 'Doha' };
+export const regionName = city => HOST_REGION[city] || '';
 export const hostOf = yr => HOSTS[yr] || ROTATION[((yr - 2036) / 4) % ROTATION.length | 0];
 
 // Who can field a team, their three-letter code, and how good their best player outside the league is (on the

@@ -1839,7 +1839,8 @@ a.btn { text-decoration: none; }
 .bar .temp.down { background: #ffffff59; box-shadow: 0 0 4px #ffffff40; }   /* a faded ghost of the point the slump took */
 .temp-num { color: #fff; font-weight: 700; }
 /* Olympics */
-.oly-head { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 4px 0 10px; }
+.oly-head { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 4px 0 0; }
+.oly-head .oly-title { margin-top: 8px; }
 .oly-logo { image-rendering: pixelated; vertical-align: middle; border-radius: 3px; }
 legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .oly-c { display: inline-block; min-width: 2.6em; font-family: inherit; letter-spacing: 0.04em; }
@@ -1890,4 +1891,5 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .medal-box.m-gold { background: #f5c542; } .medal-box.m-silver { background: #c9d1d9; } .medal-box.m-bronze { background: #cd7f32; }
 .oly-pod .medal-box { font-size: 15px; min-width: 28px; }
 
-.oly-host { display: flex; align-items: center; justify-content: center; gap: 2px; font-size: 0.9em; opacity: 0.85; margin-bottom: 4px; }
+.oly-host { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px; font-size: 0.9em; opacity: 0.85; margin: 6px 0 0; }
+.oly-head + .ui-tabs { margin-top: -6px; }
