@@ -70,7 +70,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.326.2';
+const APP_VERSION = '0.326.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10569,11 +10569,13 @@ const barClass = k => `bar${RATING_GROUP[k] ? ` c-${RATING_GROUP[k]}` : ''}`;
 // Breakpoints on every rating bar: 10, 14 and 18 of 20, where a rating starts costing more to raise in the game.
 const BREAKPOINTS = [10, 14, 18];
 function attrRow(p, snap, k, ceilMode) {
-  const tmp = tempDelta(p), t = tmp?.add?.[k] || 0;
+  const tmp = tempDelta(p);
+  // A boost that lands him on 20 just reads as a maxed rating, no +1.
+  const rawT = tmp?.add?.[k] || 0, t = rawT > 0 && p.attributes[k][0] >= ATTR_MAX ? 0 : rawT;
   const phys = PHYSICAL.includes(k);
   const [cur] = p.attributes[k], ceil = phys ? cur : p.attributes[k][1];
   // A temporary change (streak, playoff riser) shows only as the white part: it isn't this offseason's gain or loss.
-  const orig0 = snap.attributes[k][0], orig = t && orig0 === cur - t ? orig0 + t : orig0;
+  const orig0 = snap.attributes[k][0], orig = rawT && orig0 === cur - rawT ? orig0 + rawT : orig0;
   const delta = cur - orig;
   const base = Math.min(cur, orig);
   // Declining: the game shows his peak minus this year's regression. The bar
