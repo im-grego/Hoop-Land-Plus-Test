@@ -42,21 +42,33 @@ function pools(players, level) {
 
 // Who says no: stars past 33 often rest, the injured can't go, and a few just want the summer off. `mine(p)`:
 // your players (you can keep one home yourself; the app passes those in `home`).
-function withdrawal(rng, p, lv) {
+// The chance starts from his age, then his personality and how long his season ran: a Finals run wears a player
+// down, a competitor and a committed player want the gold, a lazy or injury-prone one stays home, a bag-chaser with
+// an expiring deal protects his free agency. `poGp`: his playoff games last season.
+function withdrawal(rng, p, lv, poGp = 0) {
   if ((p.season?.injury?.gamesOut || 0) > 0) return 'injured';
-  const r = rng();
-  if (p.age >= 34) return r < 0.45 ? 'resting at his age' : null;
-  if (p.age >= 31) return r < 0.22 ? 'resting after a long season' : null;
-  return r < (lv >= 95 ? 0.05 : 0.07) ? 'taking the summer off' : null;   // stars rarely pass on it
+  const t = k => p.traits?.[k] || 10;
+  let c = p.age >= 34 ? 0.3 : p.age >= 31 ? 0.15 : lv >= 95 ? 0.04 : 0.06;
+  const why = [[p.age >= 34 ? 1.5 : p.age >= 31 ? 1.2 : 0.6, p.age >= 31 ? 'resting at his age' : 'taking the summer off']];
+  const f = (m, w) => { c *= m; if (m > 1) why.push([m, w]); };
+  if (poGp >= 19) f(2.2, 'worn down after the Finals run'); else if (poGp >= 13) f(1.6, 'resting after a deep playoff run'); else if (poGp >= 9) f(1.2, 'resting after a long season');
+  if (t('winning') >= 16) f(0.5); else if (t('winning') <= 4) f(1.3, 'not interested this time');
+  if (t('loyalty') >= 16) f(0.7); else if (t('loyalty') <= 4) f(1.3, 'not interested this time');
+  if (t('motor') >= 16) f(0.7); else if (t('motor') <= 4) f(1.7, 'would rather have the summer off');
+  if (t('durability') <= 4) f(1.6, 'his team wants him rested'); else if (t('durability') >= 16) f(0.8);
+  if (t('playoffRiser') >= 16) f(0.8);   // an Alpha wants the stage
+  if (t('money') >= 16 && p.status === 4) f(1.8, 'protecting his free agency');
+  if (rng() >= Math.min(0.85, c)) return null;
+  return why.sort((a, b) => b[0] - a[0])[0][1];
 }
 
 // A national team: the federation picks the best twelve it can, keeping a balance of guards, wings and bigs (never
 // more than five of one kind), with a nod to players who were there last time. `edits`: { add: [pid], drop: [pid] }
 // from you; `home`: pids you kept home.
-function selectTeam(c, pool, rng, prev, edits = {}, home = new Set()) {
+function selectTeam(c, pool, rng, prev, edits = {}, home = new Set(), poGp = () => 0) {
   const withdrew = [], open = [];
   for (const x of pool) {
-    const why = home.has(x.p.id) ? 'kept home by his team' : withdrawal(rng, x.p, x.lv);
+    const why = home.has(x.p.id) ? 'kept home by his team' : withdrawal(rng, x.p, x.lv, poGp(x.p));
     if (why && !(edits.add || []).includes(x.p.id)) withdrew.push({ ...x, why }); else open.push(x);
   }
   const drop = new Set(edits.drop || []), forced = (edits.add || []).map(id => open.find(x => x.p.id === id)).filter(Boolean);
@@ -104,12 +116,12 @@ export function strength(roster, c, host) {
 }
 
 // Build the field: rosters for every nation, then the host plus the eleven strongest.
-export function buildField({ yr, players, level, prevIds = {}, edits = {}, home = [], seed }) {
+export function buildField({ yr, players, level, prevIds = {}, edits = {}, home = [], seed, poGp }) {
   const rng = mulberry32(seed ^ 0x0717c);
   const [host, city] = hostOf(yr), by = pools(players, level), homeSet = new Set(home);
   const used = new Set(players.map(p => `${p.fn} ${p.ln}`.toLowerCase()));
   const teams = Object.keys(NATIONS).map(c => {
-    const sel = selectTeam(c, by[c] || [], rng, new Set(prevIds[c] || []), edits[c], homeSet);
+    const sel = selectTeam(c, by[c] || [], rng, new Set(prevIds[c] || []), edits[c], homeSet, poGp);
     const roster = sel.picked.map(x => ({ pid: x.p.id, fn: x.p.fn, ln: x.p.ln, pos: x.p.pos, age: x.p.age, lv: x.lv, tid: x.p.tid }));
     // The best of the country's own league are in the running too: a fringe league player doesn't beat a better pro
     // from home (unless you added him).
@@ -134,13 +146,19 @@ function playGame(rng, A, B, stage) {
   const edge = ((A.str + (A.heat || 0)) - (B.str + (B.heat || 0))) * 0.65, margin = edge + (rng() + rng() + rng() + rng() - 2) * 12;
   const total = 166 + (rng() - 0.5) * 24;
   let sa = Math.round((total + margin) / 2), sb = Math.round((total - margin) / 2);
+  // Ten-minute quarters, then five-minute overtimes until someone's ahead.
+  const split = n => { const w = [0, 1, 2, 3].map(() => 0.8 + rng() * 0.4), sw = w.reduce((a, b) => a + b, 0), q = w.map(v => Math.floor(n * v / sw)); q[3] += n - q.reduce((a, b) => a + b, 0); return q; };
+  const qa = split(sa), qb = split(sb);
   let ot = 0;
-  while (sa === sb) { ot++; sa += 6 + Math.floor(rng() * 7); sb += 6 + Math.floor(rng() * 7); }
-  return { stage, a: A.c, b: B.c, sa, sb, ot, box: [box(rng, A, sa), box(rng, B, sb)] };
+  while (sa === sb) { ot++; const oa = 6 + Math.floor(rng() * 7), ob = 6 + Math.floor(rng() * 7); qa.push(oa); qb.push(ob); sa += oa; sb += ob; }
+  return { stage, a: A.c, b: B.c, sa, sb, ot, qa, qb, box: [box(rng, A, sa, ot), box(rng, B, sb, ot)] };
 }
 const MIN = [30, 28, 27, 25, 24, 21, 18, 15, 12, 10, 6, 4];
-function box(rng, T, pts) {
-  const rows = T.roster.map((x, i) => ({ x, min: Math.max(0, Math.round(MIN[i] + (rng() - 0.5) * 6)) }));
+function box(rng, T, pts, ot = 0) {
+  const rows = T.roster.map((x, i) => ({ x, min: Math.max(1, Math.round(MIN[i] + (rng() - 0.5) * 6)) }));
+  // Five on the floor for 40 minutes (plus five an overtime): 200 minutes, squared up on the starters.
+  const want = 200 + 25 * ot, have = rows.reduce((a, r) => a + r.min, 0);
+  for (let i = 0, d = want - have; d !== 0; i = (i + 1) % 5) { const st = Math.sign(d); if (rows[i].min + st >= 1) { rows[i].min += st; d -= st; } }
   // Shares of the scoring by minutes and level, no one over about 30% (FIBA games spread it around).
   // A hero on a heater takes a much bigger share (up to about 40%).
   const isHero = r => T.hero != null && (r.x.pid ?? `${r.x.fn} ${r.x.ln}`) === T.hero;
@@ -212,7 +230,7 @@ export function runGames(F, seed) {
 
 // ---- The logo: five pixel rings (blue, black, red over yellow, green), interlocked, on a white badge.
 const RING = ['...####...', '.##....##.', '.#......#.', '#........#', '#........#', '#........#', '#........#', '.#......#.', '.##....##.', '...####...'];
-const RINGS = [[0, 0, '#0b5fb4'], [12, 0, '#111111'], [24, 0, '#e8202a'], [6, 5, '#f2c400'], [18, 5, '#0d9b3f']];
+const RINGS = [[0, 0, '#2f86e6'], [12, 0, '#111111'], [24, 0, '#e8202a'], [6, 5, '#f2c400'], [18, 5, '#0d9b3f']];
 export function logoSvg(size = 40) {
   const W0 = 34, H0 = 15, px = {};
   RINGS.forEach(([ox, oy, col], ri) => RING.forEach((row, y) => [...row].forEach((ch, x) => {
@@ -223,5 +241,31 @@ export function logoSvg(size = 40) {
     px[k] = col;
   })));
   const rects = Object.entries(px).map(([k, col]) => { const [x, y] = k.split(','); return `<rect x="${+x + 2}" y="${+y + 2}" width="1" height="1" fill="${col}"/>`; }).join('');
-  return `<svg class="oly-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W0 + 4} ${H0 + 4}" width="${size}" height="${size * (H0 + 4) / (W0 + 4)}" shape-rendering="crispEdges" role="img" aria-label="Olympics"><rect x="0" y="0" width="${W0 + 4}" height="${H0 + 4}" rx="2" fill="#fff"/>${rects}</svg>`;
+  return `<svg class="oly-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W0 + 4} ${H0 + 4}" width="${size}" height="${size * (H0 + 4) / (W0 + 4)}" shape-rendering="crispEdges" role="img" aria-label="Olympics">${rects}</svg>`;
+}
+// An original take in the same spirit: five pixel basketballs in the five colors, three over two, each with its
+// seams (the middle lines and the two side curves).
+const BALLS = [[0, 0, '#2f86e6'], [16, 0, '#1b1b1b'], [32, 0, '#e8202a'], [8, 8, '#f2c400'], [24, 8, '#0d9b3f']];
+// A 15-pixel ball: the two middle lines, and two seams curving out like ( and ) that meet the vertical line at the
+// top and bottom.
+function ballPixels() {
+  const c = 7, R = 7.4, seam = new Set();
+  for (let i = 0; i <= 15; i++) { seam.add(`${c},${i}`); seam.add(`${i},${c}`); }
+  for (let t = -1; t <= 1.0001; t += 0.02) {
+    const y = Math.round(c + t * 6.6), off = 4.6 * (1 - t * t);
+    seam.add(`${Math.round(c - off)},${y}`); seam.add(`${Math.round(c + off)},${y}`);
+  }
+  const out = [];
+  for (let y = 0; y < 15; y++) for (let x = 0; x < 15; x++) {
+    const d = Math.hypot(x - c, y - c);
+    if (d > R) continue;
+    out.push([x, y, d <= R - 1 && seam.has(`${x},${y}`) ? 'seam' : 'fill']);
+  }
+  return out;
+}
+export function logo2Svg(size = 40) {
+  const W0 = 47, H0 = 23, rects = [], px = ballPixels();
+  for (const [ox, oy, col] of BALLS) for (const [x, y, kind] of px)
+    rects.push(`<rect x="${ox + x}" y="${oy + y}" width="1" height="1" fill="${kind === 'seam' ? '#0a0a0a' : col}"${kind === 'seam' ? ' opacity="0.55"' : ''}/>`);
+  return `<svg class="oly-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W0} ${H0}" width="${size}" height="${size * H0 / W0}" shape-rendering="crispEdges" role="img" aria-label="World Games">${rects.join('')}</svg>`;
 }
