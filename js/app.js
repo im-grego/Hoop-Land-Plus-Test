@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.327.3';
+const APP_VERSION = '0.328.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -1608,7 +1608,7 @@ const faDone = day => {
 };
 
 // Each step: when, what, whether it's finished, and what it opens.
-const SUMMER_OFF = true;
+const SUMMER_OFF = false;
 const CALENDAR = [
   { key: 'office', date: 'May 1', title: 'Front Office', blurb: 'Select the teams you run.',
     done: () => calFlags().office },
@@ -1984,9 +1984,9 @@ const nextUp = () => { const st = currentStep(); if (st) toast(`Next up: ${st.ti
 // team is the one the save is built around, like college.
 const isFranchise = () => { const L = league(); return L.season.mode === 0 && L.teams.some(t => t.id === L.season.teamId); };
 // Paused features: steps kept in the code but out of the app until they're ready to show.
-// Summer League (the tournament and the rookies' age adjustment screen) is paused: the step is Rookie Signings, and the
-// age adjustment runs quietly when it wraps up.
-const PAUSED = new Set(['vote', 'exhib', 'rotation', 'camp']);   // camp: Rookie Numbers (numbers are on the Contracts step's Rookies tab)
+// Summer League is back (Jul 3, after Contracts): the rookies' deals, their numbers, the age adjustment and the
+// tournament in Las Vegas, all on its own step.
+const PAUSED = new Set(['vote', 'exhib', 'rotation']);
 const activeCal = () => (state.campusPro ? campusProCal() : isCollege() ? COLLEGE_CAL : CALENDAR.filter(st => !PAUSED.has(st.key) && (st.key !== 'office' || !(isFranchise() || CAR.isCareer(league()))) && (st.key !== 'latefa' || isComplete()) && (!['owner', 'medical', 'exhib', 'rotation', 'vote'].includes(st.key) || !CAR.isCareer(league())) && (st.key !== 'expansion' || !!expThisYear()) && (st.key !== 'olympics' || olyOn())));   // a career save runs no team
 const currentStep = () => activeCal().find(st => !st.done());
 const isStep = key => currentStep()?.key === key;
@@ -5752,10 +5752,12 @@ screens.camp = () => {
     layout({ title: 'Rookie Numbers', body: `${!leagueRookies(league()).length ? '<p class="note">No rookies this year.</p>' : numbersSection(true)}`, action: { act: 'calCampBack', label: 'Wrap Up' } });
     return;
   }
+  // Without the rookies' pre-draft ratings there's nothing to adjust: numbers and the tournament go ahead anyway.
+  const ready = ageDone || !leagueRookies(league()).length || !summerEligible().length;
   layout({
     title: 'Summer League',
-    body: `${rookieDealsCard()}${!leagueRookies(league()).length ? '<p class="note">No rookies this year.</p>' : ageDone ? '' : ageSection()}${numbersSection(ageDone || !leagueRookies(league()).length)}${tourSection((ageDone || !leagueRookies(league()).length) && numbersReady())}`,
-    action: (ageDone || state.summerTour[state.leagueIdx]) && (state.summerTour[state.leagueIdx]?.stage || 'final') === 'final' ? { act: 'calCampBack', label: 'Wrap Up' } : null,
+    body: `${rookieDealsCard()}${!leagueRookies(league()).length ? '<p class="note">No rookies this year.</p>' : ageDone ? '' : ageSection()}${numbersSection(ready)}${tourSection(ready && numbersReady())}`,
+    action: (ready || state.summerTour[state.leagueIdx]) && (state.summerTour[state.leagueIdx]?.stage || 'final') === 'final' ? { act: 'calCampBack', label: 'Wrap Up' } : null,
   });
 };
 // Rookie Numbers is paused: when the Contracts step is done, its wrap-up (the rookies' age adjustment) runs on its own.
@@ -6016,7 +6018,7 @@ function tourSection(ready) {
         <div class="mvp-card">${logoImg(mvpTeam)}<span class="grow"><b>${esc(mvpName(L, r.mvp))}</b> <span class="muted small">${esc(mvpTeam.shortName)}</span><br><span class="small">${r.mvp.ppg} PPG · ${r.mvp.rpg} RPG · ${r.mvp.apg} APG</span></span></div></div>` : ''}
       ${t.reward.length ? `<p class="note small up sl-reward ${anim ? 'pending' : ''}">${t.reward.map(x => `${esc(playerName(x.p))} ${Object.keys(x.gains).map(k => `${k} +1`).join(', ')}`).join(' · ')}</p>` : ''}`;
   }
-  return `<fieldset class="frame"><legend>Summer League</legend><div class="stack">${body}</div></fieldset>`;
+  return `<fieldset class="frame"><legend>🌴 Las Vegas Summer League</legend><div class="stack">${body}</div></fieldset>`;
 }
 
 // Made-up pool-play scores for the sim animation (fixed per season).
@@ -16116,7 +16118,6 @@ screens.options = () => {
     body: `<p class="note small">Accept a team option to keep his last year at the same salary, or decline it to let him go. Picked-up options can be extended right after, in the extension window.</p>
       ${careerTeamNow() ? viewOnlyNote() : ''}${uiTabs('options', [
         ...(stashBackCard() ? [['gl', 'G League', stashBackCard()]] : []),
-        ...(rookieDealsCard() ? [['rookies', 'Rookies', rookieDealsCard()]] : []),
         ['team', 'Team', `      <fieldset class="frame"><legend>Your Team Options</legend><div class="stack">${myTeamOpts.map(x => { const deal = st.deals?.[x.p.id], neg = st.neg?.[x.p.id]; return `<div class="drill-row wrap">${head(x)}
         <span class="opt-btns full">${btn('optTeam', x.p.id, 'ex', x.c.choice === 'ex', 'Accept')}${btn('optTeam', x.p.id, 'dec', x.c.choice === 'dec', 'Decline')}</span>
         ${x.c.choice === 'ex' ? `<p class="note small up full">${done ? 'Picked up: he can be extended in the extension window.' : 'Picked up: once decisions are final you can talk extension.'}</p>` : ''}</div>`; }).join('') || '<p class="note muted small">No team options this year.</p>'}</div></fieldset>`, !done && myTeamOpts.some(x => !x.c.choice)],
