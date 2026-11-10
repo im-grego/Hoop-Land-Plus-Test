@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.327.2';
+const APP_VERSION = '0.327.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -2322,7 +2322,7 @@ const NBA_SETUP = [
   { k: 'picks', title: 'Real draft picks', text: 'Every traded pick (2027-2033) moves to the team that really owns it, with its protections and swaps.' },
   { k: 'dead', title: 'Real dead cap', text: 'Stretched contracts on the books: Lillard on Milwaukee, Beal on Phoenix.' },
   { k: 'history', title: 'History from 1977', text: 'The save starts its history at the merger, so you can scroll back through every season\'s standings, awards and stats since.' },
-  { k: 'expansion', title: 'Expansion after the 2028 season', text: 'The Seattle Sonics and Las Vegas Venom join in the 2028 offseason: protected lists and the expansion draft after the lottery, and they play from the 2029 season.' },
+  { k: 'expansion', title: 'Expansion after the 2029 season', text: 'The Seattle Sonics and Las Vegas Venom join in the 2029 offseason (a summer after the Olympics): protected lists and the expansion draft after the lottery, and they play from the 2030 season.' },
   { k: 'classes', title: 'Realistic draft classes', text: `Hand-built classes for the ${RDC.REAL_CLASS_YEARS.join(', ')} drafts, varied every time (ratings, play-style tendencies re-rolled, personality, a few potentials up or down a step) with the same number of 5-star and 4.5-star players.` },
 ];
 // Realistic draft classes (realclasses.js): when a save reaches the offseason before one of those drafts (before the
@@ -2360,8 +2360,9 @@ async function realClassCheck() {
   const c = RDC.potCounts(varied);
   toast(`🎓 The ${yr} draft class is in`, `${varied.length} prospects · ${c[10] || 0} five-star, ${c[9] || 0} four-and-a-half.`, 4500);
 }
-// The realistic expansion: Seattle and Las Vegas, announced for the 2028 offseason (the save's 2029, the 2028 draft).
-const REAL_EXP_YR = 2029;
+// The realistic expansion: Seattle and Las Vegas, announced for the 2029 offseason (the save's 2030, the 2029 draft), a
+// summer after the 2028 Olympics so the two don't land in the same offseason.
+const REAL_EXP_YR = 2030;
 function realExpansionPlan() {
   const L = league(), x = expStore();
   if (x && ['announced', 'protect', 'draft', 'done'].includes(x.status)) return 'already';
@@ -2399,7 +2400,7 @@ actions.nbaSetupApply = () => {
   const out = [];
   if (on.picks && !f.picks) { const r = applyRealPicksNow(); out.push(`${r.moved} picks moved`); }
   if (on.dead && !f.dead) { const n = addRealDeadNow(); if (n) out.push('dead cap added'); }
-  if (on.expansion) { const r = realExpansionPlan(); if (r === 'set') out.push('Seattle and Las Vegas join after the 2028 season'); else if (r === 'past') out.push('the 2028 expansion has already passed in this save'); }
+  if (on.expansion) { const r = realExpansionPlan(); if (r === 'set') out.push('Seattle and Las Vegas join after the 2029 season'); else if (r === 'past') out.push('the 2029 expansion has already passed in this save'); }
   state.params.realClasses = !!on.classes;
   saveParams();
   if (on.classes) realClassCheck();
@@ -6579,7 +6580,13 @@ function jerseyPosts() {
 // expansion draft (after the lottery, before the NBA draft). The rules live in expansion.js.
 const expKey = () => `hlc:expansion:${saveTag()}`;
 function expStore() {
-  if (!state.expansion || state.expansion.key !== expKey()) { let v = null; try { v = JSON.parse(localStorage.getItem(expKey())); } catch { v = null; } state.expansion = { key: expKey(), v }; }
+  if (!state.expansion || state.expansion.key !== expKey()) {
+    let v = null; try { v = JSON.parse(localStorage.getItem(expKey())); } catch { v = null; }
+    // The realistic expansion moved a summer later (off the Olympics): one announced for the old date and not started yet
+    // moves with it.
+    if (v?.real && v.status === 'announced' && v.yr === 2029 && league().season.currentYear <= 2029) { v.yr = REAL_EXP_YR; try { localStorage.setItem(expKey(), JSON.stringify(v)); } catch { /* ignore */ } }
+    state.expansion = { key: expKey(), v };
+  }
   return state.expansion.v;
 }
 function saveExp(v) {
