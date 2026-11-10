@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.329.6';
+const APP_VERSION = '0.329.7';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -12902,6 +12902,7 @@ screens.prospect = (args) => {
   layout({
     title: 'Prospect',
     body: `
+      ${olyBox(p)}
       <div class="pros-head">
         <button class="mvbtn pros-add ${onBoard(p.id) ? 'on' : ''}" data-act="toggleBoard" data-id="${p.id}" aria-label="${onBoard(p.id) ? 'Remove from' : 'Add to'} your board">${onBoard(p.id) ? '✓' : '+'}</button>
         <h2 class="team-title">${esc(playerName(p))}</h2>
@@ -19453,16 +19454,17 @@ function olyRecord(pid) {
   const st = olyStore();
   return Object.entries(st).filter(([, v]) => v.result).map(([yr, v]) => {
     const t = v.field.field.find(T => T.roster.some(x => x.pid === pid));
-    if (!t) return null;
+    if (!t) { const s = v.field.field.find(T => (T.snubs || []).some(x => x.pid === pid && x.pro)); return s ? { yr: +yr, ev: OLY.eventOf(+yr), c: s.c, left: true, mates: [] } : null; }
     const m = Object.entries(v.result.medals).find(([k, c]) => c === t.c && MEDAL[k])?.[0];
     const mates = t.roster.filter(x => x.pid != null && x.pid !== pid).map(x => x.pid);
-    return { yr: +yr, ev: OLY.eventOf(+yr), c: t.c, medal: m || null, mvp: v.result.mvp === pid, line: v.result.lines[pid], nat: t.roster.find(x => x.pid === pid)?.nat, mates };
+    const me = t.roster.find(x => x.pid === pid);
+    return { yr: +yr, ev: OLY.eventOf(+yr), c: t.c, medal: m || null, mvp: v.result.mvp === pid, line: v.result.lines[pid], nat: me?.nat, pro: me?.pro, mates };
   }).filter(Boolean);
 }
 function olyBox(p) {
   const rec = olyRecord(p.id);
   if (!rec.length) return '';
-  return `<fieldset class="frame"><legend>${OLY.logoSvg(26)} International</legend><div class="stack">${rec.map(r => `<div class="small mv-row aw-row"><span class="mv-l"><b>${r.medal ? `${MEDAL[r.medal]} ${r.medal[0].toUpperCase() + r.medal.slice(1)}` : 'Competed'}</b> · ${esc(OLY.EVENT_NAME[r.ev])} · ${esc(OLY.nation(r.c))}${r.nat ? ' <span class="muted">(naturalized)</span>' : ''}${r.mvp ? ' · <span class="gold">MVP</span>' : ''}${r.mates.length ? `<br><span class="muted">With ${r.mates.slice(0, 5).map(id => esc(olyName(id))).join(', ')}</span>` : ''}</span><span class="muted mv-r">${r.yr}${r.line?.gp ? ` · ${(r.line.pts / r.line.gp).toFixed(1)} pts` : ''}</span></div>`).join('')}</div></fieldset>`;
+  return `<fieldset class="frame"><legend>${OLY.logoSvg(26)} International</legend><div class="stack">${rec.map(r => r.left ? `<div class="small mv-row aw-row"><span class="mv-l">${OLY.flagHtml(r.c, 1.4)}<b>Left off</b> · ${esc(OLY.EVENT_NAME[r.ev])} · ${esc(OLY.nation(r.c))} <span class="muted">(🎓 lacking international experience)</span></span><span class="muted mv-r">${r.yr}</span></div>` : `<div class="small mv-row aw-row"><span class="mv-l">${OLY.flagHtml(r.c, 1.4)}<b>${r.medal ? `${MEDAL[r.medal]} ${r.medal[0].toUpperCase() + r.medal.slice(1)}` : 'Competed'}</b>${r.pro ? ' <span title="As a draft prospect">🎓</span>' : ''} · ${esc(OLY.EVENT_NAME[r.ev])} · ${esc(OLY.nation(r.c))}${r.nat ? ' <span class="muted">(naturalized)</span>' : ''}${r.mvp ? ' · <span class="gold">MVP</span>' : ''}${r.mates.length ? `<br><span class="muted">With ${r.mates.slice(0, 5).map(id => esc(olyName(id))).join(', ')}</span>` : ''}</span><span class="muted mv-r">${r.yr}${r.line?.gp ? ` · ${(r.line.pts / r.line.gp).toFixed(1)} pts` : ''}</span></div>`).join('')}</div></fieldset>`;
 }
 // A league coach's national-team record (for his page).
 function olyCoachBox(c) {
@@ -19507,7 +19509,7 @@ const OLY_OUT = { 'injured': ['🩹', 'Injured'], 'resting at his age': ['🛌',
   'resting after a deep playoff run': ['🛌', 'Resting after a deep playoff run'], 'worn down after the Finals run': ['🛌', 'Worn down after the Finals'], 'taking the summer off': ['🏝️', 'Taking the summer off'],
   'would rather have the summer off': ['🏝️', 'Would rather have the summer off'], 'not interested this time': ['🤷', 'Not interested this time'], 'his team wants him rested': ['🏥', 'His team wants him rested'],
   'protecting his free agency': ['💰', 'Protecting his free agency'], 'kept home by his team': ['🏠', 'Kept home by you'] };
-const OLY_SNUB = r => (/too many (\w+)/.exec(r) ? `Too many ${/too many (\w+)/.exec(r)[1]} ahead` : r === 'just missed the cut' ? 'Just missed the cut' : r === 'the federation went with experience' ? 'Lost out to experience' : r === 'beaten out by a pro from home' ? 'Beaten out by a pro from home' : r === 'left off by you' ? 'Left off by you' : r);
+const OLY_SNUB = r => (r === 'lacking international experience' ? '🎓 Prospect, lacking experience' : /too many (\w+)/.exec(r) ? `Too many ${/too many (\w+)/.exec(r)[1]} ahead` : r === 'just missed the cut' ? 'Just missed the cut' : r === 'the federation went with experience' ? 'Lost out to experience' : r === 'beaten out by a pro from home' ? 'Beaten out by a pro from home' : r === 'left off by you' ? 'Left off by you' : r);
 const OLY_VIA = v => (v === 'host' ? ['🏠', 'Host'] : v === 'World Cup' ? ['🌍', 'World Cup'] : String(v || '').startsWith('qualifier') ? ['🎟️', 'Qualifier'] : ['🎟️', 'Qualified']);
 screens.olympics = (args = {}) => {
   if (!olyOn()) { back(); return; }
@@ -19641,13 +19643,13 @@ function olyRun() {
     const big = wc ? [3, 2, 2] : [6, 3, 3];
     for (const [m, n, why] of [['gold', big[0], `${evName} gold`], ['silver', big[1], `${evName} silver`], ['bronze', big[2], `${evName} bronze`]])
       for (const x of F.field.find(t => t.c === R.medals[m])?.roster || []) if (x.pid != null && P(x.pid)) moraleEvent(P(x.pid), 'olympics', n, why);
-    for (const t of F.field) for (const s of t.snubs) if (P(s.pid) && s.why !== 'left off by you') moraleEvent(P(s.pid), 'olympics', wc ? -2 : -3, `left off ${OLY.nation(t.c)}'s ${evName} team`);
+    for (const t of F.field) for (const s of t.snubs) if (P(s.pid) && !s.pro && s.why !== 'left off by you') moraleEvent(P(s.pid), 'olympics', wc ? -2 : -3, `left off ${OLY.nation(t.c)}'s ${evName} team`);
     for (const id of cur.home || []) if (P(id)) moraleEvent(P(id), 'olympics', wc ? -2 : -4, `kept home from the ${evName}`);
     if (typeof R.mvp === 'number' && P(R.mvp)) { drift(P(R.mvp), 'olympics', EGO_KEY, 1, `${evName} MVP`); after.traits.push({ pid: R.mvp, d: 1, label: 'Ego', why: `${evName} MVP` }); }
     // Personality: gold sharpens a competitor; a big snub puts a chip on his shoulder; being kept home stings his loyalty.
     const tr = (p, src, k, d, label, why) => { if (p && drift(p, src, k, d, why) !== 0) after.traits.push({ pid: p.id, d, label, why }); };
     for (const x of F.field.find(t => t.c === R.medals.gold)?.roster || []) if (x.pid != null) tr(P(x.pid), 'oly-gold', 'winning', 1, 'Winning', `${evName} gold`);
-    for (const t of F.field) for (const s of t.snubs.filter(s => s.lv >= 85 && s.why !== 'left off by you').slice(0, 2)) tr(P(s.pid), 'oly-snub', 'motor', 1, 'Motor', `snubbed by ${OLY.nation(t.c)}`);
+    for (const t of F.field) for (const s of t.snubs.filter(s => s.lv >= 85 && !s.pro && s.why !== 'left off by you').slice(0, 2)) tr(P(s.pid), 'oly-snub', 'motor', 1, 'Motor', `snubbed by ${OLY.nation(t.c)}`);
     for (const id of cur.home || []) tr(P(id), 'oly-home', 'loyalty', -1, 'Loyalty', `kept home from the ${evName}`);
     // XP: development points at camp for everyone who played (more for medalists and young players).
     const medalC = new Set([R.medals.gold, R.medals.silver, R.medals.bronze]);

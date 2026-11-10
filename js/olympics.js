@@ -193,7 +193,7 @@ export function buildField({ yr, players, level, prevIds = {}, edits = {}, home 
       eligible: sel.eligible.map(x => x.p.id), str: 0 };
   });
   naturalize(teams, by, rng);
-  addProspects(teams, prospects, level);
+  addProspects(teams, prospects, level, rng);
   // The national coach: the one the app hands in (a league coach), or the federation's own man.
   for (const t of teams) {
     t.str = +strength(t.roster, t.c, host).toFixed(1);
@@ -244,14 +244,31 @@ export function buildField({ yr, players, level, prevIds = {}, edits = {}, home 
 
 // High-pedigree prospects (4 stars and up, not in the league yet) play for their country only when it's thin: three
 // or fewer league players. Up to two a team, in place of the weakest home pros, if they're close to them.
-function addProspects(teams, prospects, level) {
+function addProspects(teams, prospects, level, rng) {
   for (const t of teams) {
-    if (t.roster.filter(x => x.pid != null).length > 3) continue;
-    const mine = prospects.filter(p => countryOf(p) === t.c && (p.pot || 0) >= 8).map(p => ({ p, lv: level(p) - 6 }))   // pre-draft ratings run high.sort((a, b) => b.lv - a.lv).slice(0, 2);
-    for (const x of mine) {
+    const lg = t.roster.filter(x => x.pid != null && !x.pro).length;
+    // His level as a pro: pre-draft ratings run high.
+    const mine = prospects.filter(p => countryOf(p) === t.c && (p.pot || 0) >= 8).map(p => ({ p, raw: level(p), lv: level(p) - 6 })).sort((a, b) => b.lv - a.lv);
+    const take = x => {
       const worst = t.roster.reduce((m, y, j) => (y.pid == null && (m < 0 || y.lv < t.roster[m].lv) ? j : m), -1);
-      if (worst < 0 || x.lv < t.roster[worst].lv - 6) continue;
+      if (worst < 0) return false;
       t.roster[worst] = { pid: x.p.id, fn: x.p.fn, ln: x.p.ln, pos: x.p.pos, age: x.p.age, lv: x.lv, tid: null, pro: true, ...skillsOf(x.p) };
+      return true;
+    };
+    let added = 0;
+    for (const x of mine) {
+      // A five-star prospect at 87 or better almost always goes, unless his country has more than five league players;
+      // then he's mentioned as the one who missed out for lack of experience.
+      const elite = (x.p.pot || 0) >= 10 && x.raw >= 87;
+      if (elite) {
+        if (lg <= 5 && rng() < 0.95 && take(x)) { added++; continue; }
+        if (lg > 5) { t.snubs.push({ pid: x.p.id, lv: x.lv, why: 'lacking international experience', pro: true }); continue; }
+      }
+      // Other four-star-plus prospects: only on a thin team (three or fewer league players), up to two, if they're close
+      // to the home pro they'd replace.
+      if (added >= 2 || lg > 3) continue;
+      const worst = t.roster.filter(y => y.pid == null).reduce((m, y) => Math.min(m, y.lv), 99);
+      if (x.lv >= worst - 6 && take(x)) added++;
     }
     t.roster.sort((a, b) => b.lv - a.lv);
   }
