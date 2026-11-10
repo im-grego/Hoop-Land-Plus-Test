@@ -37,6 +37,15 @@ const REGION = { US: 'AM', CA: 'AM', AR: 'AM', BR: 'AM', PR: 'AM', DO: 'AM', MX:
   NG: 'AF', SS: 'AF', SN: 'AF', CM: 'AF', AO: 'AF', CI: 'AF', EG: 'AF' };
 export const regionOf = c => REGION[c] || 'EU';
 export const code = c => NATIONS[c]?.[0] || c;
+// The game's own pixel flags (img/flags.png, 15x11 each, 12 to a row, in this order).
+const FLAG_ORDER = 'AL AR AT AU BA BB BD BE BG BN BR BS BY CA CG CH CL CM CN CO CR CU CY CZ DE DK DO DZ EC EE EG ES FI FR GE GH GR GT HK HN HR HT HU ID IE IL IN IQ IR IS IT JM JP KH KR KW KY KZ LA LB LK LT LU LV LY MA MK MT MX MY NG NI NL NO NZ PA PE PH PK PL PR PS PT PY RO RS RU SA SE SG SI SK SN SO SV SY TH TN TR TT TW UA UG UK US UY UZ VE VN WS ZA'.split(' ');
+export const flagIdx = c => FLAG_ORDER.indexOf(c);
+// A flag (scaled up `s` times, pixel-sharp), or the three-letter code when the game has none for that country.
+export function flagHtml(c, s = 2) {
+  const i = flagIdx(c);
+  if (i < 0) return '';
+  return `<span class="flag" title="${nation(c)}" style="width:${15 * s}px;height:${11 * s}px;background-size:${180 * s}px ${110 * s}px;background-position:-${(i % 12) * 15 * s}px -${Math.floor(i / 12) * 11 * s}px"></span>`;
+}
 export const nation = c => NATIONS[c]?.[1] || c;
 const SQUAD = 12;
 const grp = pos => (pos <= 2 ? 'g' : pos >= 6 ? 'b' : 'w');   // guards, wings, bigs

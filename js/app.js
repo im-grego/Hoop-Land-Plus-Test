@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.329.2';
+const APP_VERSION = '0.329.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -19446,7 +19446,7 @@ function olyField() {
 // His playoff games in the season just played (his latest season on record).
 const olyPoGp = p => { const s = (p.stats || []).filter(x => x.league === state.leagueIdx && (x.season || []).some(r => r.GP > 0)).sort((a, b) => b.yr - a.yr)[0]; return [...(s?.playoffs || []), ...(s?.finals || [])].reduce((a, r) => a + (r.GP || 0), 0); };
 const olyName = k => { if (typeof k !== 'number') return k; const e = findPlayer(k); return e ? playerName(e.p) : 'Unknown'; };
-const olyTag = c => `<b class="oly-c">${esc(OLY.code(c))}</b>`;
+const olyTag = c => `${OLY.flagHtml(c, 1.4)}<b class="oly-c">${esc(OLY.code(c))}</b>`;
 const MEDAL = { gold: '<span class="medal m-gold">1</span>', silver: '<span class="medal m-silver">2</span>', bronze: '<span class="medal m-bronze">3</span>' };
 // Every tournament a player went to, with the medal and the league players he played with (for his page).
 function olyRecord(pid) {
@@ -19515,13 +19515,13 @@ screens.olympics = (args = {}) => {
   const mine = x => x.pid != null && isUserTeam(findPlayer(x.pid)?.team || {});
   const lv = n => `<span class="oly-lv">${n}</span>`;
   const who = x => x.pid != null ? `<b class="tap ${mine(x) ? 'gold' : ''}" data-act="openPlayer" data-id="${x.pid}">${esc(olyName(x.pid))}</b>` : `<b>${esc(`${x.fn} ${x.ln}`)}</b>`;
-  const flag = c => `<span class="oly-code">${esc(OLY.code(c))}</span>`;
+  const flag = (c, s = 1.6) => `${OLY.flagHtml(c, s)}<span class="oly-code">${esc(OLY.code(c))}</span>`;
   const T = args.c ? F.field.find(t => t.c === args.c) : null;
   const leagueN = t => t.roster.filter(x => x.pid != null).length;
   // ---- Teams: a card for each nation; tap one for its roster.
   const card = t => { const star = t.roster.find(x => x.pid != null) || t.roster[0], via = OLY_VIA(F.via?.[t.c] || (t.c === F.host ? 'host' : ''));
     const place = R ? R.finish?.indexOf(t.c) : -1, medal = place >= 0 && place <= 2 ? MEDAL[['gold', 'silver', 'bronze'][place]] : '';
-    return `<button class="oly-card tap" data-act="olyPick" data-c="${t.c}"><span class="oly-card-top">${flag(t.c)}${medal}<span class="oly-via" title="${esc(via[1])}">${via[0]}</span></span>
+    return `<button class="oly-card tap" data-act="olyPick" data-c="${t.c}"><span class="oly-card-top">${flag(t.c, 2.4)}${medal}<span class="oly-via" title="${esc(via[1])}">${via[0]}</span></span>
       <span class="oly-card-name">${esc(OLY.nation(t.c))}</span>
       <span class="oly-bar"><span style="width:${Math.max(8, Math.min(100, (t.str - 70) * 3.6))}%"></span></span>
       <span class="oly-card-star">⭐ ${esc(star.pid != null ? olyName(star.pid) : `${star.fn} ${star.ln}`)}</span>
@@ -19533,7 +19533,7 @@ screens.olympics = (args = {}) => {
     const row = (x, i) => `<div class="oly-prow ${i === 0 ? 'cap' : ''}"><span class="grow">${i === 0 ? '<span title="Captain">©️</span> ' : ''}${who(x)}${x.nat ? ' <span title="Naturalized">🛂</span>' : ''} <span class="muted small">${esc(POSITIONS[x.pos] ?? '')} · ${esc(league().teams.find(t => t.id === x.tid)?.shortName || 'FA')}</span></span>${lv(x.lv)}
       ${!done && !x.nat ? `${mine(x) ? `<button class="btn tiny off" data-act="olyHome" data-id="${x.pid}" title="Keep him home to rest (costs a little morale)">🏠</button>` : ''}<button class="btn tiny off" data-act="olyDrop" data-c="${T.c}" data-id="${x.pid}" title="Leave him off">✕</button>` : ''}</div>`;
     const edit = !done && avail.length ? `<select class="sel-team" data-change="olyAdd" data-c="${T.c}"><option value="">➕ Add a player…</option>${avail.slice(0, 30).map(p => `<option value="${p.id}">${esc(playerName(p))} · Lv ${shownLevel(p)}</option>`).join('')}</select>${(v.edits?.[T.c]?.add || []).length || (v.edits?.[T.c]?.drop || []).length ? `<button class="btn small off" data-act="olyReset" data-c="${T.c}">↺ Federation's picks</button>` : ''}` : '';
-    return `<fieldset class="frame"><legend>${flag(T.c)} ${esc(OLY.nation(T.c))}</legend>
+    return `<fieldset class="frame"><legend>${flag(T.c, 2)} ${esc(OLY.nation(T.c))}</legend>
       <div class="oly-chips"><span class="oly-chip">${via[0]} ${esc(via[1])}</span><span class="oly-chip">💪 ${T.str}</span>${T.coach?.name ? `<span class="oly-chip ${T.coach.cid ? 'tap' : ''}" ${T.coach.cid ? `data-act="nav" data-to="coach" data-arg="${T.coach.cid}"` : ''}>📋 ${esc(T.coach.name)}</span>` : ''}${R?.hero?.c === T.c ? `<span class="oly-chip up">🔥 ${esc(olyName(R.hero.k))}'s run</span>` : ''}</div>
       <div class="stack">${lg.map(row).join('')}</div>
       ${home.length ? `<p class="note small muted" style="margin-top:6px">🏠 From the home leagues: ${home.map(x => esc(`${x.fn} ${x.ln}`)).join(', ')}</p>` : ''}
@@ -19577,7 +19577,7 @@ screens.olympics = (args = {}) => {
   const lineOf = k => R.lines[k], per = (L, k) => (L[k] / Math.max(1, L.gp)).toFixed(1);
   const xOf = (k, c) => F.field.find(t => t.c === c)?.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === k) || { fn: String(k), ln: '' };
   const after = v.after || {};
-  const pod = m => `<div class="oly-pod ${m}">${MEDAL[m]}<span class="oly-pod-code">${esc(OLY.code(R.medals[m]))}</span><span class="small">${esc(OLY.nation(R.medals[m]))}</span></div>`;
+  const pod = m => `<div class="oly-pod ${m}">${MEDAL[m]}${OLY.flagHtml(R.medals[m], 3)}<span class="oly-pod-code">${esc(OLY.code(R.medals[m]))}</span><span class="small">${esc(OLY.nation(R.medals[m]))}</span></div>`;
   const effects = !R ? [] : [
     [(R.injuries || []).length, '🩹 Injuries', () => R.injuries.map(i => `<p class="note small" style="margin:0">${who({ pid: i.k })} · ${esc(injuryName(i.inj))}, out ~${i.gamesOut} games</p>`).join('')],
     [(after.xp || []).length, '⭐ XP earned', () => { const yours = after.xp.filter(x => mine({ pid: x.pid }));
