@@ -1882,3 +1882,6 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .oly-pod .medal { width: 1.8em; height: 1.8em; font-size: 0.95em; }
 .oly-pod-code { font-weight: 800; font-size: 1.15em; letter-spacing: 0.06em; }
 .flag { display: inline-block; vertical-align: middle; background-image: url(../img/flags.png); background-repeat: no-repeat; image-rendering: pixelated; box-shadow: 0 0 0 1px #00000055; border-radius: 1px; margin-right: 4px; flex: none; }
+.col-box { margin-bottom: 14px; }
+.col-box .statline { margin-top: 2px; }
+.col-box .outlook-top .status { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }

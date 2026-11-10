@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.329.8';
+const APP_VERSION = '0.329.9';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -12860,15 +12860,17 @@ function collegeBox(p) {
   const c = collegeLine(p, state.data.seasonLeagues);
   if (!c) return '';
   const f = (v, d = 1) => (v == null ? '—' : v.toFixed(d));
-  return `<fieldset class="frame"><legend>${c.made && /^Pro club/.test(c.team) ? 'Overseas' : 'College'} · ${c.yr}</legend>
-    <p class="note small college-head">${COLLEGE_LOGO}<span><b>${esc(c.team)}</b><br><span class="muted">${c.gp} games · ${f(c.mpg)} MPG</span></span></p>
+  // His college team's own logo and colors (like the draft's team boxes); the league ball when there's no team.
+  const team = c.li != null && c.tid != null ? state.data.seasonLeagues[c.li]?.teams?.find(x => x.id === c.tid) : null, tint = team ? teamTint(team) : '';
+  return `<div class="outlook col-box" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${team ? logoImg(team) : COLLEGE_LOGO}<b>${esc(c.team)}</b><span class="status">${c.made && /^Pro club/.test(c.team) ? 'Overseas' : 'College'} · ${c.yr}</span></div>
+    <p class="note small muted" style="margin:0">${c.gp} games · ${f(c.mpg)} MPG</p>
     <div class="statline">
       ${[['PTS', f(c.pts)], ['REB', f(c.reb)], ['AST', f(c.ast)], ['STL', f(c.stl)], ['BLK', f(c.blk)],
          ['FG%', f(c.fg)], ['3P%', f(c.tp)], ['3PA', f(c.tpa)], ['FT%', f(c.ft)], ['TOV', f(c.tov)]]
         .map(([k, v], i) => i < 5 && c.li != null
           ? `<button class="stat-cell" data-act="openLeaders" data-m="college" data-k="${RANK_STATS[i][0]}" data-li="${c.li}" data-yr="${c.yr}" aria-label="College ${RANK_STATS[i][1]} leaders"><span class="muted small">${k}</span><b>${v}</b>${collegeRank(p, c, RANK_STATS[i][0])}</button>`
           : `<div><span class="muted small">${k}</span><b>${v}</b>${i < 5 ? collegeRank(p, c, RANK_STATS[i][0]) : ''}</div>`).join('')}
-    </div>${c.li != null && seasonRanks(c.yr, c.li).ranks.get(p.id)?.qualified ? (sr => `<p class="note muted small" style="margin-top:6px">Ranks among ${sr.of} qualified college players.</p>`)(seasonRanks(c.yr, c.li)) : ''}${c.made ? '<p class="note muted small" style="margin-top:6px">Simulated season: this save has no college stats for him.</p>' : ''}</fieldset>`;
+    </div>${c.li != null && seasonRanks(c.yr, c.li).ranks.get(p.id)?.qualified ? (sr => `<p class="note muted small" style="margin-top:6px">Ranks among ${sr.of} qualified college players.</p>`)(seasonRanks(c.yr, c.li)) : ''}${c.made ? '<p class="note muted small" style="margin-top:6px">Simulated season: this save has no college stats for him.</p>' : ''}</div>`;
 }
 
 // Where the prospect would slot on each of your teams, as a rookie and at
