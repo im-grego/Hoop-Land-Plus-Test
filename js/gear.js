@@ -49,8 +49,10 @@ function kind(v, skin, tattoos, known) {
   if (!u) return 'skin';
   if (['PRI', 'SEC', 'TER'].includes(u)) return 'gear';
   if (u === String(skin).toUpperCase()) return 'skin';
-  if (tattoos?.includes(u)) return 'tattoo';
+  // Black (202020, 141020, 000000 and the like) and white are always gear: tattoos sit close to the skin tone, never
+  // that dark or that light (even when a dark tattoo color is on record for this skin).
   if (isBlackish(u) || isWhiteish(u)) return 'gear';
+  if (tattoos?.includes(u)) return 'tattoo';
   if (known.has(u)) return 'gear';
   if (HEX.test(u) && skin && dist(u, String(skin).toUpperCase()) <= 110) return 'tattoo';
   return 'odd';
