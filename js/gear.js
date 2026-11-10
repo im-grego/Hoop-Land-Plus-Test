@@ -91,6 +91,11 @@ export function matchTeam(team, known, tattoos = {}, only = () => true) {
       const vals = (p.accessories || []).map(a => String(a[k] || '').toUpperCase());
       return vals.length >= 2 && vals.every(v => v === vals[0]) && HEX.test(vals[0]) && vals[0] !== String(skin).toUpperCase() && !isWhiteish(vals[0]);
     }));
+    // A short sleeve (shoulder) he wears in black with every jersey is his own look (Gary Payton II): it stays.
+    for (const k of ['L_Shoulder', 'R_Shoulder']) {
+      const vals = (p.accessories || []).map(a => String(a[k] || '').toUpperCase());
+      if (vals.length >= 2 && vals.every(v => v === vals[0]) && isBlackish(vals[0])) rubber.add(k);
+    }
     (p.accessories || []).forEach((a, i) => {
       const w = want[i];
       if (!w) return;
@@ -108,14 +113,18 @@ export function matchTeam(team, known, tattoos = {}, only = () => true) {
       // a rubber band.
       const on = k => !['skin', 'tattoo'].includes(kind(a[k], skin, tat, known));
       const sleeve = new Set(['L', 'R'].filter(sd => on(`${sd}_Elbow`) && on(`${sd}_Wrist`)).map(sd => `${sd}_Wrist`));
+      // The light white (DBE0E7) only contrasts an arm sleeve with a white shirt at the shoulder: with a white shoulder
+      // on, a light-white elbow or wrist keeps its shade (white jerseys only).
+      const whiteShoulder = w === 'FFFFFF' && ['L_Shoulder', 'R_Shoulder'].some(k => kind(a[k], skin, tat, known) === 'gear' && isWhiteish(String(a[k]).toUpperCase()));
+      const shade = k => { const v = String(a[k] || '').toUpperCase(); return whiteShoulder && /Elbow|Wrist/.test(k) && HEX.test(v) && v !== 'FFFFFF' && lum(v) >= 0.8; };
       for (const k of BODY) {
-        if (sleeve.has(k)) continue;              // set with its sleeve below
-        if (rubber.has(k)) continue;
+        if (sleeve.has(k) && !shade(k)) continue;              // set with its sleeve below
+        if (rubber.has(k) || shade(k)) continue;
         const kd = kind(a[k], skin, tat, known);
         if (kd !== 'gear' && !(kd === 'odd' && !k.endsWith('Wrist'))) continue;
         set(p, a, i, k, w);
       }
-      for (const k of sleeve) set(p, a, i, k, a[k.replace('Wrist', 'Elbow')]);
+      for (const k of sleeve) if (!shade(k)) set(p, a, i, k, a[k.replace('Wrist', 'Elbow')]);
       set(p, a, i, 'sockC', w);
     });
   }
