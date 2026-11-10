@@ -1875,9 +1875,9 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .oly-prow:last-child { border-bottom: 0; }
 .oly-prow.cap { font-size: 1.04em; }
 .oly-podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 6px; margin: 6px 0 10px; }
-.oly-pod { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 4px; border-radius: 8px 8px 0 0; background: #ffffff12; text-align: center; }
-.oly-pod.gold { padding-top: 22px; background: linear-gradient(#f5c54233, #ffffff10); border-top: 2px solid #f5c542; }
-.oly-pod.silver { padding-top: 14px; border-top: 2px solid #c9d1d9; }
+.oly-pod { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px 10px; border-radius: 8px 8px 0 0; background: #ffffff12; text-align: center; }
+.oly-pod.gold { padding-top: 17px; background: linear-gradient(#f5c54233, #ffffff10); border-top: 2px solid #f5c542; }
+.oly-pod.silver { padding-top: 10px; border-top: 2px solid #c9d1d9; }
 .oly-pod.bronze { border-top: 2px solid #cd7f32; }
 .oly-pod .medal { width: 1.8em; height: 1.8em; font-size: 0.95em; }
 .oly-pod-code { font-weight: 800; font-size: 1.15em; letter-spacing: 0.06em; }
@@ -1890,7 +1890,4 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .medal-box.m-gold { background: #f5c542; } .medal-box.m-silver { background: #c9d1d9; } .medal-box.m-bronze { background: #cd7f32; }
 .oly-pod .medal-box { font-size: 15px; min-width: 28px; }
 
-/* A game's winner: the row (code and score) in gold. */
-.oly-ls tr.won th .oly-code, .oly-ls tr.won td { color: var(--gold, #f5c542); }
-.oly-ls tr.won th .oly-code { background: #f5c54226; }
-.ov-h.oly-won { color: var(--gold, #f5c542); }
+.oly-host { display: flex; align-items: center; justify-content: center; gap: 2px; font-size: 0.9em; opacity: 0.85; margin-bottom: 4px; }
