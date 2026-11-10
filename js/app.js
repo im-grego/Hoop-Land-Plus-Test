@@ -47,6 +47,7 @@ import { leagueLook } from './recruits.js';
 import { isForeign, lookFor, groupFor, makeNamer } from './names.js';
 import * as CG from './classgen.js';
 import { egoRead, egoVal, isAlpha, isHumble, EGO_KEY } from './ego.js';
+import * as OLY from './olympics.js';
 import * as GEAR from './gear.js';
 import * as CAR from './career.js';
 import * as CL from './careerlife.js';
@@ -70,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.326.7';
+const APP_VERSION = '0.327.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -1645,6 +1646,8 @@ const CALENDAR = [
     done: () => faDone(3) },
   { key: 'vote', date: 'Jul 25', title: 'Board of Governors', blurb: 'Rule changes go to a league-wide vote (two-thirds to pass), and the commissioner has the final word.',
     done: () => !!calFlags().vote || !!calFlags().medical || !!calFlags().dev },
+  { key: 'olympics', date: 'Jul 27', title: 'Olympics', blurb: 'Twelve national teams for gold: the rosters, the snubs and withdrawals, then the Games themselves.',
+    done: () => !!calFlags().olympics || !!calFlags().medical || !!calFlags().dev },
   { key: 'medical', date: 'Sep 14', title: 'Medical, Positions & Plans', blurb: 'Surgery or rehab for the injured, position changes, and a development plan for each player before camp starts.',
     done: () => !!calFlags().medical || !!calFlags().dev },
   { key: 'staff', date: 'Sep 16', title: 'Staff & Scheme', blurb: 'Your coaching staff and the system you run, set before camp opens.',
@@ -1984,7 +1987,7 @@ const isFranchise = () => { const L = league(); return L.season.mode === 0 && L.
 // Summer League (the tournament and the rookies' age adjustment screen) is paused: the step is Rookie Signings, and the
 // age adjustment runs quietly when it wraps up.
 const PAUSED = new Set(['vote', 'exhib', 'rotation', 'camp']);   // camp: Rookie Numbers (numbers are on the Contracts step's Rookies tab)
-const activeCal = () => (state.campusPro ? campusProCal() : isCollege() ? COLLEGE_CAL : CALENDAR.filter(st => !PAUSED.has(st.key) && (st.key !== 'office' || !(isFranchise() || CAR.isCareer(league()))) && (st.key !== 'latefa' || isComplete()) && (!['owner', 'medical', 'exhib', 'rotation', 'vote'].includes(st.key) || !CAR.isCareer(league())) && (st.key !== 'expansion' || !!expThisYear())));   // a career save runs no team
+const activeCal = () => (state.campusPro ? campusProCal() : isCollege() ? COLLEGE_CAL : CALENDAR.filter(st => !PAUSED.has(st.key) && (st.key !== 'office' || !(isFranchise() || CAR.isCareer(league()))) && (st.key !== 'latefa' || isComplete()) && (!['owner', 'medical', 'exhib', 'rotation', 'vote'].includes(st.key) || !CAR.isCareer(league())) && (st.key !== 'expansion' || !!expThisYear()) && (st.key !== 'olympics' || olyOn())));   // a career save runs no team
 const currentStep = () => activeCal().find(st => !st.done());
 const isStep = key => currentStep()?.key === key;
 
@@ -2019,6 +2022,7 @@ function stepSummary(key) {
   }
   if (key === 'dev') { const a = state.auto[state.leagueIdx]; return a ? `+${a.points} in ratings upgrades across ${a.players} players.` : 'Done.'; }
   if (key === 'media') return 'Storylines set.';
+  if (key === 'olympics') { const v = olyStore()[olyYr()]; return v?.result ? `Gold: ${OLY.nation(v.result.medals.gold)} · Silver: ${OLY.nation(v.result.medals.silver)} · Bronze: ${OLY.nation(v.result.medals.bronze)}.` : 'Done.'; }
   if (key === 'vote') { const v = voteStore(), n = (v?.past || []).filter(p => p.yr === L.season.currentYear && ['passed', 'forced'].includes(p.result)); return n.length ? `${n.length} rule change${n.length === 1 ? '' : 's'}: ${n.map(p => `${p.label} ${p.toTxt}`).join(', ')}.` : 'No rule changes.'; }
   if (key === 'latefa') { const g = calFlags().lateLog; return g ? `${g.n} late signings${g.mine ? `, ${g.mine} for you` : ''}.` : 'Done.'; }
   if (key === 'nba') { const P = state.data.seasonLeagues[CA.campusLeagues(state.data).pi]; const v = prog().nba?.[P.season.currentYear]; return v === 'app' ? 'Run by the app: lottery, draft, contracts, free agency, camp and cuts.' : 'The game\'s NBA offseason stands.'; }
@@ -2087,6 +2091,7 @@ function stepActions(key) {
     case 'review': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="review">📜 Begin</button><button class="btn" data-act="calDone" data-k="review">⏭ Skip</button></div>`;
     case 'expansion': return `<div class="btn-set"><button class="btn focus wide" data-act="nav" data-to="expansion">🏟️ Begin</button></div>`;
     case 'owner': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="ownerday">🤝 Begin</button><button class="btn" data-act="calDone" data-k="owner">⏭ Skip</button></div>`;
+    case 'olympics': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="olympics">${OLY.logoSvg(26)} Begin</button><button class="btn" data-act="olySkip">⏭ Sim It</button></div>`;
     case 'vote': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="vote">🗳️ Begin</button><button class="btn" data-act="voteSkip">⏭ Skip</button></div>`;
     case 'medical': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="medical">🩺 Begin</button><button class="btn" data-act="calDone" data-k="medical">⏭ Skip</button></div>`;
     case 'exhib': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="exhib">🏀 Begin</button><button class="btn" data-act="calDone" data-k="exhib">⏭ Skip</button></div>`;
@@ -2476,7 +2481,7 @@ const STEP_SCREENS = {
   dev: ['staff', 'meeting', 'offseason', 'report', 'mentor', 'rookies', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'teamBooks', 'coaches', 'coach'], media: ['storylines', 'survey', 'mediaRumors'], cuts: ['cuts', 'latefa', 'liveTrade'], rotation: ['lineup', 'player'], export: ['export'],
   review: ['review', 'teamStats', 'player'], waters: ['waters', 'player'], nil: ['nil', 'player'], retention: ['retention', 'player'], carousel: ['carousel'], camps: ['camps', 'recruitee'], legacy: ['legacy', 'player'], schedule: ['schedule'], tour: ['tour', 'player'], walkons: ['walkons', 'player'], redshirt: ['redshirt', 'player'], madness: ['madness'], mediaday: ['mediaday', 'player'], departures: ['departures'], seniors: ['seniors'], portal: ['portal'], showcase: ['showcase', 'recruitee'], rw1: ['recruit', 'recruitee', 'recruitweek'], rw2: ['recruit', 'recruitee', 'recruitweek'], rw3: ['recruit', 'recruitee', 'recruitweek'], rw4: ['recruit', 'recruitee', 'recruitweek'], signing: ['signing'], preseason: ['preseason'], rosterlock: ['rosterlock'], practice: ['practice'], summer: ['offseason', 'report', 'mentor', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook'],
 };
-const ALWAYS = ['chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks'];
+const ALWAYS = ['olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks'];
 function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
@@ -10378,7 +10383,7 @@ function hofProfile(p, args) {
   const content = tab === 'attributes' ? ratings
     : tab === 'traits' ? ((traitsBox(p) || '') + playStyleBox(p) || '<p class="note muted">No traits on file for this player.</p>')
     : tab === 'stats' ? statsTab(p, args)
-    : `${career}${report}${awardsBox(p)}`;
+    : `${career}${report}${awardsBox(p)}${olyBox(p)}`;
   layout({
     title: 'Hall of Fame',
     body: `<div>
@@ -10471,7 +10476,7 @@ screens.player = (args) => {
         <p class="note small scout-p">${profileReport(p, team)}</p>
         ${playerTags(p) ? `<div class="pl-tags">${playerTags(p)}</div>` : ''}
       </fieldset>
-      ${awardsBox(p)}`;
+      ${awardsBox(p)}${olyBox(p)}`;
   layout({
     title: 'Player Profile',
     body: `
@@ -16793,7 +16798,7 @@ actions.presserAnswer = d => {
 };
 
 function leagueGramCard() {
-  const posts = [...(isCollege() ? [] : [...comebackPosts(), ...numberPosts(), ...jerseyPosts(), ...dramaPosts(), ...traitPosts()]), ...leagueGram(league(), isUserTeam, state.leagueIdx)].slice(0, 12);
+  const posts = [...(isCollege() ? [] : [...olyPosts(), ...comebackPosts(), ...numberPosts(), ...jerseyPosts(), ...dramaPosts(), ...traitPosts()]), ...leagueGram(league(), isUserTeam, state.leagueIdx)].slice(0, 12);
   if (!posts.length) return '';
   return `<h2 class="team-title">Trending on Hoop Gram</h2>
     <div class="stack">${posts.map(x => `<${x.pid ? `button data-act="openPlayer" data-id="${x.pid}"` : 'div'} class="hg-post ${x.pid ? 'tap' : ''}">
@@ -19359,6 +19364,149 @@ actions.rotSuggest = () => {
   toast('🔁 Rotations set', `${mine.map(t => t.shortName).join(', ')}${mood.length ? ` · morale: ${mood.join(', ')}` : ''}`, 5000);
 };
 actions.stepWrap = d => { calFlags()[d.k] = true; state.undo = null; goHome(); nextUp(); };
+// ---- The Olympics (every four summers; behind the testing switch for now). Twelve national teams from the league's
+// players by country, filled out with pros from each country's own league; groups, a knockout bracket, box scores,
+// medals. What goes into the save: morale for medalists, snubs and anyone you kept home, and Ego for the MVP.
+const olyKey = () => `hlc:olympics:${saveTag()}`;
+function olyStore() { try { return JSON.parse(localStorage.getItem(olyKey())) || {}; } catch { return {}; } }
+function olySave(v) { try { localStorage.setItem(olyKey(), JSON.stringify(v)); } catch { /* ignore */ } }
+const olyYr = () => draftYear(league());
+const olyOn = () => !isCollege() && labOn() && OLY.isOlympicYear(olyYr());
+const olySeed = () => { let h = olyYr() * 7919; for (const ch of saveTag()) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0; return h >>> 0; };
+const olyPlayers = () => league().teams.flatMap(t => t.roster.filter(p => p.status === FA.STATUS_SIGNED || p.status === FA.STATUS_DRAFTED)).concat((league().freeAgents || []).filter(p => p.status === FA.STATUS_FREE));
+function olyField() {
+  const st = olyStore(), y = olyYr(), cur = st[y] || {};
+  if (cur.field) return cur;   // the Games are over: what was played
+  const prev = st[y - 4]?.field?.field || [];
+  const prevIds = Object.fromEntries(prev.map(t => [t.c, t.roster.filter(x => x.pid != null).map(x => x.pid)]));
+  return { ...cur, field: OLY.buildField({ yr: y, players: olyPlayers(), level: shownLevel, prevIds, edits: cur.edits || {}, home: cur.home || [], seed: olySeed() }) };
+}
+const olyName = k => { if (typeof k !== 'number') return k; const e = findPlayer(k); return e ? playerName(e.p) : 'Unknown'; };
+const olyTag = c => `<b class="oly-c">${esc(OLY.code(c))}</b>`;
+const MEDAL = { gold: '<span class="medal m-gold">1</span>', silver: '<span class="medal m-silver">2</span>', bronze: '<span class="medal m-bronze">3</span>' };
+// Every Olympics a player went to, with the medal (for his page).
+function olyRecord(pid) {
+  const st = olyStore();
+  return Object.entries(st).filter(([, v]) => v.result).map(([yr, v]) => {
+    const t = v.field.field.find(T => T.roster.some(x => x.pid === pid));
+    if (!t) return null;
+    const m = Object.entries(v.result.medals).find(([k, c]) => c === t.c && MEDAL[k])?.[0];
+    return { yr: +yr, c: t.c, medal: m || null, mvp: v.result.mvp === pid, line: v.result.lines[pid] };
+  }).filter(Boolean);
+}
+function olyBox(p) {
+  const rec = olyRecord(p.id);
+  if (!rec.length) return '';
+  return `<fieldset class="frame"><legend>${OLY.logoSvg(26)} Olympics</legend><div class="stack">${rec.map(r => `<div class="small mv-row aw-row"><span class="mv-l"><b>${r.medal ? `${MEDAL[r.medal]} ${r.medal[0].toUpperCase() + r.medal.slice(1)}` : 'Competed'}</b> · ${esc(OLY.nation(r.c))}${r.mvp ? ' · <span class="gold">MVP</span>' : ''}</span><span class="muted mv-r">${r.yr}${r.line?.gp ? ` · ${(r.line.pts / r.line.gp).toFixed(1)} pts` : ''}</span></div>`).join('')}</div></fieldset>`;
+}
+// The story of the Games, for the results page and Hoop Gram.
+function olyHeadline(F, R) {
+  const gold = R.games[R.games.length - 1], w = gold.sa > gold.sb ? [gold.a, gold.sa, gold.b, gold.sb] : [gold.b, gold.sb, gold.a, gold.sa];
+  const L = R.lines[R.mvp];
+  const upset = w[0] !== 'US' && F.field.find(t => t.c === 'US') ? ` ${R.medals.silver === 'US' ? 'Team USA settles for silver.' : R.medals.bronze === 'US' ? 'Team USA leaves with bronze.' : 'Team USA leaves without a medal.'}` : '';
+  return `${OLY.nation(w[0])} wins gold in ${F.city}, beating ${OLY.nation(w[2])} ${w[1]}-${w[3]}${gold.ot ? ' in overtime' : ''}.${upset} ${olyName(R.mvp)} is the tournament MVP${L?.gp ? ` (${(L.pts / L.gp).toFixed(1)} points, ${(L.reb / L.gp).toFixed(1)} rebounds, ${(L.ast / L.gp).toFixed(1)} assists a game)` : ''}. ${OLY.nation(R.medals.bronze)} takes bronze over ${OLY.nation(R.medals.fourth)}.`;
+}
+function olyPosts() {
+  const v = olyStore()[olyYr()];
+  if (!v?.result || isCollege()) return [];
+  const F = v.field, R = v.result, out = [];
+  const teamOf = pid => findPlayer(pid)?.team || myTeam() || league().teams[0];
+  const mvpTeam = typeof R.mvp === 'number' ? teamOf(R.mvp) : myTeam() || league().teams[0];
+  out.push({ team: mvpTeam, score: 99, tag: '🥇 Olympics', pid: typeof R.mvp === 'number' ? R.mvp : null, handle: '@HoopGramWorld', likes: 40000 + olySeed() % 20000, text: olyHeadline(F, R) });
+  const gold = F.field.find(t => t.c === R.medals.gold);
+  for (const x of (gold?.roster || []).filter(x => x.pid != null && isUserTeam(findPlayer(x.pid)?.team || {})).slice(0, 2))
+    out.push({ team: teamOf(x.pid), score: 95, tag: '🥇 Olympics', pid: x.pid, handle: '@HoopGramNBA', likes: 12000 + x.pid * 37 % 5000, text: `${olyName(x.pid)} is coming home with a gold medal. ${OLY.nation(R.medals.gold)} champion.` });
+  const us = F.field.find(t => t.c === 'US'), snub = us?.snubs?.[0];
+  if (snub) out.push({ team: teamOf(snub.pid), score: 80, tag: '😤 Snubbed', pid: snub.pid, handle: '@HoopGramNBA', likes: 8000 + snub.pid * 31 % 4000, text: `${olyName(snub.pid)} watched the Olympics from home. Left off Team USA: ${snub.why}. He'll remember it.` });
+  return out;
+}
+screens.olympics = (args = {}) => {
+  if (!olyOn()) { back(); return; }
+  const v = olyField(), F = v.field, R = v.result, done = !!R;
+  const sel = args.c && F.field.some(t => t.c === args.c) ? args.c : (F.field.find(t => t.roster.some(x => x.pid != null && isUserTeam(findPlayer(x.pid)?.team || {})))?.c || 'US');
+  const T = F.field.find(t => t.c === sel) || F.field[0];
+  const mine = x => x.pid != null && isUserTeam(findPlayer(x.pid)?.team || {});
+  const lvTag = lv => `<span class="muted small">Lv ${lv}</span>`;
+  const who = x => x.pid != null ? `<b class="tap ${mine(x) ? 'gold' : ''}" data-act="openPlayer" data-id="${x.pid}">${esc(olyName(x.pid))}</b>` : `<b>${esc(`${x.fn} ${x.ln}`)}</b>`;
+  const teamPick = `<select class="sel-team" data-change="olyTeam">${F.field.map(t => `<option value="${t.c}" ${t.c === T.c ? 'selected' : ''}>${esc(OLY.code(t.c))} · ${esc(OLY.nation(t.c))}${t.c === F.host ? ' (host)' : ''}</option>`).join('')}</select>`;
+  const rosterRows = T.roster.map(x => `<div class="drill-row"><span class="grow">${who(x)} <span class="muted small">${esc(POSITIONS[x.pos] ?? '')} · ${x.age}y</span> ${lvTag(x.lv)}${x.pid == null ? ' <span class="muted small">· plays at home</span>' : x.tid != null ? ` <span class="muted small">· ${esc(league().teams.find(t => t.id === x.tid)?.shortName || 'FA')}</span>` : ''}</span>
+    ${!done && x.pid != null ? `${mine(x) ? `<button class="btn tiny off" data-act="olyHome" data-id="${x.pid}" title="Keep him home: rest over the summer">🏠</button>` : ''}<button class="btn tiny off" data-act="olyDrop" data-c="${T.c}" data-id="${x.pid}" title="Leave him off">✕</button>` : ''}</div>`).join('');
+  const onIds = new Set(T.roster.map(x => x.pid));
+  const avail = (T.eligible || []).filter(id => !onIds.has(id)).map(id => findPlayer(id)?.p).filter(Boolean).sort((a, b) => shownLevel(b) - shownLevel(a));
+  const edit = !done && (avail.length || (v.edits?.[T.c]?.drop || []).length) ? `<div class="off-row"><select class="sel-team" data-change="olyAdd" data-c="${T.c}"><option value="">Add a player…</option>${avail.slice(0, 30).map(p => `<option value="${p.id}">${esc(playerName(p))} · Lv ${shownLevel(p)}</option>`).join('')}</select>${(v.edits?.[T.c]?.add || []).length || (v.edits?.[T.c]?.drop || []).length ? `<button class="btn small off" data-act="olyReset" data-c="${T.c}">↺ Federation's picks</button>` : ''}</div><p class="note small muted">Adding a player bumps the federation's last pick. Your own players can stay home (🏠) to rest: it costs a little morale.</p>` : '';
+  const snubs = F.field.flatMap(t => t.snubs.map(s => ({ ...s, c: t.c }))).sort((a, b) => b.lv - a.lv);
+  const outs = F.field.flatMap(t => t.withdrew.map(s => ({ ...s, c: t.c }))).sort((a, b) => b.lv - a.lv);
+  const newsTab = `<fieldset class="frame"><legend>📰 Selection News</legend><div class="stack">
+    <p class="note small">${esc(F.city)} hosts the ${F.yr} Olympics. Twelve teams: ${F.field.map(t => esc(OLY.code(t.c))).join(', ')}.${F.out.length ? ` Missed out: ${F.out.map(c => esc(OLY.nation(c))).join(', ')}.` : ''}</p>
+    ${snubs.length ? `<h4 class="ov-h down">😤 Snubs (${snubs.length})</h4>${snubs.slice(0, 12).map(s => `<p class="note small" style="margin:0">${olyTag(s.c)} ${who(s)} ${lvTag(s.lv)} <span class="muted">· ${esc(s.why)}</span></p>`).join('')}` : ''}
+    ${outs.length ? `<h4 class="ov-h">🚫 Withdrawals (${outs.length})</h4>${outs.slice(0, 14).map(s => `<p class="note small" style="margin:0">${olyTag(s.c)} ${who(s)} ${lvTag(s.lv)} <span class="muted">· ${esc(s.why)}</span></p>`).join('')}` : ''}
+  </div></fieldset>`;
+  const groupsTab = `<fieldset class="frame"><legend>Groups</legend><div class="stack">${F.groups.map((g, gi) => {
+    const rows = R ? R.standings[gi] : g.map(c => ({ c, w: 0, l: 0, pf: 0, pa: 0 }));
+    return `<h4 class="ov-h">Group ${'ABC'[gi]}</h4>${rows.map(r => { const t = F.field.find(x => x.c === r.c); return `<div class="drill-row tap" data-act="olyPick" data-c="${r.c}"><span class="grow">${olyTag(r.c)} ${esc(OLY.nation(r.c))} <span class="muted small">· strength ${t.str}</span></span>${R ? `<span>${r.w}-${r.l} <span class="muted small">${r.pf - r.pa > 0 ? '+' : ''}${r.pf - r.pa}</span></span>` : ''}</div>`; }).join('')}`;
+  }).join('')}</div></fieldset>`;
+  const gameRow = (G, i) => `<div class="drill-row tap" data-act="olyGame" data-g="${i}"><span class="grow"><span class="muted small">${esc(G.stage)}</span><br>${olyTag(G.a)} <span class="${G.sa > G.sb ? 'up' : ''}">${G.sa}</span> · ${olyTag(G.b)} <span class="${G.sb > G.sa ? 'up' : ''}">${G.sb}</span>${G.ot ? ' <span class="muted small">OT</span>' : ''}</span></div>`;
+  const gi = args.g != null ? +args.g : null, G = R && gi != null ? R.games[gi] : null;
+  const boxTab = G ? `<fieldset class="frame"><legend>${esc(G.stage)}: ${esc(OLY.code(G.a))} ${G.sa}, ${esc(OLY.code(G.b))} ${G.sb}</legend>${[0, 1].map(s => { const c = s ? G.b : G.a, t = F.field.find(x => x.c === c);
+    return `<h4 class="ov-h">${esc(OLY.nation(c))}</h4><div class="stack">${G.box[s].filter(r => r.min > 0).map(r => { const x = t.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === r.k) || { fn: r.k, ln: '' }; return `<p class="note small" style="margin:0">${who(x)} <span class="muted">${r.min} min</span> · <b>${r.pts}</b> pts · ${r.reb} reb · ${r.ast} ast</p>`; }).join('')}</div>`; }).join('')}<button class="btn small off" data-act="olyGame" data-g="">← All games</button></fieldset>` : '';
+  const lineOf = k => R.lines[k];
+  const leaders = R ? Object.values(R.lines).filter(L => L.gp >= 3).sort((a, b) => b.pts / b.gp - a.pts / a.gp).slice(0, 10) : [];
+  const xOf = (k, c) => F.field.find(t => t.c === c)?.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === k) || { fn: String(k), ln: '' };
+  const resultsTab = R ? `<fieldset class="frame"><legend>${OLY.logoSvg(30)} ${F.yr} ${esc(F.city)}</legend>
+      <p class="note">${esc(olyHeadline(F, R))}</p>
+      <div class="stack">${['gold', 'silver', 'bronze'].map(m => `<p class="note" style="margin:0">${MEDAL[m]} ${olyTag(R.medals[m])} ${esc(OLY.nation(R.medals[m]))}</p>`).join('')}</div>
+      <h4 class="ov-h">⭐ MVP</h4><p class="note small">${who(xOf(R.mvp, lineOf(R.mvp)?.c))} ${olyTag(lineOf(R.mvp)?.c)}</p>
+      <h4 class="ov-h">All-Star Five</h4>${R.allStar.map(k => `<p class="note small" style="margin:0">${who(xOf(k, lineOf(k)?.c))} ${olyTag(lineOf(k)?.c)} <span class="muted">${(lineOf(k).pts / lineOf(k).gp).toFixed(1)} pts · ${(lineOf(k).reb / lineOf(k).gp).toFixed(1)} reb · ${(lineOf(k).ast / lineOf(k).gp).toFixed(1)} ast</span></p>`).join('')}
+      <h4 class="ov-h">Scoring leaders</h4>${leaders.map(L => `<p class="note small" style="margin:0">${who(xOf(L.k, L.c))} ${olyTag(L.c)} <span class="muted">${(L.pts / L.gp).toFixed(1)} pts in ${L.gp}</span></p>`).join('')}
+    </fieldset>` : '';
+  const gamesTab = R ? (boxTab || `<fieldset class="frame"><legend>Games</legend><div class="stack">${[...R.games.map((G, i) => [G, i])].reverse().map(([G, i]) => gameRow(G, i)).join('')}</div></fieldset>`) : '';
+  const teamsTab = `<fieldset class="frame"><legend>National Teams</legend>${teamPick}<p class="note small">${olyTag(T.c)} ${esc(OLY.nation(T.c))} · strength <b>${T.str}</b>${T.c === F.host ? ' · home crowd' : ''}</p><div class="stack">${rosterRows}</div>${edit}</fieldset>`;
+  layout({
+    title: 'Olympics',
+    body: `<div class="oly-head">${OLY.logoSvg(120)}<p class="note small muted">${F.yr} · ${esc(F.city)}</p></div>
+      ${uiTabs('oly', [
+        ['results', 'Results', resultsTab],
+        ['games', 'Games', gamesTab],
+        ['teams', 'Teams', teamsTab],
+        ['groups', 'Groups', groupsTab],
+        ['news', 'News', newsTab],
+      ], R ? (G ? 'games' : 'results') : 'teams')}
+      ${done ? '' : `<button class="btn big focus" data-act="olyPlay">${OLY.logoSvg(26)} Start the Games</button>`}`,
+    action: done && isStep('olympics') ? { act: 'stepWrap', k: 'olympics', label: 'Wrap Up' } : null,
+  });
+};
+const olyEdit = (c, f) => { const st = olyStore(), y = olyYr(), cur = (st[y] ||= {}); cur.edits ||= {}; const e = (cur.edits[c] ||= { add: [], drop: [] }); f(e, cur); olySave(st); render(); };
+$app.addEventListener('change', e => {
+  const d = e.target.dataset;
+  if (d.change === 'olyTeam') replace('olympics', { c: e.target.value });
+  else if (d.change === 'olyAdd') { const id = +e.target.value; if (id) olyEdit(d.c, x => { x.drop = x.drop.filter(v => v !== id); if (!x.add.includes(id)) x.add.push(id); }); }
+});
+actions.olyPick = d => { (state.uiTab ||= {}).oly = 'teams'; replace('olympics', { c: d.c }); };
+actions.olyGame = d => { (state.uiTab ||= {}).oly = 'games'; replace('olympics', { ...(state.stack[state.stack.length - 1]?.args || {}), g: d.g === '' ? null : d.g }); };
+actions.olyDrop = d => olyEdit(d.c, e => { const id = +d.id; e.add = e.add.filter(x => x !== id); if (!e.drop.includes(id)) e.drop.push(id); });
+actions.olyReset = d => olyEdit(d.c, (e, cur) => { delete cur.edits[d.c]; });
+actions.olyHome = d => olyEdit('_', (e, cur) => { const id = +d.id; cur.home ||= []; if (!cur.home.includes(id)) cur.home.push(id); });
+actions.olyPlay = async () => { if (await confirmBox('Lock the rosters and play the Games?', 'Play')) { olyRun(); render(); } };
+function olyRun() {
+  const st = olyStore(), y = olyYr(), cur = (st[y] ||= {});
+  const F = olyField().field, R = OLY.runGames(F, olySeed());
+  // Keep what was played (rosters without the eligible lists) and the results.
+  cur.field = { ...F, field: F.field.map(t => ({ c: t.c, str: t.str, roster: t.roster, snubs: t.snubs, withdrew: t.withdrew })) };
+  cur.result = R;
+  if (!cur.applied) {
+    cur.applied = true;
+    const P = id => findPlayer(id)?.p;
+    for (const [m, n, why] of [['gold', 6, 'Olympic gold'], ['silver', 3, 'Olympic silver'], ['bronze', 3, 'Olympic bronze']])
+      for (const x of F.field.find(t => t.c === R.medals[m])?.roster || []) if (x.pid != null && P(x.pid)) moraleEvent(P(x.pid), 'olympics', n, why);
+    for (const t of F.field) for (const s of t.snubs) if (P(s.pid) && s.why !== 'left off by you') moraleEvent(P(s.pid), 'olympics', -3, `left off ${OLY.nation(t.c)}'s Olympic team`);
+    for (const id of cur.home || []) if (P(id)) moraleEvent(P(id), 'olympics', -4, 'kept home from the Olympics');
+    if (typeof R.mvp === 'number' && P(R.mvp)) drift(P(R.mvp), 'olympics', EGO_KEY, 1, 'Olympic MVP');
+    state.dirty = true;
+  }
+  olySave(st);
+  (state.uiTab ||= {}).oly = 'results';
+}
+actions.olySkip = () => { olyRun(); calFlags().olympics = true; state.undo = null; goHome(); nextUp(); };
 // ---- Player faces: from screenshots of the game's roster screen (js/faceimport.js cuts and matches them).
 screens.faces = (args = {}) => {
   const L = league(), mine = L.teams.filter(isUserTeam);
