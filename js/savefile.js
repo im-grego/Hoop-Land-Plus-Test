@@ -54,8 +54,19 @@ function protectFloats(text) {
 
 // Parse, then turn the tagged floats back into numbers with one walk over the tree (a JSON.parse reviver does the
 // same but calls back for every value in the file, about eight times slower on a 24 MB save).
+// A save shared through another app sometimes picks up a few stray characters before or after it (a byte-order mark,
+// a number, a line of text): read from the first { to the last } when the whole thing won't parse.
+function trimToJson(text) {
+  const a = text.indexOf('{'), b = text.lastIndexOf('}');
+  return a >= 0 && b > a ? text.slice(a, b + 1) : text;
+}
 export function parseSave(text) {
-  const root = JSON.parse(protectFloats(text));
+  let root;
+  try { root = JSON.parse(protectFloats(text)); } catch (e) {
+    const t = trimToJson(text);
+    if (t === text) throw e;
+    root = JSON.parse(protectFloats(t));
+  }
   const stack = [root];
   const fix = v => (typeof v === 'string' && v.charCodeAt(0) === 1 && v.startsWith(FLOAT_TAG) ? new RawNumber(v.slice(FLOAT_TAG.length)) : v);
   while (stack.length) {

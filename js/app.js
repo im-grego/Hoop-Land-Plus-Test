@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.328.0';
+const APP_VERSION = '0.328.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -891,7 +891,12 @@ async function loadFile(file) {
   } catch (err) {
     o.remove();
     console.error(err);
-    const b = overlay(`<p class="note">Couldn't read that file as a Hoop Land season.<br><span class="muted small">${esc(err.message)}</span></p><button class="btn">OK</button>`);
+    // Say what was picked: a season file starts with "{"; show what this one starts with so the wrong file is easy to spot.
+    let head = '';
+    try { head = (await file.slice(0, 24).text()).replace(/[^\x20-\x7e]/g, '·'); } catch { /* ignore */ }
+    const b = overlay(`<p class="note">Couldn't read that file as a Hoop Land season.<br><span class="muted small">${esc(err.message)}</span></p>
+      <p class="note small">File: <b>${esc(file.name)}</b> · ${(file.size / 1e6).toFixed(1)} MB${head ? `<br>Starts with: <code>${esc(head)}</code>` : ''}</p>
+      <p class="note small muted">A season file comes straight from Hoop Land's export and starts with <code>{</code>. If it came through Messenger, Drive or another app, have them send the original file (not a link or a zip), or export it again from the game.</p><button class="btn">OK</button>`);
     b.querySelector('button').onclick = () => b.remove();
   }
 }
