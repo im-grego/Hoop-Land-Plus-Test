@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.327.0';
+const APP_VERSION = '0.327.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -19373,7 +19373,8 @@ function olySave(v) { try { localStorage.setItem(olyKey(), JSON.stringify(v)); }
 const olyYr = () => draftYear(league());
 const olyOn = () => !isCollege() && labOn() && OLY.isOlympicYear(olyYr());
 const olySeed = () => { let h = olyYr() * 7919; for (const ch of saveTag()) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0; return h >>> 0; };
-const olyPlayers = () => league().teams.flatMap(t => t.roster.filter(p => p.status === FA.STATUS_SIGNED || p.status === FA.STATUS_DRAFTED)).concat((league().freeAgents || []).filter(p => p.status === FA.STATUS_FREE));
+// Everyone under contract, everyone whose deal is up and every free agent: the federations call the league's players first.
+const olyPlayers = () => league().teams.flatMap(t => t.roster.filter(p => [FA.STATUS_SIGNED, FA.STATUS_DRAFTED, FA.STATUS_EXPIRING].includes(p.status))).concat((league().freeAgents || []).filter(p => p.status === FA.STATUS_FREE));
 function olyField() {
   const st = olyStore(), y = olyYr(), cur = st[y] || {};
   if (cur.field) return cur;   // the Games are over: what was played
@@ -19404,7 +19405,9 @@ function olyHeadline(F, R) {
   const gold = R.games[R.games.length - 1], w = gold.sa > gold.sb ? [gold.a, gold.sa, gold.b, gold.sb] : [gold.b, gold.sb, gold.a, gold.sa];
   const L = R.lines[R.mvp];
   const upset = w[0] !== 'US' && F.field.find(t => t.c === 'US') ? ` ${R.medals.silver === 'US' ? 'Team USA settles for silver.' : R.medals.bronze === 'US' ? 'Team USA leaves with bronze.' : 'Team USA leaves without a medal.'}` : '';
-  return `${OLY.nation(w[0])} wins gold in ${F.city}, beating ${OLY.nation(w[2])} ${w[1]}-${w[3]}${gold.ot ? ' in overtime' : ''}.${upset} ${olyName(R.mvp)} is the tournament MVP${L?.gp ? ` (${(L.pts / L.gp).toFixed(1)} points, ${(L.reb / L.gp).toFixed(1)} rebounds, ${(L.ast / L.gp).toFixed(1)} assists a game)` : ''}. ${OLY.nation(R.medals.bronze)} takes bronze over ${OLY.nation(R.medals.fourth)}.`;
+  const H = R.hero, hp = H && R.medals ? Object.entries(R.medals).find(([, c]) => c === H.c)?.[0] : null;
+  const heroLine = H && hp ? ` The story of the Games: ${olyName(H.k)} carried ${OLY.nation(H.c)} ${hp === 'gold' ? 'all the way to gold' : hp === 'fourth' ? 'to the semifinals' : `to ${hp}`} (${(R.lines[H.k].pts / Math.max(1, R.lines[H.k].gp)).toFixed(1)} points a game).` : '';
+  return `${OLY.nation(w[0])} wins gold in ${F.city}, beating ${OLY.nation(w[2])} ${w[1]}-${w[3]}${gold.ot ? ' in overtime' : ''}.${upset} ${olyName(R.mvp)} is the tournament MVP${L?.gp ? ` (${(L.pts / L.gp).toFixed(1)} points, ${(L.reb / L.gp).toFixed(1)} rebounds, ${(L.ast / L.gp).toFixed(1)} assists a game)` : ''}. ${OLY.nation(R.medals.bronze)} takes bronze over ${OLY.nation(R.medals.fourth)}.${heroLine}`;
 }
 function olyPosts() {
   const v = olyStore()[olyYr()];
@@ -19460,7 +19463,14 @@ screens.olympics = (args = {}) => {
       <h4 class="ov-h">Scoring leaders</h4>${leaders.map(L => `<p class="note small" style="margin:0">${who(xOf(L.k, L.c))} ${olyTag(L.c)} <span class="muted">${(L.pts / L.gp).toFixed(1)} pts in ${L.gp}</span></p>`).join('')}
     </fieldset>` : '';
   const gamesTab = R ? (boxTab || `<fieldset class="frame"><legend>Games</legend><div class="stack">${[...R.games.map((G, i) => [G, i])].reverse().map(([G, i]) => gameRow(G, i)).join('')}</div></fieldset>`) : '';
-  const teamsTab = `<fieldset class="frame"><legend>National Teams</legend>${teamPick}<p class="note small">${olyTag(T.c)} ${esc(OLY.nation(T.c))} · strength <b>${T.str}</b>${T.c === F.host ? ' · home crowd' : ''}</p><div class="stack">${rosterRows}</div>${edit}</fieldset>`;
+  // A team with a star and few league players: the captain up top, the league players under him, the rest named in a line.
+  const leagueGuys = T.roster.filter(x => x.pid != null), homeGuys = T.roster.filter(x => x.pid == null);
+  const thin = leagueGuys.length && leagueGuys.length <= 4 && homeGuys.length >= 6 && !(!done && edit);
+  const rosterView = thin ? `<h4 class="ov-h gold">Captain</h4><div class="stack"><div class="drill-row"><span class="grow">${who(leagueGuys[0])} <span class="muted small">${esc(POSITIONS[leagueGuys[0].pos] ?? '')} · ${leagueGuys[0].age}y</span> ${lvTag(leagueGuys[0].lv)}</span></div></div>
+      ${leagueGuys.length > 1 ? `<h4 class="ov-h">Notable players</h4><div class="stack">${leagueGuys.slice(1).map(x => `<p class="note small" style="margin:0">${who(x)} ${lvTag(x.lv)}</p>`).join('')}</div>` : ''}
+      <p class="note small muted">From the home leagues: ${homeGuys.map(x => esc(`${x.fn} ${x.ln}`)).join(', ')}.</p>` : `<div class="stack">${rosterRows}</div>`;
+  const heroTag = R?.hero?.c === T.c ? `<p class="note small up">🔥 ${esc(olyName(R.hero.k))} went on a run.</p>` : '';
+  const teamsTab = `<fieldset class="frame"><legend>National Teams</legend>${teamPick}<p class="note small">${olyTag(T.c)} ${esc(OLY.nation(T.c))} · strength <b>${T.str}</b>${T.c === F.host ? ' · home crowd' : ''} · ${leagueGuys.length} from the league</p>${heroTag}${rosterView}${edit}</fieldset>`;
   layout({
     title: 'Olympics',
     body: `<div class="oly-head">${OLY.logoSvg(120)}<p class="note small muted">${F.yr} · ${esc(F.city)}</p></div>

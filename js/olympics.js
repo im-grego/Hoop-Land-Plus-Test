@@ -131,7 +131,7 @@ export function buildField({ yr, players, level, prevIds = {}, edits = {}, home 
 
 // One game: a margin from the strength gap, FIBA scoring (40 minutes, about 85 a side), box scores for both teams.
 function playGame(rng, A, B, stage) {
-  const edge = (A.str - B.str) * 0.65, margin = edge + (rng() + rng() + rng() + rng() - 2) * 12;
+  const edge = ((A.str + (A.heat || 0)) - (B.str + (B.heat || 0))) * 0.65, margin = edge + (rng() + rng() + rng() + rng() - 2) * 12;
   const total = 166 + (rng() - 0.5) * 24;
   let sa = Math.round((total + margin) / 2), sb = Math.round((total - margin) / 2);
   let ot = 0;
@@ -142,8 +142,10 @@ const MIN = [30, 28, 27, 25, 24, 21, 18, 15, 12, 10, 6, 4];
 function box(rng, T, pts) {
   const rows = T.roster.map((x, i) => ({ x, min: Math.max(0, Math.round(MIN[i] + (rng() - 0.5) * 6)) }));
   // Shares of the scoring by minutes and level, no one over about 30% (FIBA games spread it around).
-  let w = rows.map(r => r.min * Math.pow(Math.max(40, r.x.lv) / 80, 3) * (0.6 + rng() * 0.8));
-  for (let k = 0; k < 3; k++) { const sw = w.reduce((a, b) => a + b, 0) || 1; w = w.map(v => Math.min(v, sw * 0.3)); }
+  // A hero on a heater takes a much bigger share (up to about 40%).
+  const isHero = r => T.hero != null && (r.x.pid ?? `${r.x.fn} ${r.x.ln}`) === T.hero;
+  let w = rows.map(r => r.min * Math.pow(Math.max(40, r.x.lv) / 80, 3) * (0.6 + rng() * 0.8) * (isHero(r) ? 1.8 : 1));
+  for (let k = 0; k < 3; k++) { const sw = w.reduce((a, b) => a + b, 0) || 1; w = w.map((v, i) => Math.min(v, sw * (isHero(rows[i]) ? 0.42 : 0.3))); }
   const sw = w.reduce((a, b) => a + b, 0) || 1;
   const pts0 = w.map(v => Math.floor(pts * v / sw));
   let left = pts - pts0.reduce((a, b) => a + b, 0);
@@ -159,7 +161,17 @@ function box(rng, T, pts) {
 
 // The whole tournament.
 export function runGames(F, seed) {
-  const rng = mulberry32(seed ^ 0x601d), T = Object.fromEntries(F.field.map(t => [t.c, t])), games = [];
+  const rng = mulberry32(seed ^ 0x601d), games = [];
+  const T = Object.fromEntries(F.field.map(t => [t.c, { ...t, heat: 0, hero: null }]));
+  // Usually the most talented team wins. Now and then (about one Games in six) a team outside the top three rides
+  // its captain on a heater: he's worth a few extra points a night and takes over the scoring.
+  const ranked0 = [...F.field].sort((a, b) => b.str - a.str);
+  let hero = null;
+  if (rng() < 0.17) {
+    const can = ranked0.slice(3).filter(t => t.roster[0] && t.roster[0].lv >= 86);
+    const t = can[Math.floor(rng() * can.length)];
+    if (t) { const x = t.roster[0]; hero = { c: t.c, k: x.pid ?? `${x.fn} ${x.ln}` }; T[t.c].hero = hero.k; T[t.c].heat = 3.5 + rng() * 2.5; }
+  }
   const table = {};
   F.groups.forEach((g, gi) => {
     for (const c of g) table[c] = { c, g: gi, w: 0, l: 0, pf: 0, pa: 0 };
@@ -195,7 +207,7 @@ export function runGames(F, seed) {
   const weight = L => val(L) * (L.c === medals.gold ? 1.25 : L.c === medals.silver ? 1.1 : L.c === medals.bronze ? 1.05 : 0.9);
   const ranked = all.sort((a, b) => weight(b) - weight(a));
   const mvp = ranked.find(L => [medals.gold, medals.silver].includes(L.c)) || ranked[0];
-  return { games, standings: standings.map(s => s.map(x => ({ ...x }))), seeds, medals, mvp: mvp?.k ?? null, allStar: ranked.slice(0, 5).map(L => L.k), lines: Object.fromEntries([...lines.values()].map(L => [L.k, L])) };
+  return { hero, games, standings: standings.map(s => s.map(x => ({ ...x }))), seeds, medals, mvp: mvp?.k ?? null, allStar: ranked.slice(0, 5).map(L => L.k), lines: Object.fromEntries([...lines.values()].map(L => [L.k, L])) };
 }
 
 // ---- The logo: five pixel rings (blue, black, red over yellow, green), interlocked, on a white badge.
