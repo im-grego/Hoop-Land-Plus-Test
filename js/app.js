@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.350.1';
+const APP_VERSION = '0.350.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -18214,7 +18214,7 @@ function rumorPost(r) {
     `Running it back costs ${city} $${r.bill}M in tax. Contenders pay it. Do they?`,
   ];
   // Near the line with a core to build around (one player or a duo): they retool around them, and the next contract is the one in play.
-  if (r.kind === 'blowup' && r.keep?.length) {
+  if (r.kind === 'blowup' && r.keep?.length && !r.also) {
     const fnm = x => shortName(x), k = r.keep.map(x => playerName(x)).join(' or '), kf = r.keep.map(fnm).join(' and ');
     blowup.splice(0, blowup.length,
       `${city} is ${why}. Nobody's trading ${k}, so ${nm} could be on the move.`,
@@ -18231,6 +18231,20 @@ function rumorPost(r) {
     `${city} has a decision on ${nm}: build around a ${p.age}-year-old, or move him while he still brings back a haul.`,
   ];
   if (r.kind === 'sellhigh') star.splice(0, star.length, ...sellhigh);
+  if (r.kind === 'blowup' && r.also) {
+    const al = shortName(r.also), duck = r.apron ? 'duck the apron' : 'get under the tax';
+    blowup.splice(0, blowup.length,
+      `${first} and ${al} could be on the move. ${city} is ${r.why[0]} and wants to ${duck}.`,
+      `To ${duck}, ${city} is shopping ${nm} and ${playerName(r.also)}. The core stays.`,
+      `Expect ${city} to move salary: ${first} and ${al} are the contracts teams are asking about.`);
+  }
+  if (r.kind === 'contract') {
+    const k = r.keep ? shortName(r.keep[0]) : '';
+    star.splice(0, star.length,
+      `${first}'s contract (${r.why[0]}) is the one to watch in ${city}.${k ? ` The future is ${k}.` : ''}`,
+      `${k ? `Building around ${k}, ` : ''}${city} would love to move ${nm}'s deal.`,
+      `Hearing ${city} is shopping ${nm}. ${r.why[0][0].toUpperCase()}${r.why[0].slice(1)} is a lot for where he is now.`);
+  }
   if (r.kind === 'shaky') {
     const [a, b] = r.pair.map(x => shortName(x));
     star.splice(0, star.length,
