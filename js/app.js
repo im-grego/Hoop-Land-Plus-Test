@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.352.4';
+const APP_VERSION = '0.352.5';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3011,7 +3011,16 @@ function bugReportText() {
   return lines.join('\n');
 }
 // The bottom of the title screen and the main menu: Discord, Report a Bug, Roadmap and the version, one even 2x2 grid.
-const footerGrid = () => communityRow(`${roadmapBtn()}<button class="ver-badge ver-btn" data-act="devlog"><span>${SHOWN_VERSION}</span><span class="ver-new">What's new${devlogUnseen() ? '<span class="ndot blink">1</span>' : ' ›'}</span></button>`);
+const footerGrid = () => communityRow(`${roadmapBtn()}<button class="ver-badge ver-btn" data-act="devlog"><span class="ver-txt"><span>${SHOWN_VERSION}</span><span class="ver-new">What's new</span></span>${devlogUnseen() ? '<span class="ndot blink">1</span>' : ''}</button>`);
+// After an update, the patch notes open by themselves once, for anyone who has used the app before (a first visit
+// just gets the red dot).
+function devlogAuto() {
+  try {
+    if (!devlogUnseen()) return;
+    const used = Object.keys(localStorage).some(k => k.startsWith('hlc') && k !== devlogKey);
+    if (used) setTimeout(() => { if (!document.querySelector('.overlay')) actions.devlog(); }, 900);
+  } catch { /* ignore */ }
+}
 actions.devlog = () => {
   try { localStorage.setItem(devlogKey, DEVLOG[0].v); } catch { /* ignore */ }
   const box = overlay(`<h2 class="devlog-h">What's New</h2>
@@ -22057,7 +22066,8 @@ const liveSite = () => LIVE_PREVIEW || counting() || (/\.github\.io$/.test(locat
 function labOn() { try { const v = localStorage.getItem('hlc:lab'); if (v === '0') return false; if (v === '1' || localStorage.getItem('hlc:dbxbeta') === '1') return true; } catch { /* ignore */ } return !liveSite(); }
 // ?lab=off shows a browser exactly what the live site shows (?lab=on turns the test features back on; it sticks).
 try { const q = new URLSearchParams(location.search).get('lab'); if (q === 'off') localStorage.setItem('hlc:lab', '0'); else if (q === 'on') localStorage.setItem('hlc:lab', '1'); } catch { /* ignore */ }
-setCoachMarketV2(labOn());   // the newer coach market: test site only
+setCoachMarketV2(labOn());
+devlogAuto();   // the newer coach market: test site only
 function dbxOn() { return !!BUILT_IN_APP_KEY && !inArtifact() && labOn(); }
 (() => {
   const q = new URLSearchParams(location.search);

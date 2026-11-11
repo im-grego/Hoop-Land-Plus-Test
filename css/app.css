@@ -2072,9 +2072,10 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .trade-need { margin: 0; font-size: 12.5px; }
 
 /* Dev log: the version button and its list */
-.ver-btn { flex-direction: column; gap: 2px; cursor: pointer; color: var(--text); font: inherit; font-weight: 700; }
-.ver-btn .ver-new { font-size: 12px; font-weight: 600; color: var(--cyan); display: inline-flex; align-items: center; }
-.ver-btn .ver-new .ndot { margin-left: 5px; }
+.community .ver-btn, .ver-btn { flex-direction: row; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font: inherit; font-weight: 700; }
+.ver-btn .ver-txt { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ver-btn .ver-new { font-size: 12px; font-weight: 600; color: var(--cyan); }
+.ver-btn .ndot { margin: 0; flex: none; align-self: center; }
 .devlog-h { margin: 0 0 10px; font-family: var(--game); text-align: center; }
 .devlog { max-height: 60vh; overflow-y: auto; margin-bottom: 12px; text-align: left; }
 .devlog-rel summary { cursor: pointer; padding: 4px 0; }
