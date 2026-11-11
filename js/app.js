@@ -36,7 +36,7 @@ import { archName as coachArch, strengthName, shownRating, shownCeiling, potenti
 import { signatureOf, evolve, STYLE_WORD } from './schemeevo.js';
 import { runMeeting, traitName } from './influence.js';
 import { FOCUS, MAX_USAGE, MIN_USAGE, MAX_TOTAL, focusFor, autoOptions, fixOptions } from './scoring.js';
-import { headCoachOf, bestCandidate, schemeFit, coachWillingness, coachDecision, pressureOn, marketSalary, coachReaction, playerSwing, fanSwing, playerCoachFit, isStarPlayer } from './coachmarket.js';
+import { headCoachOf, bestCandidate, schemeFit, coachWillingness, setCoachMarketV2, coachDecision, pressureOn, marketSalary, coachReaction, playerSwing, fanSwing, playerCoachFit, isStarPlayer } from './coachmarket.js';
 import { PLAYS, MAX_PLAY, playName, playType, playsFor, PRESETS, presetPlays } from './plays.js';
 import { coachVal, TRAITS, TRAIT_KEYS, traitWord, traitLabel, traitTag, personality, characterSentence, traitsSet, tr, fillTraits, fillTraitsList, fillHallOfFame, isReal } from './traits.js';
 import { detectMode, seasonReview, collegePhaseName, draftDepartures, seniorSendoff, portalBoard, showcase, recruitBoard, signingClasses, rosterNeedsCollege, preseason, rosterLock, practicePlan, classOf } from './college.js';
@@ -72,9 +72,41 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.351.0';
+const APP_VERSION = '0.352.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
+// The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
+// the player hasn't looked at yet.
+const DEVLOG = [
+  { v: 'Beta 0.2.0', items: [
+    'Start Today: start a franchise from the real 2026-27 season',
+    'Start from Opening Night or an earlier date',
+    'Team picker with each team\'s top players and rankings',
+    'Trade machine and minimum free agents before you begin',
+    'In-season Trade Market',
+    'Team needs',
+    'Rotations built from real minutes',
+    'New Hoop Gram rumors: salary, aprons, sell-high, retool and paydays',
+    'Nicknames on Hoop Gram',
+    'Smarter CPU draft boards and draft-day trades',
+    'CPU teams manage the tax and aprons',
+    'Aging superstars ask for 1+1 and 2+1 deals',
+    'Draft classes reworked: prospect levels, comps and schools',
+    'Career Arc on the player profile',
+    'Game icons, award trophies and notification dots',
+    'Summer League back on its own step',
+  ], fixes: [
+    'Season files with stray characters now load',
+    'Awards and play-in phase shows the right screen',
+    'Saving on iPhone and iPad',
+    'Free throws top out at 15',
+    'Rookie of the Year only counts true rookies',
+    'Gear colors on dark jerseys and sleeves',
+    'Draft history setting no longer carries across saves',
+  ] },
+];
+const devlogKey = 'hlc:devlogSeen';
+const devlogUnseen = () => { try { return localStorage.getItem(devlogKey) !== DEVLOG[0].v; } catch { return false; } };
 const $app = document.getElementById('app');
 // Pixel icons: the emoji that starts a button becomes a white pixel icon, like the game's (Settings → Pixel icons).
 {
@@ -980,7 +1012,7 @@ async function loadFile(file) {
     const planned = !isCollege() && applyClassPlan();
     if (!isCollege() && settleRetirees(league())) state.dirty = true;
     if (!isCollege() && playoffRotations()) state.dirty = true;
-    if (!isCollege() && applyStreaks()) state.dirty = true;
+    if (!isCollege() && labOn() && applyStreaks()) state.dirty = true;   // hot and cold streaks: test site only for now
     if (!isCollege() && applyFatigue()) state.dirty = true;
     if (!isCollege()) cupKnockout();
     if (!isCollege()) glCatchUp();
@@ -2140,7 +2172,9 @@ const isFranchise = () => { const L = league(); return L.season.mode === 0 && L.
 // Summer League is back (Jul 3, after Contracts): the rookies' deals, their numbers, the age adjustment and the
 // tournament in Las Vegas, all on its own step.
 const PAUSED = new Set(['vote', 'exhib', 'rotation']);
-const activeCal = () => (state.campusPro ? campusProCal() : isCollege() ? COLLEGE_CAL : CALENDAR.filter(st => !PAUSED.has(st.key) && (st.key !== 'office' || !(isFranchise() || CAR.isCareer(league()))) && (st.key !== 'latefa' || isComplete()) && (!['owner', 'medical', 'exhib', 'rotation', 'vote'].includes(st.key) || !CAR.isCareer(league())) && (st.key !== 'expansion' || !!expThisYear()) && (st.key !== 'olympics' || olyOn())));   // a career save runs no team
+// Offseason events still on the test site only (the live site skips them).
+const LAB_STEPS = new Set(['coachCarousel', 'tradeNight', 'nego', 'schedRelease']);
+const activeCal = () => (state.campusPro ? campusProCal() : isCollege() ? COLLEGE_CAL : CALENDAR.filter(st => !PAUSED.has(st.key) && (st.key !== 'office' || !(isFranchise() || CAR.isCareer(league()))) && (st.key !== 'latefa' || isComplete()) && (!['owner', 'medical', 'exhib', 'rotation', 'vote'].includes(st.key) || !CAR.isCareer(league())) && (st.key !== 'expansion' || !!expThisYear()) && (st.key !== 'olympics' || olyOn()) && (!LAB_STEPS.has(st.key) || labOn())));   // a career save runs no team
 const currentStep = () => activeCal().find(st => !st.done());
 const isStep = key => currentStep()?.key === key;
 
@@ -2970,7 +3004,17 @@ function bugReportText() {
   return lines.join('\n');
 }
 // The bottom of the title screen and the main menu: Discord, Report a Bug, Roadmap and the version, one even 2x2 grid.
-const footerGrid = () => communityRow(`${roadmapBtn()}<div class="ver-badge">${SHOWN_VERSION}</div>`);
+const footerGrid = () => communityRow(`${roadmapBtn()}<button class="ver-badge ver-btn" data-act="devlog"><span>${SHOWN_VERSION}</span><span class="ver-new">What's new${devlogUnseen() ? '<span class="ndot"></span>' : ' ›'}</span></button>`);
+actions.devlog = () => {
+  try { localStorage.setItem(devlogKey, DEVLOG[0].v); } catch { /* ignore */ }
+  const box = overlay(`<h2 class="devlog-h">What's New</h2>
+    <div class="devlog">${DEVLOG.map((r, i) => `<details class="devlog-rel" ${i === 0 ? 'open' : ''}><summary><b>${esc(r.v)}</b></summary>
+      <ul class="devlog-list">${r.items.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+      ${r.fixes?.length ? `<p class="devlog-sub">Fixes</p><ul class="devlog-list">${r.fixes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    </details>`).join('')}</div>
+    <button class="btn focus" data-close>Close</button>`);
+  box.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === box) { box.remove(); render(); } });
+};
 function communityRow(more = '') {
   return `<div class="grid2 community">
       <a class="btn left" href="${DISCORD}" target="_blank" rel="noopener" data-count="discord-join"><span class="ico">💬</span> Join the Discord</a>
@@ -5669,7 +5713,7 @@ screens.coaches = () => {
 // Paying a coach over his market rate comes out of the team's coins (Complete rules): 5 coins for every $1M a year
 // over, paid once when he signs. Under or at the market costs nothing extra.
 const COACH_OVER_COINS = 5;
-const coachOverCost = (c, o) => (isComplete() ? Math.max(0, o.sal - marketSalary(c, league())) * o.yrs * COACH_OVER_COINS : 0);
+const coachOverCost = (c, o) => (isComplete() && labOn() ? Math.max(0, o.sal - marketSalary(c, league())) * o.yrs * COACH_OVER_COINS : 0);
 const coachCostLine = (c, o, team) => { const n = coachOverCost(c, o); if (!n) return ''; const have = coinsOf(team); return `<p class="note small ${have >= n ? 'gold' : 'down'}">🪙 Over market: $${o.sal - marketSalary(c, league())}M × ${o.yrs} yr${o.yrs > 1 ? 's' : ''} = <b>${n} coins</b> (you have ${have})</p>`; };
 const coachOffer = c => {
   const o = (state.coachOffer ||= {});
@@ -5748,6 +5792,7 @@ function starsBox({ c, t }) {
 
 // Hire an available coach as your head coach; the current one goes to the pool.
 function hireBox({ c, t }, staff) {
+  if (!labOn()) return hireBoxOld({ c, t }, staff);
   const mine = L_myTeam();
   if (!mine) return '';
   if (t === mine) return '<p class="note small muted">Your head coach.</p>';
@@ -5762,13 +5807,24 @@ function hireBox({ c, t }, staff) {
     <p class="note small">${w.accept ? '✅ He would sign this.' : '🚫 He would turn this down.'} Market: <b>$${marketSalary(c, league())}M</b> (asks $${ask.sal}M for ${ask.yrs} years). He replaces ${cur ? esc(`${cur.fn} ${cur.ln}`) : 'your head coach'}${cur?.contract?.yrs ? `, who has $${cur.contract.sal}M × ${cur.contract.yrs} left and goes to the available pool` : ''}.</p>
     <button class="btn focus" data-act="hireCoach" data-arg="${c.id}">🤝 Make Head Coach</button></div></fieldset>`;
 }
+// The hire box as on the live site: his ask and whether he'd sign.
+function hireBoxOld({ c, t }, staff) {
+  const mine = L_myTeam();
+  if (!mine) return '';
+  if (t === mine) return '<p class="note small muted">Your head coach.</p>';
+  if (t) return '';
+  const ask = askingContract(c, staff.map(x => x.c)), cur = CO.headCoach(mine);
+  return `<fieldset class="frame"><legend>Hire</legend><div class="stack">
+    <p class="note small">${coachWillingness(league(), mine, c, { yrs: ask.yrs, sal: ask.sal }).accept ? '✅ He would sign.' : '🚫 He would turn the job down.'} Asks <b>$${ask.sal}M for ${ask.yrs} years</b>. He replaces ${cur ? esc(`${cur.fn} ${cur.ln}`) : 'your head coach'}${cur?.contract?.yrs ? `, who has $${cur.contract.sal}M × ${cur.contract.yrs} left and goes to the available pool` : ''}.</p>
+    <button class="btn focus" data-act="hireCoach" data-arg="${c.id}">🤝 Make Head Coach</button></div></fieldset>`;
+}
 const L_myTeam = () => myTeam();
 actions.hireCoach = async d => {
   const L = league(), mine = myTeam();
   const c = (L.coaches || []).find(x => x.id === +d.arg);
   if (!mine || !c || !hireable(c)) return;   // a retired coach is off the market, whatever the game lists
   const cur = CO.headCoach(mine);
-  const o = state.coachOffer?.id === c.id ? { yrs: state.coachOffer.yrs, sal: state.coachOffer.sal } : { yrs: 3, sal: marketSalary(c, L) };
+  const o = labOn() && state.coachOffer?.id === c.id ? { yrs: state.coachOffer.yrs, sal: state.coachOffer.sal } : { yrs: 3, sal: marketSalary(c, L) };
   const will = coachWillingness(L, mine, c, o), cost = coachOverCost(c, o);
   if (!will.accept) { const worst = [...will.factors].sort((x, y) => x.val - y.val)[0]; toast(`${c.ln} turns you down`, `${worst.label}: ${worst.note}`, 4200, true); return; }
   if (coinsOf(mine) < cost) { toast('Not enough coins', `Paying him over market costs ${cost} coins (you have ${coinsOf(mine)})`, 4200, true); return; }
@@ -5777,7 +5833,7 @@ actions.hireCoach = async d => {
   const r = hireHeadCoach(L, mine, c);
   if (!r) { toast('No head coach slot on this team'); return; }
   // His deal is the one you offered (not just his ask), and any premium comes out of the coins.
-  Object.assign(c.contract, { yrs: o.yrs, sal: o.sal }); r.ask = { yrs: o.yrs, sal: o.sal };
+  if (labOn()) { Object.assign(c.contract, { yrs: o.yrs, sal: o.sal }); r.ask = { yrs: o.yrs, sal: o.sal }; }
   if (cost) mine.frontOffice.coins = coinsOf(mine) - cost;
   const book = installSignature(mine, c);
   const tr = treeStore();
@@ -9270,6 +9326,14 @@ actions.glSend = async d => {
   if (!e?.team || !isUserTeam(e.team) || !glOpen(L)) return;
   const why = glWhyNot(e.p, e.team);
   if (why) { toast(`Can't send him down: ${why}`); return; }
+  if (!labOn()) {
+    const all = glStore(), y = L.season.currentYear;
+    (all[y] ||= {})[e.p.id] = { tid: e.team.id, day: L.season.currentDay || 0 };
+    glSave(all);
+    render();
+    toast(`🏀 ${playerName(e.p)} sent to the G League`, 'Keep him out of the rotation in Hoop Land.');
+    return;
+  }
   if (!(await confirmBox(`Send <b>${esc(playerName(e.p))}</b> to the G League?<br><br>He comes off your roster in the exported file, so <b>Hoop Land won't show him</b>: he's kept here in Hoop Land Plus, and his spot opens for a signing.<br><br>You can call him up any time this season in Hoop Land Plus, as long as you trim the active roster to make room (15 max).`, 'Send Down'))) return;
   const all = glStore(), y = L.season.currentYear, p = e.p, t = e.team;
   checkpoint(`Send ${playerName(p)} down`);
@@ -10760,7 +10824,7 @@ screens.leaders = (args) => {
   const barOf = x => (mode === 'stats' ? '' : `<span class="ld-bar">${gBar(G_CLS[gCat(k).key], gKinds(x.e.p, null, k).kinds)}</span>`);
   layout({
     title: 'League',
-    body: `<div class="tabs"><button class="btn ${mode === 'stats' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="stats" data-k="${mode === 'stats' ? k : 'PTS'}" data-r="1">Stats</button><button class="btn ${mode === 'ratings' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="ratings" data-k="${mode === 'ratings' ? k : 'LAY'}" data-r="1">Ratings</button>${isCollege() ? '' : '<button class="btn off" data-act="openLeaders" data-m="rafters" data-r="1">🏟️ Rafters</button><button class="btn off" data-act="nav" data-to="records">📖 Records</button>'}</div>${isCollege() ? '' : '<div class="grid2" style="margin-top:6px"><button class="btn small" data-act="nav" data-to="rankings">📊 Player Rankings</button><button class="btn small" data-act="nav" data-to="drafts">🎓 Draft History</button></div>'}
+    body: `<div class="tabs"><button class="btn ${mode === 'stats' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="stats" data-k="${mode === 'stats' ? k : 'PTS'}" data-r="1">Stats</button><button class="btn ${mode === 'ratings' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="ratings" data-k="${mode === 'ratings' ? k : 'LAY'}" data-r="1">Ratings</button>${isCollege() ? '' : `<button class="btn off" data-act="openLeaders" data-m="rafters" data-r="1">🏟️ Rafters</button>${labOn() ? '<button class="btn off" data-act="nav" data-to="records">📖 Records</button>' : ''}`}</div>${isCollege() || !labOn() ? '' : '<div class="grid2" style="margin-top:6px"><button class="btn small" data-act="nav" data-to="rankings">📊 Player Rankings</button><button class="btn small" data-act="nav" data-to="drafts">🎓 Draft History</button></div>'}
       <div class="opts wrap ld-keys">${head}</div>
       ${groupChips}
       <p class="note muted small" style="margin:6px 0">${esc(note)}</p>
@@ -11485,7 +11549,107 @@ function movePlayerTo(p, to) {
   render();
 }
 actions.editMode = () => { state.editMode = !state.editMode; render(); };
-screens.player = (args) => {
+// The redesigned profile is on the test site; the live site keeps the previous one (with the Career Arc).
+screens.player = args => (labOn() ? newPlayerScreen(args) : oldPlayerScreen(args));
+function oldPlayerScreen(args) {
+  const e = findPlayer(args.id);
+  if (!e) { back(); return; }
+  const { p, team } = e;
+  if (e.hof) { hofProfile(p, args); return; }
+  sortSkills(p);   // best skill first, the same order the export writes
+  const snap = snapOf(p);
+  const d = diffPlayer(p, snap);
+  const ceilMode = !!args.ceil;
+  const mpg = lastSeasonMpg(p, state.leagueIdx);
+  const ownedOrig = new Set(snap.skills.filter(s => s.level >= 1).map(s => s.id));
+  const pos = POSITIONS[p.pos] ?? p.pos;
+  // Upgrade points: compact rows in the rating colors (no physicals: the
+  // game doesn't take points there).
+  const apCard = p.season?.ap ? `<fieldset class="frame"><legend>Upgrade Points</legend>
+        <div class="ap-grid">
+          ${CATEGORIES.filter(c => c.key !== 'PHY').map(c => { const i = CATEGORIES.indexOf(c); return `<div class="ap-row ap-${SKILL_GROUP[c.name] || ''}">
+            <span class="grow" title="${esc(c.name)}">${esc(c.name.slice(0, 3).toUpperCase())}</span>
+            <button class="mvbtn" data-act="ap" data-i="${i}" data-dir="-1" aria-label="Fewer ${esc(c.name)} points">−</button>
+            <b>${p.season.ap[i]}${d.apDelta[i] ? `<span class="small ${d.apDelta[i] > 0 ? 'up' : 'down'}"> ${d.apDelta[i] > 0 ? '+' : ''}${d.apDelta[i]}</span>` : ''}</b>
+            <button class="mvbtn" data-act="ap" data-i="${i}" data-dir="1" aria-label="More ${esc(c.name)} points">+</button>
+          </div>`; }).join('')}
+        </div>
+      </fieldset>` : '';
+  const tab = ['scout', 'traits', 'attributes', 'stats'].includes(args.tab) ? args.tab : 'scout';
+  // Ratings: his potential on top (it caps how far his ratings can go), the ratings, then the ceilings switch.
+  const capLeft = potCap(p) - ceilTotal(p);
+  const ratings = `<fieldset class="frame"><legend>Ratings</legend>${infoBtn('ratings', RATINGS_HELP)}
+        <div class="pts-row pot-row">
+          <span class="grow">Potential <span class="stars">${potStars(p)}</span>${declining(p) ? ' <span class="small down">Declining</span>' : ''}<br><span class="muted small">${capLeft > 0 ? `${capLeft} point${capLeft === 1 ? '' : 's'} of room above his ceilings` : capLeft === 0 ? 'His ceilings are at his potential' : `His ceilings are ${-capLeft} over his potential`}</span></span>
+          <button class="btn square" data-act="potAdj" data-dir="-1" aria-label="Lower potential">−</button>
+          <span class="pts-val ${d.potDelta ? 'gold' : ''}">${p.pot}${d.potDelta ? `<span class="small up"> ${d.potDelta > 0 ? '+' : ''}${d.potDelta}</span>` : ''}</span>
+          <button class="btn square" data-act="potAdj" data-dir="1" aria-label="Higher potential">+</button>
+        </div>
+        <div class="stack">
+          ${ATTRS.map(k => attrRow(p, snap, k, ceilMode)).join('')}
+        </div>
+        <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">Edit Ceilings</button></div>
+      </fieldset>`;
+  // Trainer: his health now, his regression age, and every injury on record.
+  const hurt = p.season?.injury?.gamesOut > 0 ? p.season.injury : null;
+  const hist = [...(p.history?.injuries || [])].filter(i => i.gamesOut > 0 || i.majorSeverity || i.minorSeverity).sort((a, b) => b.yr - a.yr);
+  const trainer = `<fieldset class="frame"><legend>Trainer</legend>
+        <div class="stack">
+          <p class="note small">Health: ${hurt ? `<span class="down">Out: ${esc(injuryName(hurt))}, ${hurt.gamesOut} game${hurt.gamesOut === 1 ? '' : 's'} left</span>` : '<span class="up">Healthy</span>'}${injuryText(p)}</p>
+          <div class="pts-row">
+            <span class="grow">Regression age<br><span class="muted small">${regressionText(p)}</span></span>
+            <button class="btn square" data-act="regAge" data-dir="-1" aria-label="Earlier regression">−</button>
+            <span class="pts-val ${d.regDelta ? 'gold' : ''}">${p.regressionAge}${d.regDelta ? `<span class="small up"> ${d.regDelta > 0 ? '+' : ''}${d.regDelta}</span>` : ''}</span>
+            <button class="btn square" data-act="regAge" data-dir="1" aria-label="Later regression">+</button>
+          </div>
+          <details class="inj-hist"><summary class="small">Injury history (${hist.length})</summary>
+            ${hist.length ? `<div class="stack small">${hist.map(i => `<div class="row"><span class="grow">${i.yr ? `${i.yr - 1}-${String(i.yr).slice(2)}` : 'Now'} · ${esc(injuryName(i))}</span><span class="${i.majorSeverity ? 'down' : 'muted'}">${i.gamesOut} game${i.gamesOut === 1 ? '' : 's'}</span></div>`).join('')}</div>` : '<p class="note muted small">No injuries on record.</p>'}
+          </details>
+        </div>
+      </fieldset>`;
+  const skills = `<fieldset class="frame"><legend>Skills (${activeSkills(p).length})</legend>
+        <details class="skills-fold" data-keep="skills-fold" ${state.keepOpen?.['skills-fold'] ? 'open' : ''}><summary class="small">${activeSkills(p).length ? activeSkills(p).map(x => esc(skillName(x.id))).join(' · ') : 'No skills'}</summary>
+        <div class="stack" style="margin-top:8px">
+          ${p.skills.map((s, i) => s.level < 1 ? '' : `
+            <div class="skill ${ownedOrig.has(s.id) ? '' : 'added'}">
+              <div class="sk-line"><span class="sk-name sk-${SKILL_GROUP[skillCategory(s.id)] || ''}">${esc(skillName(s.id))}</span>${isLeveled(s.id) ? ` <span class="gold small">(${s.level})</span>` : ''}</div>
+              <div class="ctrls">
+                ${isLeveled(s.id) ? `<button class="btn" data-act="skillLv" data-i="${i}" data-dir="-1" aria-label="Level down" ${s.level <= 1 ? 'disabled' : ''}>−</button><button class="btn" data-act="skillLv" data-i="${i}" data-dir="1" aria-label="Level up" ${s.level >= SKILL_MAX_LEVEL ? 'disabled' : ''}>+</button>` : ''}
+                <button class="btn" data-act="skillDel" data-i="${i}" aria-label="Remove skill">✕</button>
+              </div>
+            </div>`).join('')}
+          ${activeSkills(p).length ? '' : '<p class="note muted">No skills.</p>'}
+          <button class="btn" data-act="addSkill">＋ Add Skill</button>
+        </div></details>
+      </fieldset>`;
+  const tabsRow = `<div class="tabs pl-tabs">${[['scout', 'Overview'], ['traits', 'Traits'], ['attributes', 'Attributes'], ['stats', 'Stats']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="plTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+  const personality = traitsBox(p) || '<p class="note muted">Personality isn\'t set for this player yet. Reload the file and it fills in.</p>';
+  const content = tab === 'attributes' ? `${ratings}${trainer}${apCard}`
+    : tab === 'traits' ? `${personality}${playStyleBox(p)}${skills}`
+    : tab === 'stats' ? statsTab(p, args)
+    : `${newsBox(p)}${rankBox(p, mpg)}<fieldset class="frame"><legend>Scouting Report</legend>
+        <p class="note small scout-p">${profileReport(p, team)}</p>
+        ${playerTags(p) ? `<div class="pl-tags">${playerTags(p)}</div>` : ''}
+      </fieldset>
+      ${arcBox(p)}
+      ${awardsBox(p)}`;
+  layout({
+    title: 'Player Profile',
+    body: `
+      <div>
+        <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
+        <p class="note"><button class="linkish num-chip" data-act="numPick" data-id="${p.id}" title="Change his number">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</button> · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
+        <p class="note small pl-meta"><span class="stars">${potStars(p)}</span>${[archName(p) && `<b class="arch">${esc(archName(p))}</b>`, isAllAmerican(p) && '<span class="gold">⭐ All-American</span>'].filter(Boolean).map(x => ` ${x}`).join(' ·')}</p>
+        ${identityChips(p) ? `<div class="style-chips pl-chips">${identityChips(p)}</div>` : ''}
+        ${quickActions(p, team)}
+      </div>
+      ${tabsRow}
+      ${content}`,
+    action: { act: 'back', label: 'Done' },
+    actionLeft: team && !isUserTeam(team) && ctrlTeams().size && isComplete() && !isCollege() ? { act: 'tradeFor', id: p.id, label: 'Trade For' } : null,
+  });
+}
+function newPlayerScreen(args) {
   const e = findPlayer(args.id);
   if (!e) { back(); return; }
   const { p, team } = e;
@@ -11591,7 +11755,7 @@ screens.player = (args) => {
       ${content}`,
     action: { act: 'back', label: 'Done' },
   });
-};
+}
 // His number, any time: a board of 0-99 and 00, teammates' numbers and his team's retired ones taken. The current
 // season's stats line carries the number too (until he's played in it).
 actions.numPick = d => {
@@ -21879,7 +22043,11 @@ async function dbxSend(blob, name, what) {
 // and copies its share link, ready to paste into Hoop Land's season import. Behind a switch while it's tested on the
 // live site: hooplandplus.com/?dropbox=on turns it on for that browser (?dropbox=off turns it off); local builds always.
 const DBX_FLAG = 'hlc:dbxbeta';
-function labOn() { try { if (localStorage.getItem('hlc:lab') === '1' || localStorage.getItem('hlc:dbxbeta') === '1') return true; } catch { /* ignore */ } return !counting(); }
+// Test-site features: on everywhere but the live site (hooplandplus.com, or the live GitHub Pages path). 'hlc:lab' = '1'
+// turns them on in a browser, '0' turns them off (to check what the live site shows).
+const liveSite = () => counting() || (/\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus\//i.test(location.pathname));
+function labOn() { try { const v = localStorage.getItem('hlc:lab'); if (v === '0') return false; if (v === '1' || localStorage.getItem('hlc:dbxbeta') === '1') return true; } catch { /* ignore */ } return !liveSite(); }
+setCoachMarketV2(labOn());   // the newer coach market: test site only
 function dbxOn() { return !!BUILT_IN_APP_KEY && !inArtifact() && labOn(); }
 (() => {
   const q = new URLSearchParams(location.search);
