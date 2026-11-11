@@ -352,8 +352,12 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
           : pay >= C.apron1 ? m(pay - C.apron1, 'into the 1st apron', 'the 1st apron') : pay >= C.tax ? m(pay - C.tax, 'over the tax', 'the tax') : m(C.tax - pay, 'from the tax', 'the tax');
         const bill = pay > C.tax ? FA.taxBill(L, team) : 0;
         const why = [where, ...(bill ? [`a $${bill}M tax bill`] : []), ...(seller ? [`a ${tier} team`] : [])];
-        const core = roster.filter(p => level(p) >= 90 && p.age <= 32).sort((a, b) => (b.pot || 0) - (a.pot || 0) || level(b) - level(a))[0] || null;   // the one they build around: highest potential, never 33+
-        const big = [...roster].filter(p => level(p) >= 74 && level(p) < 90).sort((a, b) => (b.contract?.sal || 0) - (a.contract?.sal || 0))[0];
+        // The one they build around: a good player (80+) under 33 who hasn't reached his decline age, the highest potential
+        // first; on a tie a player 27 or younger, then the better one (Maxey over Brown and Edgecombe, Amen over Durant).
+        const core = roster.filter(p => level(p) >= 80 && p.age <= 32 && p.age < (p.regressionAge || 31))
+          .sort((a, b) => (b.pot || 0) - (a.pot || 0) || (b.age <= 27) - (a.age <= 27) || level(b) - level(a))[0] || null;
+        // The one shopped: a real contract (15M+), never a young cornerstone.
+        const big = [...roster].filter(p => p !== core && level(p) >= 74 && level(p) < 90 && (p.contract?.sal || 0) >= 15 && !(p.age <= 24 && (p.pot || 0) >= 9)).sort((a, b) => (b.contract?.sal || 0) - (a.contract?.sal || 0))[0];
         if (big) out.push({ kind: 'blowup', p: big, team, heat: seller || pay >= C.apron2 ? 2 : 1, why, level: level(big), morale: big.season?.morale ?? 70, bill, keep: core });
       }
     }
