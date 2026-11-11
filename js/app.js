@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.354.1';
+const APP_VERSION = '0.354.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -1026,6 +1026,7 @@ async function loadFile(file) {
     if (!isCollege() && playoffRotations()) state.dirty = true;
     if (!isCollege() && labOn() && applyStreaks()) state.dirty = true;   // hot and cold streaks: test site only for now
     if (!isCollege() && applyFatigue()) state.dirty = true;
+    if (!isCollege() && applyRealLineups()) state.dirty = true;
     if (!isCollege()) cupKnockout();
     if (!isCollege()) glCatchUp();
     if (!isCollege() && (applyRisers() + settleRisers())) state.dirty = true;
@@ -8586,19 +8587,34 @@ actions.openPlayer = d => go('player', { id: +d.id });
 const gameMinutes = () => Math.round(48 / minScale(state.leagueIdx));
 // The head coach's default rotation (lineups.js coachRotation): size and the starters' share of the minutes.
 const coachRot = (t, po = false) => LU.coachRotation(CO.headCoach(t), po);
-const defaultPlan = (t, po = false) => LU.planLineup(t, { mode: po ? 'playoffs' : lineupMode(t), ...coachRot(t, po), game: gameMinutes(), promised: promisedMinutes(t), real: po ? null : realMinutes(t) });
+const defaultPlan = (t, po = false) => LU.planLineup(t, { mode: po ? 'playoffs' : realMinutes(t) ? 'normal' : lineupMode(t), ...coachRot(t, po), game: gameMinutes(), promised: promisedMinutes(t), real: po ? null : realMinutes(t) });
 // This season's minutes and starts, mid-season (the team has played 5+ games): { pid: { mpg, start } } for anyone with
 // 3+ games (with any team this season), minutes on a 48-minute game.
+// Each player's real minutes and starts: this season once the team has played five games, before that last season's
+// (wherever he played them, 10 games or more), so Opening Night has a real rotation too.
 function realMinutes(t) {
   const L = league();
-  if (L.season.phase !== 9 || dlPct(t).gp < 5) return null;
-  const y = L.season.currentYear, k = 48 / gameMinutes(), out = {};
+  if (L.season.phase !== 9) return null;
+  const now = dlPct(t).gp >= 5, y = now ? L.season.currentYear : L.season.currentYear - 1, min = now ? 3 : 10;
+  const k = 48 / gameMinutes(), out = {};
   for (const p of t.roster) {
-    const rows = (p.stats || []).find(s => (s.league ?? 0) === state.leagueIdx && s.yr === y)?.season || [];
+    const rows = (p.stats || []).filter(s => (s.league ?? 0) === state.leagueIdx && s.yr === y).flatMap(s => s.season || []);
     const gp = rows.reduce((a, r) => a + (r.GP || 0), 0), gs = rows.reduce((a, r) => a + (r.GS || 0), 0), sec = rows.reduce((a, r) => a + (r.MIN?.[0] || 0), 0);
-    if (gp >= 3) out[p.id] = { mpg: sec / 60 / gp * k, start: gs / gp };
+    if (gp >= min) out[p.id] = { mpg: sec / 60 / gp * k, start: gs / gp };
   }
-  return out;
+  return Object.keys(out).length >= 5 ? out : null;
+}
+// Real NBA minutes as the default for all thirty teams: once per save and day of the season, every team's rotation is
+// set from its real minutes (a lineup you set by hand that day stays).
+const realLuKey = () => `hlc:realLu:${saveTag()}:${league().season.currentYear}:${league().season.currentDay || 0}`;
+function applyRealLineups() {
+  const L = league();
+  if (isCollege() || CAR.isCareer(L) || L.season.phase !== 9) return 0;
+  try { if (localStorage.getItem(realLuKey())) return 0; } catch { /* ignore */ }
+  let n = 0;
+  for (const t of L.teams) if (t.roster.length && realMinutes(t)) { LU.applyLineup(t, defaultPlan(t)); n++; }
+  try { localStorage.setItem(realLuKey(), '1'); } catch { /* ignore */ }
+  return n;
 }
 // Open exit-interview promises for the season being played (made after last season): "more minutes" is his minutes
 // then plus 4, at least 26; "you'll start" is a starting spot. Your teams only.

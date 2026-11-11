@@ -72,7 +72,8 @@ function pickStarters(cands, score) {
 // what's left by the weights.
 function minutesFor(rot, mode, game, over, share = null, deep = false, promised = {}, lowCap = 0) {
   const W = MODES[mode].w, total = 5 * game, lo = Math.round(game * 0.12), hi = Math.round(game * (MODES[mode].hi || 0.8));
-  // A player rated 79 or lower plays 20 minutes at most (on a 48-minute game), unless the team has nobody better.
+  // A guide, not a rule: a player rated 79 or lower is pointed at 20 minutes or fewer (on a 48-minute game), unless the
+  // team has nobody better; the positions can still call for more.
   const capOf = p => (lowCap && levelOf(p) <= 79 ? Math.max(lo, Math.round(lowCap * game / 48)) : hi);
   const want = new Map(rot.filter(p => over[p.id] != null).map(p => [p, Math.max(0, Math.min(game, over[p.id]))]));
   const wOf = p => W[rot.indexOf(p)] ?? 0.2;
@@ -116,7 +117,8 @@ function minutesFor(rot, mode, game, over, share = null, deep = false, promised 
       want.set(p, want.get(p) - 1); d++;
     }
     // The most each can play when the positions need it: a ranged player the top of his range (or what he was given).
-    const cap = new Map([...T.map(p => [p, Math.max(want.get(p), Math.min(range.get(p)[1], capOf(p)))]), ...O.map(p => [p, Math.max(want.get(p), Math.min(oHi, capOf(p)))])]);
+    // The 20-minute guide shapes the split above; when the positions need him he can still play past it.
+    const cap = new Map([...T.map(p => [p, Math.max(want.get(p), range.get(p)[1])]), ...O.map(p => [p, Math.max(want.get(p), oHi)])]);
     return { want, lo, hi, cap };
   }
   const groups = share != null && rot.length > 5 ? [[rot.slice(0, 5), Math.round(total * share)], [rot.slice(5), total - Math.round(total * share)]] : [[rot, total]];
@@ -246,7 +248,14 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
     const room = total - fixed - others.length * Math.round(16 * k), sum = own.reduce((a, p) => a + real[p.id].mpg * k, 0);
     over = { ...over };
     const base = p => real[p.id].mpg * k, top = Math.round(36 * k);
-    if (sum > room) for (const p of own) over[p.id] = base(p) * room / sum;   // too many: everyone a little less
+    if (sum > room) {
+      // Too many minutes: the bench gives them back first, the top five keep theirs (as far as there's room).
+      const top5 = [...own].sort((a, b) => base(b) - base(a)).slice(0, 5), rest = own.filter(p => !top5.includes(p));
+      const s5 = top5.reduce((a, p) => a + Math.min(top, base(p)), 0), sr = rest.reduce((a, p) => a + base(p), 0);
+      const k5 = s5 > room ? room / s5 : 1, kr = sr ? Math.max(0, room - s5 * k5) / sr : 0;
+      for (const p of top5) over[p.id] = Math.min(top, base(p)) * k5;
+      for (const p of rest) over[p.id] = base(p) * kr;
+    }
     else {
       // Minutes left over (a player hurt since, a short rotation): to whoever has the most room below a starter's load,
       // so the bench picks them up before the stars go past their usual.
