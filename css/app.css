@@ -2018,3 +2018,9 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .bio-box.tap { cursor: pointer; }
 .bio-box.tap b { text-decoration: underline dotted; text-underline-offset: 3px; }
 .bio-box.tap:active { filter: brightness(1.15); }
+
+.ed-v { text-decoration: underline; text-decoration-color: var(--gold); text-decoration-thickness: 2px; text-underline-offset: 3px; cursor: text; }
+.ask-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.ask-grid .field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.team-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; max-height: 60vh; overflow: auto; }
+.team-pick .btn { justify-content: flex-start; gap: 6px; }

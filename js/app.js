@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.340.0';
+const APP_VERSION = '0.341.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10282,7 +10282,8 @@ screens.leaders = (args) => {
       <div class="stack">${[...shown.map((x, i) => ({ ...x, at: i })), ...extra].map((x, j) => `${extra.length && j === shown.length ? '<p class="note small muted center" style="margin:2px 0">⋯</p>' : ''}<button class="ld-row ${x.e.team && isUserTeam(x.e.team) ? 'mine' : ''} ${x.e.p.id === args.pid ? 'me' : ''}" data-act="openPlayer" data-id="${x.e.p.id}">
         <span class="ld-n">${x.at + 1}</span>
         <span class="grow"><b>${esc(playerName(x.e.p))}</b> ${lvTag(x.e.p)}<br><span class="small muted">${esc(tname(x.e))} · ${esc(posName(x.e.p))} · ${x.e.p.age}y</span>${barOf(x)}</span>
-        <b class="ld-v ${x.core != null && x.v < x.core ? 'down' : ''}">${fmt(x.v)}</b></button>`).join('')}</div>
+        <b class="ld-v ${x.core != null && x.v < x.core ? 'down' : ''}">${mode === 'ratings' ? ev(x.e.p, 'attr', fmt(x.v), `data-k="${k}"`) : fmt(x.v)}</b></button>`).join('')}</div>
+      ${mode === 'ratings' && !isCollege() ? `<button class="btn small ${editOn() ? 'on focus' : 'off'}" data-act="editMode" style="margin-top:8px">${editOn() ? '✓ Done editing' : '✎ Edit values here'}</button>` : ''}
       ${!args.all && rows.length > 25 ? `<button class="btn small" data-act="leadersAll" style="margin-top:8px">Show all ${rows.length}</button>` : ''}`,
   });
 };
@@ -10600,7 +10601,7 @@ function gLine(p, snap, k, edit = false, ceilMode = false) {
   return `<div class="gcell gline ${edit ? 'edit' : 'tap'}" ${edit ? '' : `data-act="openLeaders" data-m="ratings" data-k="${k}" data-pid="${p.id}"`}><span class="glbl">${esc(G_NAMES[k])}</span>
     ${edit ? gBtn('attr', `data-k="${k}" data-dir="-1"`, G_MINUS, `Lower ${ATTR_NAMES[k]}`) : ''}
     <span class="gmid">${gBar(cls, g.kinds)}</span>
-    <span class="gnum"><b class="${g.down ? 'down' : ''}">${gVal(g.shown)}</b>${g.delta ? `<i class="${g.delta > 0 ? 'up' : 'down'}">${sign(g.delta)}</i>` : ''}${g.t ? `<i class="${g.t > 0 ? 'up' : 'down'}" title="${esc(g.src || '')}: temporary">${sign(g.t)}*</i>` : ''}</span>
+    <span class="gnum">${ev(p, 'attr', `<b class="${g.down ? 'down' : ''}">${gVal(g.shown)}</b>`, `data-k="${k}"`)}${g.delta ? `<i class="${g.delta > 0 ? 'up' : 'down'}">${sign(g.delta)}</i>` : ''}${g.t ? `<i class="${g.t > 0 ? 'up' : 'down'}" title="${esc(g.src || '')}: temporary">${sign(g.t)}*</i>` : ''}</span>
     ${edit ? gBtn('attr', `data-k="${k}" data-dir="1"`, ceilMode && !PHYSICAL.includes(k) ? G_UP : G_PLUS, `Raise ${ATTR_NAMES[k]}`) : ''}
   </div>`;
 }
@@ -10620,10 +10621,10 @@ function profileFacts(p, team, mpg) {
   const hurt = p.season?.injury?.gamesOut > 0 ? p.season.injury : null, ct = contractText(p, true);
   const yd = declineYear(p);
   const f = [
-    team ? (ct ? `📋 ${esc(ct)}` : '') : '<span class="muted">Free agent</span>',
+    team ? `📋 ${ev(p, 'contract', ct ? esc(ct) : 'No contract')}` : '<span class="muted">Free agent</span>',
     mpg?.mpg ? `⏱️ ${Math.round(mpg.mpg)} MPG` : '',
     hurt ? `<span class="down">🩹 Out ${hurt.gamesOut}g</span>` : '',
-    declining(p) ? `<span class="down">📉 ${yd > 0 ? `Decline yr ${yd}` : 'Decline starts'}</span>` : p.regressionAge ? `<span class="muted">Prime to ${p.regressionAge}</span>` : '',
+    declining(p) ? `<span class="down">📉 ${ev(p, 'reg', yd > 0 ? `Decline yr ${yd}` : 'Decline starts')}</span>` : p.regressionAge ? `<span class="muted">${ev(p, 'reg', `Prime to ${p.regressionAge}`)}</span>` : '',
   ].filter(Boolean);
   return `<div class="pl-facts">${f.map(x => `<span>${x}</span>`).join('')}</div>`;
 }
@@ -10738,10 +10739,7 @@ function bioBoxes(p, team) {
   const dr = p.history?.draft, c = OLY.countryOf(p), rk = team ? playerRanks(p) : null;
   const box = (l, v, act = '') => `<div class="bio-box ${act ? 'tap' : ''}" ${act}><span class="glbl">${esc(l)}</span><b>${v}</b></div>`;
   return `<div class="bio-grid">
-    ${box('Hometown', esc(p.home || '—'))}
-    ${box('Country', OLY.flagHtml(c, 1.6) || esc(c || '—'))}
     ${box('Drafted', dr?.rd > 0 && dr.yr ? `${dr.yr} R${dr.rd} #${dr.pk}` : 'Undrafted', dr?.rd > 0 && dr.yr ? `data-act="draftsOf" data-yr="${dr.yr}" data-pid="${p.id}"` : '')}
-    ${box('Years Pro', p.yrs ? `${p.yrs}` : 'Rookie')}
     ${rk ? box(`${POSITIONS[p.pos]} Rank`, `#${rk.pos}`, `data-act="ranksOf" data-pid="${p.id}" data-pos="${p.pos}"`) : ''}
     ${rk ? box('Overall Rank', `#${rk.all}`, `data-act="ranksOf" data-pid="${p.id}"`) : ''}
   </div>`;
@@ -10900,6 +10898,86 @@ screens.rankings = (args = {}) => {
 actions.draftsOf = d => go('drafts', { arg: +d.yr, pid: +d.pid });
 actions.ranksOf = d => go('rankings', { pid: +d.pid, pos: d.pos != null ? +d.pos : null });
 actions.rankNav = d => { const a = state.stack[state.stack.length - 1].args, o = JSON.parse(d.o); replace('rankings', { ...a, ...o, pos: 'pos' in o ? (o.pos === '' ? null : o.pos) : a.pos }); };
+// ---- Typed editing: with Edit on (it stays on while you go from the profile to the league lists and back), every
+// value is underlined; tap one and type it. Ratings are typed on the game's scale (8.5), with the ceiling beside them.
+const editOn = () => !!state.editMode && !isCollege();
+const ev = (p, f, html, extra = '') => (editOn() ? `<span class="ed-v" data-act="edVal" data-f="${f}" data-id="${p.id}" ${extra}>${html}</span>` : html);
+const edPlayerById = id => { const L = league(); return findPlayer(id)?.p || (L.freeAgents || []).find(x => x.id === id) || null; };
+const parseHt = s => { const m = /^(\d)\D+(\d{1,2})/.exec(s.trim()); return m ? +m[1] * 12 + +m[2] : Math.round(+s); };
+// fields: [{ k, label, value, type }]; save(values) returns an error string or nothing.
+function askValues(title, fields, save, extra = '') {
+  const box = overlay('');
+  box.querySelector('.box').innerHTML = `<p class="note"><b>${esc(title)}</b></p><div class="ask-grid">${fields.map(f => `<label class="field"><span>${esc(f.label)}</span><input class="sel-team" name="${f.k}" value="${esc(String(f.value ?? ''))}" ${f.type === 'num' ? 'inputmode="decimal"' : ''}></label>`).join('')}</div>${extra}
+    <p class="note small down ask-err"></p><div class="grid2"><button class="btn off" data-x>Cancel</button><button class="btn focus" data-ok>Save</button></div>`;
+  const done = () => { const vals = Object.fromEntries(fields.map(f => [f.k, box.querySelector(`[name="${f.k}"]`).value.trim()])); const err = save(vals, box); if (err) { box.querySelector('.ask-err').textContent = err; return; } box.remove(); state.compCache = {}; state.dirty = true; render(); };
+  box.addEventListener('click', e => { if (e.target.closest('[data-x]') || e.target === box) box.remove(); else if (e.target.closest('[data-ok]')) done(); });
+  box.addEventListener('keydown', e => { if (e.key === 'Enter') done(); if (e.key === 'Escape') box.remove(); });
+  const first = box.querySelector('input'); if (first) { first.focus(); first.select(); }
+  return box;
+}
+const num = (v, lo, hi) => { const n = +v; return Number.isFinite(n) && n >= lo && n <= hi ? n : null; };
+actions.edVal = d => {
+  const p = edPlayerById(+d.id);
+  if (!p) return;
+  const f = d.f, L = league();
+  if (f === 'attr') {
+    const k = d.k, a = p.attributes[k], phys = PHYSICAL.includes(k);
+    const fields = [{ k: 'v', label: `${G_NAMES[k]} (0.5–10)`, value: gVal(a[0]), type: 'num' }, ...(phys ? [] : [{ k: 'c', label: 'Ceiling', value: gVal(Math.max(a[0], a[1])), type: 'num' }])];
+    askValues(`${playerName(p)} · ${G_NAMES[k]}`, fields, v => {
+      const r = num(v.v, 0.5, 10), c = phys ? null : num(v.c, 0.5, 10);
+      if (r == null || (!phys && c == null)) return 'Type a number from 0.5 to 10 (half steps).';
+      a[0] = Math.max(1, Math.min(ATTR_MAX, Math.round(r * 2)));
+      if (phys) a[1] = a[0]; else a[1] = Math.max(a[0], Math.min(ATTR_MAX, Math.round(c * 2)));
+    });
+    return;
+  }
+  const one = (label, value, apply, type = 'num') => askValues(`${playerName(p)} · ${label}`, [{ k: 'v', label, value, type }], v => apply(v.v));
+  if (f === 'name') return askValues('Name', [{ k: 'fn', label: 'First name', value: p.fn }, { k: 'ln', label: 'Last name', value: p.ln }], v => { if (!v.fn || !v.ln) return 'Both names, please.'; p.fn = v.fn; p.ln = v.ln; });
+  if (f === 'num') return one('Jersey number (0–99, or 00)', p.num === 100 ? '00' : p.num, v => { if (v === '00') { p.num = 100; return; } const n = num(v, 0, 99); if (n == null || !Number.isInteger(n)) return 'A number from 0 to 99, or 00.'; p.num = n; });
+  if (f === 'pos') return one(`Position (${POSITIONS.join(', ')})`, POSITIONS[p.pos], v => { const i = POSITIONS.indexOf(v.toUpperCase()); if (i < 0) return `One of ${POSITIONS.join(', ')}.`; p.pos = i; }, 'text');
+  if (f === 'age') return one('Age', p.age, v => { const n = num(v, 15, 55); if (n == null) return 'An age from 15 to 55.'; p.age = Math.round(n); });
+  if (f === 'ht') return one(`Height (like 6'8" or inches)`, heightStr(p.ht), v => { const n = parseHt(v); if (!(n >= 60 && n <= 96)) return 'Between 5\'0" and 8\'0".'; p.ht = n; }, 'text');
+  if (f === 'wt') return one('Weight (lb)', p.wt, v => { const n = num(v, 120, 400); if (n == null) return '120 to 400 lb.'; p.wt = Math.round(n); });
+  if (f === 'morale') return one('Morale (0–100)', p.season?.morale ?? 60, v => { const n = num(v, 0, 100); if (n == null) return '0 to 100.'; if (p.season) p.season.morale = Math.round(n); });
+  if (f === 'reg') return one('Regression age (decline starts the season after)', p.regressionAge, v => { const n = num(v, 25, 45); if (n == null) return '25 to 45.'; p.regressionAge = Math.round(n); });
+  if (f === 'pot') return one('Potential in stars (2–5, half steps)', p.pot / 2, v => { const n = num(v, 2, 5.5); if (n == null) return '2 to 5 stars, in halves.'; p.pot = Math.round(n * 2); });
+  if (f === 'contract') {
+    const c = (p.contract ||= { tid: 0, pid: 0, type: 0, yrs: 0, sal: 0, opt: 0, ext: { yrs: 0, sal: 0, opt: 0 } }), x = (c.ext ||= { yrs: 0, sal: 0, opt: 0 });
+    const optTxt = o => ['none', 'team', 'player'][o || 0];
+    return askValues(`${playerName(p)} · Contract`, [
+      { k: 'sal', label: 'Salary ($M)', value: c.sal, type: 'num' }, { k: 'yrs', label: 'Years left', value: c.yrs, type: 'num' },
+      { k: 'opt', label: 'Option: none, team, player', value: optTxt(c.opt) },
+      { k: 'esal', label: 'Extension salary ($M)', value: x.sal, type: 'num' }, { k: 'eyrs', label: 'Extension years (0 = none)', value: x.yrs, type: 'num' },
+    ], v => {
+      const sal = num(v.sal, 0, 300), yrs = num(v.yrs, 0, 7), esal = num(v.esal, 0, 300), eyrs = num(v.eyrs, 0, 6), opt = ['none', 'team', 'player'].indexOf(v.opt.toLowerCase());
+      if (sal == null || yrs == null || esal == null || eyrs == null || opt < 0) return 'Check the numbers (and the option: none, team or player).';
+      Object.assign(c, { sal, yrs: Math.round(yrs), opt }); Object.assign(x, { sal: eyrs ? esal || sal : 0, yrs: Math.round(eyrs) });
+    });
+  }
+  if (f === 'team') {
+    const box = overlay('');
+    box.querySelector('.box').innerHTML = `<p class="note"><b>${esc(playerName(p))}</b>: move him to</p><div class="team-pick">${[...L.teams].sort((a, b) => a.city.localeCompare(b.city)).map(t => `<button class="btn small" data-t="${t.id}">${logoImg(t)} ${esc(t.shortName)}</button>`).join('')}<button class="btn small" data-t="fa">Free agent</button></div><button class="btn off" data-x style="margin-top:8px">Cancel</button>`;
+    box.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) { box.remove(); movePlayerTo(p, b.dataset.t === 'fa' ? null : L.teams.find(t => t.id === +b.dataset.t)); } else if (e.target.closest('[data-x]') || e.target === box) box.remove(); });
+  }
+};
+// Move a player to a team or free agency (the league editor's move).
+function movePlayerTo(p, to) {
+  const L = league(), team = L.teams.find(t => t.roster.includes(p)) || null;
+  if (to === team) return;
+  if (team) team.roster.splice(team.roster.indexOf(p), 1); else if ((L.freeAgents || []).includes(p)) L.freeAgents.splice(L.freeAgents.indexOf(p), 1);
+  if (to) {
+    p.tid = to.id; p.status = FA.STATUS_SIGNED; p.linePos = to.roster.length; to.roster.push(p);
+    if (p.num == null || to.roster.some(x => x !== p && x.num === p.num)) p.num = jerseyNumber(to, p);
+    if (p.contract && !(p.contract.yrs > 0)) { p.contract.yrs = 1; p.contract.sal ||= 1; }
+  } else {
+    p.tid = 0; p.status = FA.STATUS_FREE; (L.freeAgents ||= []).push(p);
+    if (p.contract) Object.assign(p.contract, { yrs: 0, sal: 0, opt: 0 });
+  }
+  state.compCache = {}; state.dirty = true;
+  toast(to ? `${playerName(p)} → ${to.shortName}` : `${playerName(p)} → free agency`, '', 2200);
+  render();
+}
+actions.editMode = () => { state.editMode = !state.editMode; render(); };
 screens.player = (args) => {
   const e = findPlayer(args.id);
   if (!e) { back(); return; }
@@ -10977,43 +11055,34 @@ screens.player = (args) => {
           <button class="btn" data-act="addSkill">＋ Add Skill</button>
         </div></details>
       </fieldset>`;
-  const edit = !!args.edit;
+  const edit = editOn();
   const personality = traitsBox(p) || '<p class="note muted">Personality isn\'t set for this player yet. Reload the file and it fills in.</p>';
-  // Ratings in the game's look: the five categories at a glance (tap one for its ratings); Edit shows every rating with
-  // the game's − and + buttons, his potential, the ceilings switch, the trainer, upgrade points and skills.
-  const ratingsView = `<fieldset class="frame g-frame"><legend>Ratings</legend>
-      <div class="g-pot"><span>Potential</span>${potStars(p)}${declining(p) ? ' <span class="small down">Declining</span>' : ''}</div>
+  // Ratings in the game's cells, all in view; with Edit on, each value is underlined (tap to type it). Tap a cell to
+  // compare him with the league on that rating.
+  const ratingsView = `<fieldset class="frame g-frame"><legend>Ratings</legend>${edit ? infoBtn('ratings', RATINGS_HELP) : ''}
+      <div class="g-pot"><span>Potential</span>${ev(p, 'pot', potStars(p))}${declining(p) ? ' <span class="small down">Declining</span>' : ''}${edit ? `<span class="muted small"> ${capLeft > 0 ? `${capLeft} pts of room` : capLeft === 0 ? 'ceilings at potential' : `${-capLeft} pts over`}</span>` : ''}</div>
       ${gAllLines(p, snap, false, false)}
       ${skillsChips(p)}</fieldset>`;
-  const ratingsEdit = `<fieldset class="frame g-frame"><legend>Ratings</legend>${infoBtn('ratings', RATINGS_HELP)}
-      <div class="gcell edit g-potrow"><span class="glbl">Potential</span>${gBtn('potAdj', 'data-dir="-1"', G_MINUS, 'Lower potential')}
-        <span class="gmid">${potStars(p)}<span class="muted small"> ${capLeft > 0 ? `${capLeft} pts of room` : capLeft === 0 ? 'ceilings at potential' : `${-capLeft} pts over`}</span></span>
-        <span class="gnum"><b class="${d.potDelta ? 'gold' : ''}">${p.pot}</b>${d.potDelta ? `<i class="up">${d.potDelta > 0 ? '+' : ''}${d.potDelta}</i>` : ''}</span>${gBtn('potAdj', 'data-dir="1"', G_PLUS, 'Raise potential')}</div>
-      ${gAllLines(p, snap, true, ceilMode)}
-      <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">${ceilMode ? '⇡ Raising ceilings' : 'Edit Ceilings'}</button></div>
-    </fieldset>`;
-  const content = edit ? `${detailsEdit(p, team)}${ratingsEdit}${trainer}${apCard}${skills}`
-    : `${newsBox(p)}${rankBox(p, mpg)}${ratingsView}${plOutlookBox(p, team)}${milestonesBox(p, true)}${arcBox(p)}
+  const content = `${edit ? '' : newsBox(p)}${rankBox(p, mpg)}${ratingsView}${edit ? `${trainer}${apCard}${skills}` : ''}${plOutlookBox(p, team)}${milestonesBox(p, true)}${arcBox(p)}
       <fieldset class="frame"><legend>Scouting Report</legend>${shortReport(profileReport(p, team))}${playerTags(p) ? `<div class="pl-tags">${playerTags(p)}</div>` : ''}</fieldset>
       ${personality}${playStyleBox(p)}
       ${awardsBox(p)}${cupHonorsBox(p)}${olyBox(p)}
       <div class="pl-stats">${statsTab(p, args)}</div>`;
+  const moraleBit = p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${ev(p, 'morale', moraleTag(p))}` : '';
   layout({
     title: 'Player Profile',
     body: `
       <div class="pl-head">
-        <button class="btn tiny g-edit pl-edit ${edit ? 'on focus' : 'off'}" data-act="plEdit" aria-label="${edit ? 'Done editing' : 'Edit this player'}">${edit ? '✓ Done' : '✎ Edit'}</button>
-        <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
-        <p class="note">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'} · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
+        <button class="btn tiny g-edit pl-edit ${edit ? 'on focus' : 'off'}" data-act="editMode" aria-label="${edit ? 'Done editing' : 'Edit'}">${edit ? '✓ Done' : '✎ Edit'}</button>
+        <h2 class="team-title pl-name">${ev(p, 'name', esc(playerName(p)))} ${lvTag(p, 'gold')}</h2>
+        <p class="note">${ev(p, 'num', `#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}`)} · ${edit ? ev(p, 'team', esc(team ? team.shortName : 'Free Agent')) : esc(team ? team.shortName : 'Free Agent')} · ${ev(p, 'pos', esc(pos))} · ${ev(p, 'age', p.age)} · ${ev(p, 'ht', heightStr(p.ht))}, ${ev(p, 'wt', `${p.wt} lb`)}${moraleBit}</p>
         <p class="note small pl-meta"><span class="stars">${potStars(p)}</span>${[archName(p) && `<b class="arch">${esc(archName(p))}</b>`, isAllAmerican(p) && '<span class="gold">⭐ All-American</span>'].filter(Boolean).map(x => ` ${x}`).join(' ·')}</p>
         ${profileFacts(p, team, mpg)}
-        ${edit ? '' : bioBoxes(p, team)}
+        ${bioBoxes(p, team)}
         ${identityChips(p) ? `<div class="style-chips pl-chips">${identityChips(p)}</div>` : ''}
-        ${quickActions(p, team)}
       </div>
       ${content}`,
     action: { act: 'back', label: 'Done' },
-    actionLeft: team && !isUserTeam(team) && ctrlTeams().size && isComplete() && !isCollege() ? { act: 'tradeFor', id: p.id, label: 'Trade For' } : null,
   });
 };
 // His number, any time: a board of 0-99 and 00, teammates' numbers and his team's retired ones taken. The current
@@ -21248,7 +21317,7 @@ function appTier(t) {
 }
 actions.edTab = d => replace('editor', { tab: d.t });
 // A player from the editor opens straight into his profile's Edit mode: everything about him in one place.
-actions.edOpen = d => go('player', { id: +d.id, edit: true });
+actions.edOpen = d => { state.editMode = true; go('player', { id: +d.id }); };
 // ---- League editor: a team's identity (typed straight into the file), and any player's name, hometown and team.
 $app.addEventListener('change', e => {
   const d = e.target.dataset;
