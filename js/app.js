@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.346.0';
+const APP_VERSION = '0.346.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -9190,11 +9190,12 @@ function glSettle() {
   }
   glSave(all);
 }
-actions.glSend = d => {
+actions.glSend = async d => {
   const e = findPlayer(+d.id), L = league();
   if (!e?.team || !isUserTeam(e.team) || !glOpen(L)) return;
   const why = glWhyNot(e.p, e.team);
   if (why) { toast(`Can't send him down: ${why}`); return; }
+  if (!(await confirmBox(`Send <b>${esc(playerName(e.p))}</b> to the G League?<br><br>He comes off your roster in the exported file, so <b>Hoop Land won't show him</b>: he's kept here in Hoop Land Plus, and his spot opens for a signing.<br><br>You can call him up any time this season in Hoop Land Plus, as long as you trim the active roster to make room (15 max).`, 'Send Down'))) return;
   const all = glStore(), y = L.season.currentYear, p = e.p, t = e.team;
   checkpoint(`Send ${playerName(p)} down`);
   // Off the game roster; the app holds him as he is.
@@ -9212,7 +9213,7 @@ actions.glRecall = d => {
   if (!rec || L.season.phase !== 9) return;
   const t = L.teams.find(x => x.id === rec.tid);
   if (rec.player) {
-    if (FA.signedRoster(t).length >= 15) { toast('No room to bring him up', `${t.shortName} are at 15: waive someone first.`, 3200, true); return; }
+    if (FA.signedRoster(t).length >= 15) { toast('No room to call him up', `${t.shortName} have 15 on the active roster: trim it to 14 first.`, 3600, true); return; }
     checkpoint(`Recall ${playerName(rec.player)}`);
     glReturn(L, d.id, rec);
   }
@@ -9230,7 +9231,7 @@ function glTeamBox(t) {
   const cand = open ? FA.signedRoster(t).filter(p => !recs[p.id] && p.age <= GL_AGE && glNbaMpg(p, y) < GL_MPG).sort((a, b) => (b.pot || 0) - (a.pot || 0) || a.age - b.age).slice(0, 8) : [];
   const full = down.length >= GL_MAX;
   return `<fieldset class="frame"><legend>${esc(t.shortName)} · G League ${down.length}/${GL_MAX}</legend>
-    <p class="note small muted">${FA.signedRoster(t).length}/15 on the roster. Players down here don't count.</p>
+    <p class="note small">${FA.signedRoster(t).length}/15 on the active roster. Players down here don't count against it, and <b>Hoop Land won't show them</b>: they're kept here in Hoop Land Plus. Call one up any time this season; trim the active roster to 14 first to make room.</p>
     ${down.length ? `<div class="stack">${down.map(({ p, r }) => glRow(p, `<span class="small" style="text-align:right">${r.xp != null ? `<span class="up">+${r.xp} dev pts</span><br><span class="muted">${r.line.ppg}/${r.line.rpg}/${r.line.apg} · ${r.line.gp}g</span><br>` : ''}${L.season.phase === 9 && r.player ? `<button class="btn small off" data-act="glRecall" data-id="${p.id}">↩ Recall</button>` : ''}</span>`)).join('')}</div>` : '<p class="note small muted">Nobody down there.</p>'}
     ${cand.length ? `<h4 class="ov-h">Could use the reps</h4><div class="stack">${cand.map(p => glRow(p, `<button class="btn small ${full ? 'off' : 'focus'}" data-act="glSend" data-id="${p.id}" ${full ? 'disabled' : ''}>🏀 Send down</button>`)).join('')}</div>` : ''}
   </fieldset>`;
@@ -9239,7 +9240,7 @@ screens.gleague = () => {
   const L = league(), mine = L.teams.filter(isUserTeam), settled = glAsw(L) && L.season.currentDay >= glAsw(L) && L.season.phase === 9;
   layout({
     title: 'G League',
-    body: `<p class="note small">${glOpen(L) ? `Send up to ${GL_MAX} young players (${GL_AGE} and under, under ${GL_MPG} minutes a night) down until the All-Star break${glAsw(L) ? ` (day ${glAsw(L)}; today is day ${L.season.currentDay})` : ''}. They earn development points there, added to their offseason progression. Keep them out of the rotation in Hoop Land.`
+    body: `<p class="note small">${glOpen(L) ? `Send up to ${GL_MAX} young players (${GL_AGE} and under, under ${GL_MPG} minutes a night) down until the All-Star break${glAsw(L) ? ` (day ${glAsw(L)}; today is day ${L.season.currentDay})` : ''}. They earn development points there, added to their offseason progression. A player down here comes off your roster in the exported file (Hoop Land won't show him; he's kept here) and his spot opens up.`
       : settled ? 'The All-Star break: here is what your players earned down there. It\'s added to their progression this offseason.' : 'Players go down during the regular season, before the All-Star break.'}</p>
       ${mine.map(glTeamBox).join('') || '<p class="note">Select your teams first.</p>'}`,
   });
@@ -11209,6 +11210,7 @@ const BOOK_STATS = [['PTS', 'Points'], ['REB', 'Rebounds'], ['AST', 'Assists'], 
   ['TPA', '3-Point Attempts'], ['FGM', 'Field Goals Made'], ['FGA', 'Field Goal Attempts'], ['FTM', 'Free Throws Made'], ['FTA', 'Free Throw Attempts'],
   ['ORB', 'Offensive Rebounds'], ['MIN', 'Minutes'], ['TO', 'Turnovers']];
 const bookVal = (h, k) => (k === 'MIN' ? Math.round((h?.MIN?.[0] || 0) / 60) : h?.[k] || 0);
+actions.recMore = d => { (state.recOpen ||= {})[d.k] = !state.recOpen[d.k]; render(); };
 screens.records = (args = {}) => {
   // Single-game bests (regular season, playoffs) or career totals (all-time, regular season).
   const L = league(), kind = ['playoffs', 'career'].includes(args.arg) ? args.arg : 'season', key = { season: 'seasonHighs', playoffs: 'playoffHighs', career: 'season' }[kind];
@@ -11222,11 +11224,14 @@ screens.records = (args = {}) => {
     cache.set(ck, BOOK_STATS.map(([k, name]) => [name, all.map(p => ({ p, v: bookVal(p.careerStats[key], k) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 10)]));
   }
   const tabs = `<div class="tabs fa-tabs">${[['season', 'Regular Season'], ['playoffs', 'Playoffs'], ['career', 'All-Time']].map(([k, l]) => `<button class="btn small ${k === kind ? 'on focus' : 'off'}" data-act="nav" data-to="records" data-arg="${k}">${l}</button>`).join('')}</div>`;
-  // The top three, the rest of the top 10 a tap away.
-  const recRow = (r, i) => `<div class="rec-row ${i ? '' : 'top'}"><span class="rank-no">${i + 1}</span><span class="grow"><b class="tap" data-act="openPlayer" data-id="${r.p.id}">${esc(playerName(r.p))}</b></span><b class="rec-v">${r.v.toLocaleString()}</b></div>`;
-  const list = cache.get(ck).filter(([, rows]) => rows.length).map(([name, rows]) => `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.slice(0, 3).map(recRow).join('')}
-    ${rows.length > 3 ? `<details class="rec-more" data-keep="rec-${kind}-${name}" ${state.keepOpen?.[`rec-${kind}-${name}`] ? 'open' : ''}><summary class="small link">4-${rows.length}</summary><div class="stack">${rows.slice(3).map((r, i) => recRow(r, i + 3)).join('')}</div></details>` : ''}</div></fieldset>`).join('');
-  layout({ title: 'Record Book', body: `${tabs}<p class="note small muted">${kind === 'career' ? 'Career totals, all time (regular season).' : `Single-game bests, all time: every player's career high${kind === 'playoffs' ? ' in the playoffs' : ''}.`}</p>${list || `<p class="note muted">No ${kind === 'playoffs' ? 'playoff ' : ''}games on record yet.</p>`}` });
+  // The top three; a small triangle on the third row opens 4-10.
+  const recRow = (r, i, more = '') => `<div class="rec-row ${i ? '' : 'top'}"><span class="rank-no">${i + 1}</span><span class="grow"><b class="tap" data-act="openPlayer" data-id="${r.p.id}">${esc(playerName(r.p))}</b></span><b class="rec-v">${r.v.toLocaleString()}</b>${more}</div>`;
+  const list = cache.get(ck).filter(([, rows]) => rows.length).map(([name, rows]) => {
+    const key = `rec-${kind}-${name}`, open = !!state.recOpen?.[key];
+    const tri = rows.length > 3 ? `<button class="rec-tri ${open ? 'open' : ''}" data-act="recMore" data-k="${esc(key)}" aria-label="${open ? 'Show fewer' : 'Show 4-10'}">▾</button>` : '';
+    return `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.slice(0, 3).map((r, i) => recRow(r, i, i === Math.min(2, rows.length - 1) ? tri : '')).join('')}${open ? rows.slice(3).map((r, i) => recRow(r, i + 3)).join('') : ''}</div></fieldset>`;
+  }).join('');
+  layout({ title: 'Record Book', body: `${tabs}<p class="note small muted">${kind === 'career' ? 'Career totals, all time (regular season).' : `Single-game bests, all time: every player's career high${kind === 'playoffs' ? ' in the playoffs' : ''}.`} Tap ▾ to see 4-10.</p>${list || `<p class="note muted">No ${kind === 'playoffs' ? 'playoff ' : ''}games on record yet.</p>`}` });
 };
 
 // ---- Career milestones: his career totals, where they rank all-time in this league (active, free agents, retired and
