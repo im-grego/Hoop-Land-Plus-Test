@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.332.2';
+const APP_VERSION = '0.332.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -434,28 +434,37 @@ function findPlayer(pid) {
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// Stars drawn as icons. The row is as long as the player's potential
-// (`halfStars`, in half stars; a half star is the left half of a star) and
-// always starts where a 5-star row starts, so shorter rows leave the gap on
-// the right. Gold fills to his current level (`now`, in stars); red outline
-// = what age has taken (`now` up to `peak`); the faint outline beyond is
-// room still to grow.
-const STAR_PATH = 'M12 2.4l2.95 6.1 6.65.85-4.9 4.55 1.3 6.6L12 17.2l-5.95 3.3 1.3-6.6-4.9-4.55 6.65-.85z';
-// The left half of the same star, closed along the middle.
-const HALF_PATH = 'M12 2.4V17.2l-5.95 3.3 1.3-6.6-4.9-4.55 6.65-.85z';
+// The game's own pixel star: a 5×5 sprite (a point, a light top row, two shaded rows and two feet), filled a pixel
+// column at a time. Gold to his current level, dark red for what age has taken, white (red shading) for the room left
+// to his potential; a half-star potential is the star's left three columns.
+const STAR_PAL = {
+  gold: { top: ['#d6cfdc', '#e8cfb8', '#eecea8', '#f5cf90'], main: '#efb356', side: '#e6b062', shade: '#93473a', foot: '#86504a' },
+  lost: { top: ['#6b2735', '#6b2735', '#6c2733', '#6e2630'], main: '#6e2630', side: '#6e2630', shade: '#96444a', foot: '#874858' },
+  room: { top: ['#ffffff', '#ffffff', '#ffffff', '#ffffff'], main: '#ffffff', side: '#ffffff', shade: '#a14545', foot: '#9e4a50' },
+};
+// [col, row, part]: the sprite's cells (top: the point and the top row, drawn in two halves for the game's sheen).
+const STAR_CELLS = [[2, 0, 'top'], ...[0, 1, 2, 3, 4].map(c => [c, 1, 'top']), [0, 2, 'shade'], [1, 2, 'main'], [2, 2, 'main'], [3, 2, 'main'], [4, 2, 'shade'],
+  [0, 3, 'side'], [1, 3, 'shade'], [2, 3, 'shade'], [3, 3, 'shade'], [4, 3, 'side'], [0, 4, 'foot'], [4, 4, 'foot']];
+function starSprite(kindOf, cols = 5) {
+  const r = [];
+  for (const [c, y, part] of STAR_CELLS) {
+    if (c >= cols) continue;
+    const P = STAR_PAL[kindOf(c)];
+    if (part === 'top') { const i = y * 2; r.push(`<rect x="${c}" y="${y}" width="1" height=".5" fill="${P.top[i]}"/><rect x="${c}" y="${y + 0.5}" width="1" height=".5" fill="${P.top[i + 1]}"/>`); }
+    else r.push(`<rect x="${c}" y="${y}" width="1" height="1" fill="${P[part]}"/>`);
+  }
+  return `<svg viewBox="0 0 ${cols} 5" shape-rendering="crispEdges" style="width:${cols * 3}px">${r.join('')}</svg>`;
+}
 function stars(halfStars, now = halfStars / 2, peak = now) {
   const total = halfStars / 2;
   const gold = Math.max(0, Math.min(total, now));
   const red = Math.max(gold, Math.min(total, peak));
-  const clip = (a, b) => `clip-path:inset(0 ${(100 - b * 100).toFixed(1)}% 0 ${(a * 100).toFixed(1)}%)`;
-  const svg = (cls, a, b, half) => (b > a ? `<svg viewBox="0 0 24 24" class="${cls}" style="${half && b >= 0.5 && a <= 0 ? '' : clip(a, b)}"><path d="${half ? HALF_PATH : STAR_PATH}"/></svg>` : '');
   const out = [];
   for (let i = 0; i < Math.ceil(total); i++) {
-    const end = Math.min(1, total - i);
-    const g = Math.max(0, Math.min(end, gold - i));
-    const r = Math.max(g, Math.min(end, red - i));
-    const half = end < 1;
-    out.push(`<span class="st"${half ? ' style="width:8.5px"' : ''}>${svg('st-faint', r, end, half)}${svg('st-gold', 0, g, half)}${svg('st-lost', g, r, half)}</span>`);
+    const cols = total - i < 1 ? 3 : 5;
+    // A column is gold (or lost) when the level reaches its middle: five columns a star, like the game.
+    const kind = c => { const mid = i + (c + 0.5) / 5; return gold >= mid ? 'gold' : red >= mid ? 'lost' : 'room'; };
+    out.push(`<span class="st" style="width:${cols * 3}px">${starSprite(kind, cols)}</span>`);
   }
   const lbl = `${total} star potential, ${Math.round(gold * 10) / 10} now${red > gold ? `, ${Math.round((red - gold) * 10) / 10} lost to age` : ''}`;
   return `<span class="st-row" aria-label="${lbl}">${out.join('')}</span>`;
