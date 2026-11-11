@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.352.6';
+const APP_VERSION = '0.352.7';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -80,33 +80,35 @@ const SHOWN_VERSION = 'Beta 0.2.0';
 const DEVLOG = [
   { v: 'Beta 0.2.0', sections: [
     ['Features', [
-      'Start a Franchise right in the app: take control of a team, make your moves, then export and load into Hoop Land',
+      'Start a Franchise right in the app: take control of a team, make your moves, then export it and load it into Hoop Land',
       'Start Today: begin from today\'s date in the real 2026/27 NBA season',
       'Start from an earlier date, back to Opening Night',
       'Team picker with each team\'s top players and team rankings',
-      'Trade machine and minimum free agents accessible at any time',
-      'In-season Trade Market (opens about 30 games in)',
+      'Trade machine and minimum free agents available any time',
+      'In-season Trade Market (opens 30 games in)',
       'Team needs added to the trade machine',
-      'New Hoop Gram rumors: salary, aprons, sell-high, retool and paydays',
-      'Nicknames and naming logic improved for Hoop Gram rumors',
-      'Career Arc (shows a player\'s peak) added to the player profile',
-      'Summer League added back after Contracts',
+      'New Hoop Gram rumors: salary, aprons, sell-high, retools and paydays',
+      'Improved nicknames and naming in Hoop Gram rumors',
+      'Career Arc added to the player profile (shows a player\'s peak)',
+      'Summer League is back, right after Contracts',
     ]],
     ['CPU Logic', [
       'Rotations built from real NBA minutes',
-      'Smarter CPU draft boards (positional need)',
+      'Smarter CPU draft boards that weigh positional need',
       'Improved draft-day trade logic',
       'CPU teams manage the tax and aprons more realistically',
       'Aging superstars ask for 1+1 and 2+1 deals to keep control',
-      ['Draft classes reworked: prospect levels increased', ['Less dated player comparisons', 'Future draft class prospects are assigned schools']],
+      'Draft classes reworked with higher prospect levels',
+      'Less dated player comparisons for prospects',
+      'Future draft prospects are assigned schools',
     ]],
     ['Bug Fixes', [
       'Season files with stray characters now load',
-      'Awards and play-in phase shows the right screen',
-      'Saving on iPhone and iPad',
+      'The awards and play-in phase now shows the right screen',
+      'Saving on iPhone and iPad no longer replaces the app',
       'Free throws top out at 15 (based on the roster file)',
       'Rookie of the Year only counts true rookies',
-      'Gear on dark jerseys and sleeves stays white unless the jersey is black',
+      'Player gear (sleeves and bands) stays white unless the jersey is black',
     ]],
   ] },
 ];
@@ -3030,8 +3032,8 @@ actions.devlog = () => {
 };
 function communityRow(more = '') {
   return `<div class="grid2 community">
-      <a class="btn left" href="${DISCORD}" target="_blank" rel="noopener" data-count="discord-join"><span class="ico">💬</span> Join the Discord</a>
-      <button class="btn left" data-act="bugReport"><span class="ico">🛠</span> Report a Bug</button>
+      <a class="btn left" href="${DISCORD}" target="_blank" rel="noopener" data-count="discord-join"><span class="ico">💬</span> <span class="one-line">Join Discord</span></a>
+      <button class="btn left" data-act="bugReport"><span class="ico">🛠</span> <span class="one-line">Report a Bug</span></button>
     ${more}</div>`;
 }
 document.addEventListener('click', e => { if (e.target.closest('[data-count="discord-join"]')) countEvent('discord-join'); });

@@ -2085,3 +2085,6 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .devlog-list.sub { margin: 2px 0 4px; padding-left: 18px; list-style: circle; }
 .devlog-list.sub li { font-size: 13px; }
 .devlog-sub { margin: 12px 0 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim, #b9c8e8); }
+
+.community .one-line { white-space: nowrap; font-size: clamp(13px, 4.1vw, 1em); }
+@media (max-width: 400px) { .community > .btn.left { padding-left: 10px; padding-right: 8px; gap: 6px; } .ver-btn .ndot { right: 6px; } }
