@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.345.0';
+const APP_VERSION = '0.345.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -3130,19 +3130,37 @@ screens.startTeam = () => {
   if (!P) { replace('start'); return; }
   if (!P.parsed) { P.parsed = parseSave(P.text); preloadLogos(P.parsed); }
   const L = P.parsed.seasonLeagues[0], yr = L.season.currentYear;
-  const rec = t => t.season?.find(x => x.yr === yr)?.seasonStats || { W: 0, L: 0 };
+  const rec = t => t.season?.find(x => x.yr === yr)?.seasonStats || { W: 0, L: 0, GP: 0, PTS: 0, OPP: 0 };
+  // Offense and defense ranks by points scored and allowed a game.
+  const per = (t, k) => { const r = rec(t); return r.GP ? r[k] / r.GP : 0; };
+  const offRank = new Map([...L.teams].sort((x, y) => per(y, 'PTS') - per(x, 'PTS')).map((t, i) => [t.id, i + 1]));
+  const defRank = new Map([...L.teams].sort((x, y) => per(x, 'OPP') - per(y, 'OPP')).map((t, i) => [t.id, i + 1]));
   const half = Math.ceil((L.divisions || []).length / 2) || 3;
   const conf = c => L.teams.filter(t => (t.division < half ? 0 : 1) === c).sort((a, b) => rec(b).W - rec(b).L - (rec(a).W - rec(a).L) || rec(b).W - rec(a).W);
-  const card = t => { const r = rec(t); return `<button class="btn left start-team" data-act="startTeam" data-id="${t.id}">${logoImg(t)} <span class="grow"><b>${esc(teamFull(t))}</b><span class="note small">${r.W}-${r.L}</span></span></button>`; };
+  const sel = L.teams.find(x => x.id === state.startSel) || null;
+  const tile = t => { const r = rec(t); return `<button class="team-tile ${sel === t ? 'sel' : ''}" data-act="startSel" data-id="${t.id}">
+      ${t.logoURL ? logoImg(t, '') : `<div class="fallback">${esc(t.shortName)}</div>`}<span>${esc(t.shortName)}</span><span class="small muted">${r.W}-${r.L}</span></button>`; };
+  const ord = n => `${n}${['th', 'st', 'nd', 'rd'][(n % 100 >= 11 && n % 100 <= 13) ? 0 : Math.min(n % 10, 4) % 4] || 'th'}`;
+  const detail = t => {
+    const r = rec(t);
+    const top = [...t.roster].sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 3);
+    return `<fieldset class="frame start-detail"><legend>${esc(teamFull(t))}</legend><div class="stack">
+      <p class="note">${logoImg(t)} <b>${r.W}-${r.L}</b> · Offense <b>${ord(offRank.get(t.id))}</b> <span class="small muted">(${per(t, 'PTS').toFixed(1)} ppg)</span> · Defense <b>${ord(defRank.get(t.id))}</b> <span class="small muted">(${per(t, 'OPP').toFixed(1)} allowed)</span></p>
+      ${top.map(p => { const l = seasonLine(p, 0, yr); const hurt = p.season?.injury?.gamesOut > 0;
+        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvTag(p)}</span><span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}${hurt ? ` · <span class="down">out ${p.season.injury.gamesOut}g</span>` : ''}</span></div>`; }).join('')}
+      <button class="btn focus" data-act="startTeam" data-id="${t.id}">🏀 Take over the ${esc(t.name || t.shortName)}</button></div></fieldset>`;
+  };
   layout({
     title: 'Pick Your Team',
-    body: `<p class="note small">${esc(fmtDay(P.date))}: standings as they are today.</p>
-      ${[0, 1].map(c => `<fieldset class="frame"><legend>${esc(L.conferences?.[c] || (c ? 'West' : 'East'))}</legend><div class="stack">${conf(c).map(card).join('')}</div></fieldset>`).join('')}`,
+    body: `<p class="note small">${esc(fmtDay(P.date))}: standings as they are today. Tap a team for a closer look.</p>
+      ${[0, 1].map(c => { const ts = conf(c); return `<fieldset class="frame"><legend>${esc(L.conferences?.[c] || (c ? 'West' : 'East'))}</legend><div class="team-grid">${ts.map(tile).join('')}</div></fieldset>${sel && ts.includes(sel) ? detail(sel) : ''}`; }).join('')}`,
   });
+  if (sel) requestAnimationFrame(() => document.querySelector('.start-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
 };
+actions.startSel = d => { state.startSel = state.startSel === +d.id ? null : +d.id; replace('startTeam'); };
 actions.startTeam = async d => {
   const P = state.startPack, L = P.parsed.seasonLeagues[0], t = L.teams.find(x => x.id === +d.id);
-  if (!t || !(await confirmBox(`Take over the ${esc(teamFull(t))}?`, 'Start'))) return;
+  if (!t) return;
   L.season.teamId = t.id;
   for (const x of L.teams) x.isPlayer = x === t;
   const name = `${L.leagueName ? L.shortName || 'NBA' : 'NBA'} ${P.season} · ${t.shortName} · ${P.date}.txt`;
