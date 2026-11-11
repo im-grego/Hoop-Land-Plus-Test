@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.353.0';
+const APP_VERSION = '0.354.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -681,6 +681,7 @@ function layout({ title, left = '', right = '', body, action = null, actionLeft 
   keepLogos(() => { $app.innerHTML = `
     ${bare ? `<h1 class="sr-only">${t}</h1>` : `<div class="header">
       ${state.stack.length > 1 ? `<button class="btn back" data-act="back" aria-label="Back">${BACK_ARROW}</button>` : ''}
+      ${state.stack.length > 2 ? `<button class="btn back home-btn" data-act="home" aria-label="Main menu">${HOME_ICON}</button>` : ''}
       ${left}
       <div class="marquee" role="heading" aria-level="1" aria-label="${t}">
         <div class="marquee-track" aria-hidden="true"><span>${t}</span><span>${t}</span></div>
@@ -745,6 +746,9 @@ function goHome() {
   if (n > 0) history.go(-n); else render();
   render();
 }
+// Straight back to the main menu from anywhere (one step back in the browser's history per screen).
+const HOME_ICON = `<svg width="28" height="26" viewBox="0 0 9 8" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" d="M4 0h1v1h1v1h1v1h1v1h1v1H8v3H5V5H4v3H1V5H0V4h1V3h1V2h1V1h1z"/></svg>`;
+actions.home = () => { const n = state.stack.length - 1; if (n < 1) return; state.goHome = true; history.go(-n); };
 function back() {
   if (state.stack.length > 1) history.back();
 }
@@ -795,6 +799,7 @@ function render() {
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 window.addEventListener('popstate', () => {
   if (state.stack.length < 2) return;
+  if (state.goHome) { state.goHome = false; state.stack.splice(1); render(); return; }
   state.stack.pop();
   render();
 });
@@ -2790,7 +2795,7 @@ function calendarCard() {
     if (CL3.atAllStarBreak(league())) return deadlineCard() + glCard();
     if (PO.atPlayoffStart(league())) return playoffCard();
     if (seasonAwardsCard()) return seasonAwardsCard();
-    if (ciWindow()) return cupCard() + checkinCard() + glCard();
+    if (ciWindow()) return cupCard() + checkinCard() + (startCard() ? '' : glCard());
     if (cupCard() || glCard()) return cupCard() + glCard();
     return `<fieldset class="frame"><legend>Offseason</legend><p class="note">This save is at ${esc(phaseName(s))}. Advance once in Hoop Land after the season ends (to the Pre-Lottery phase), export that save and load it here to run the offseason.</p></fieldset>`;
   }
@@ -3256,7 +3261,7 @@ function startCard() {
     <p class="note">${logoImg(t)} <b>${esc(teamFull(t))}</b> · ${r.W}-${r.L} · ${FA.signedRoster(t).length}/15 players${open > 0 ? ` · <span class="gold">${open} open spot${open > 1 ? 's' : ''}</span>` : ''}</p>
     ${capBar(t)}
     <div class="grid2"><button class="btn left" data-act="liveTrade"><span class="ico">🔁</span> Trade Machine</button><button class="btn left" data-act="nav" data-to="startFA"><span class="ico">✍️</span> Free Agents</button></div>
-    <div class="grid2"><button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button><button class="btn left focus" data-act="nav" data-to="export"><span class="ico">💾</span> Export</button></div>
+    <div class="grid2"><button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button><button class="btn left" data-act="nav" data-to="gleague"><span class="ico">🏀</span> G League</button></div>
     <p class="note small muted">Make your moves, then export and load the file in Hoop Land: the season picks up from today.</p></div></fieldset>`;
 }
 // Free agents during the season: everyone signs a one-year minimum (what he's owed for his years in the league).
@@ -3269,13 +3274,13 @@ screens.startFA = (args = {}) => {
   const n = FA.signedRoster(t).length;
   layout({
     title: 'Free Agents',
-    body: `<fieldset class="frame"><legend>${esc(t.shortName)} · ${n}/15</legend>${capBar(t)}<p class="note small">Everyone signs a one-year minimum. ${n >= 15 ? '<span class="down">Your roster is full: waive someone in My Team first.</span>' : `${15 - n} open spot${15 - n === 1 ? '' : 's'}.`}</p></fieldset>
-      <div class="tabs fa-tabs">${[['all', 'Best'], ['young', 'Young'], ['vets', 'Vets'], ['g', 'G'], ['w', 'W'], ['b', 'B']].map(([k, l]) => `<button class="btn ${k === view ? 'on focus' : 'off'}" data-act="startFAView" data-v="${k}">${l}</button>`).join('')}</div>
+    body: `<fieldset class="frame"><legend>${esc(t.shortName)} · ${n}/15</legend>${capBar(t)}</fieldset>
+      <div class="tabs fa-tabs">${[['all', 'Best'], ['young', 'Young'], ['vets', 'Vets'], ['g', 'Guard'], ['w', 'Wing'], ['b', 'Big']].map(([k, l]) => `<button class="btn ${k === view ? 'on focus' : 'off'}" data-act="startFAView" data-v="${k}">${l}</button>`).join('')}</div>
       <div class="list">${rows.map(p => {
-        const l = seasonLine(p, state.leagueIdx, yr) || seasonLine(p, state.leagueIdx, yr - 1);
-        return `<div class="prow"><span class="name tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))} ${lvTag(p)}</span>
+        const now = seasonLine(p, state.leagueIdx, yr), l = now || seasonLine(p, state.leagueIdx, yr - 1);
+        return `<div class="prow tap" data-act="openPlayer" data-id="${p.id}"><span class="name">${esc(playerName(p))} ${lvTag(p)}</span>
           <span class="right"><button class="btn small ${n < 15 ? 'focus' : ''}" data-act="startSign" data-id="${p.id}" ${n < 15 ? '' : 'disabled'}>✍️ $${FA.minFor(p)}M</button></span>
-          <span class="meta">${esc(posName(p))} · ${p.age}y${l ? ` · ${l.gp ? `${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : ''}` : ''}${p.season?.injury?.gamesOut > 0 ? ` · <span class="down">out ${p.season.injury.gamesOut}g</span>` : ''}</span></div>`;
+          <span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${now ? '' : 'last season '}${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : ''}${p.season?.injury?.gamesOut > 0 ? ` · <span class="down">out ${p.season.injury.gamesOut}g</span>` : ''}</span></div>`;
       }).join('') || '<p class="note muted">Nobody here.</p>'}</div>
       ${!args.all && pool.length > 30 ? `<button class="btn small" data-act="startFAAll">Show all ${pool.length}</button>` : ''}`,
   });
@@ -3342,14 +3347,12 @@ screens.main = () => {
         ${isCollege() ? '' : `<button class="btn left" data-act="nav" data-to="rumors"><span class="ico">📸${ndot(rumorUnread())}</span> Hoop Gram</button>`}
       </div>
       ${!isCollege() && !isFranchise() && !CAR.isCareer(L) && state.userTeams.size ? `<div class="grid2"><button class="btn left" data-act="nav" data-to="myteams"><span class="ico">🗂️</span> My Teams <span class="note small">${state.userTeams.size}${state.autoTeams.size ? ` · ${state.autoTeams.size} on autopilot` : ''}</span></button></div>` : ''}
-      <input type="search" class="sel-team" placeholder="🔎 Find any player" data-change="pSearch" style="margin-top:8px">
-      <div class="grid3">
+      <div class="grid3 menu-sys">
         <button class="btn left" data-act="nav" data-to="settings"><span class="ico">☰</span> Settings</button>
         <label class="btn left"><span class="ico">📂</span> Load<input type="file" id="fileInput"></label>
         <button class="btn left" data-act="nav" data-to="export"><span class="ico">💾</span> Export</button>
       </div>
-      ${dbxOn() ? linkLoadBox(true) : ''}
-      ${footerGrid()}`,
+      ${communityRow()}`,
   });
 };
 
@@ -8610,7 +8613,10 @@ function promisedMinutes(t) {
   return out;
 }
 const ROT_TXT = { bd: ['Average bench', 'Deep bench', 'Short bench'], bu: ['low bench usage', 'medium bench usage', 'high bench usage'] };
-const lineupMode = t => { const s = teamStatus(league(), t); return s === 'contending' || s === 'competing' ? 'compete' : s === 'rebuilding' || s === 'developing' ? 'develop' : 'normal'; };
+const lineupMode = t => (teamStatus(league(), t) === 'rebuilding' ? 'develop' : 'compete');
+// The lineup screen's choices: the real NBA minutes this season (when there are games to go on), normal (the best play) and developing.
+const LU_TABS = { real: 'Real NBA', compete: 'Normal', develop: 'Developing', playoffs: 'Playoffs' };
+const luDefault = t => (realMinutes(t) ? 'real' : lineupMode(t));
 // A player's minutes as a bar out of a full game, split by position (out of position striped), with his share.
 function minBar(p, m, game) {
   const segs = m.slice(1).map((v, k) => (v > 0 ? `<i class="mseg s${k}${LU.inPos(p, k) ? '' : ' off'}" style="width:${(v / game * 100).toFixed(1)}%" title="${LU.SLOTS[k]} ${v}"></i>` : '')).join('');
@@ -8631,39 +8637,42 @@ function lineupView(L, t) {
 screens.lineup = (args = {}) => {
   const L = league(), t = L.teams.find(x => x.id === +(args.arg ?? args.tid)) || myTeam() || viewTeams()[0] || L.teams[0];
   if (CAR.isCareer(L)) { lineupView(L, t); return; }
-  const mode = args.mode || lineupMode(t), over = args.over || {}, game = gameMinutes(), cr = coachRot(t, mode === 'playoffs'), size = args.size || cr.size;
-  const plan = luPlan(t, args), hc = CO.headCoach(t), tn = hc?.tendencies || {};
-  const stMin = plan.rows.slice(0, 5).reduce((a, r) => a + r.minutes[0], 0);
+  const real = !!realMinutes(t), mode = args.mode && (args.mode !== 'real' || real) ? args.mode : luDefault(t);
+  const game = gameMinutes(), cr = coachRot(t, mode === 'playoffs'), size = args.size || cr.size;
+  const plan = luPlan(t, { ...args, mode });
   const step = game >= 40 ? 2 : 1;
   const posN = p => POSITIONS[p.pos] || '';
+  // One thin row a player: his spot, name, position and level, his minutes (large) with − and +, and a slim bar.
   const row = r => {
-    const p = r.p, inRot = r.minutes[0] > 0, now = p.minutes?.[0] ?? 0;
-    return `<div class="drill-row wrap lu-row ${r.linePos < 5 ? 'sel' : ''}"><span class="grow"><b>${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? `${r.linePos + 1}.` : '—'}</b> ${esc(playerName(p))} ${lvTag(p)} <span class="muted small">${esc(posN(p))} · ${p.age}y${p.season?.injury?.gamesOut > 0 ? ' · 🩹 hurt' : ''}${LU.isProspect(p) ? ' · <span class="up">🌱 prospect</span>' : ''}${r.promised ? ` · <span class="gold">🤝 promised ${promisedMinutes(t)[p.id]?.start ? 'a starting job' : `${promisedMinutes(t)[p.id]?.min}+ minutes`}</span>` : ''}</span>${r.off ? ' <span class="small down">⚠️ out of position</span>' : ''}
-      ${inRot ? minBar(p, r.minutes, game) : '<br><span class="small muted">Out of the rotation</span>'}${now !== r.minutes[0] ? ` <span class="small muted">(now ${now})</span>` : ''}${r.hand ? ' <span class="small gold">✋ set by hand</span>' : ''}</span>
-      ${inRot || r.hand ? `<span class="trait-ctl"><button class="btn tiny" data-act="luMin" data-id="${p.id}" data-d="-${step}" aria-label="Fewer minutes">−</button><b class="small" style="min-width:2.2em;text-align:center">${r.minutes[0]}</b><button class="btn tiny" data-act="luMin" data-id="${p.id}" data-d="${step}" aria-label="More minutes">+</button></span>` : `<button class="btn tiny off" data-act="luMin" data-id="${p.id}" data-d="${step * 4}">Play him</button>`}</div>`;
+    const p = r.p, inRot = r.minutes[0] > 0, spots = r.minutes.slice(1).map((v, k) => (v ? [LU.SLOTS[k], v, LU.inPos(p, k)] : null)).filter(Boolean);
+    const split = spots.length > 1 ? `<span class="lu-split">${spots.map(([s, v, ok]) => `<span class="${ok ? '' : 'down'}">${s} ${v}</span>`).join(' · ')}</span>` : spots.length && !spots[0][2] ? `<span class="lu-split down">at ${spots[0][0]}</span>` : '';
+    return `<div class="lu-row2 ${r.linePos < 5 ? 'lu-st' : ''} ${inRot ? '' : 'out'}">
+      <span class="lu-slot">${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? r.linePos + 1 : '—'}</span>
+      <span class="lu-name"><b>${esc(playerName(p))}</b> <span class="lu-meta">${esc(posN(p))} ${lvTag(p)}${r.hand ? ' ✋' : ''}</span>${split}
+        ${inRot ? `<span class="lu-bar"><i style="width:${(r.minutes[0] / game * 100).toFixed(1)}%"></i></span>` : ''}</span>
+      <span class="lu-min"><button class="btn tiny" data-act="luMin" data-id="${p.id}" data-d="-${step}" aria-label="Fewer minutes" ${inRot || r.hand ? '' : 'disabled'}>−</button><b>${r.minutes[0]}</b><button class="btn tiny" data-act="luMin" data-id="${p.id}" data-d="${step}" aria-label="More minutes">+</button></span>
+    </div>`;
   };
   const total = plan.rows.reduce((s, r) => s + r.minutes[0], 0);
+  const tabs = Object.keys(LU_TABS).filter(k => (k !== 'real' || real) && (k !== 'playoffs' || PO.atPlayoffStart(L) || mode === 'playoffs'));
   layout({
     title: 'Lineup & Minutes',
-    body: `<p class="note small">${logoImg(t)} <b>${esc(teamFull(t))}</b> · ${game}-minute games: every position plays ${game}, ${5 * game} minutes in all.</p>
-      <div class="tabs fa-tabs">${Object.entries(LU.MODES).filter(([k]) => k !== 'playoffs' || PO.atPlayoffStart(L) || mode === 'playoffs').map(([k, m]) => `<button class="btn small ${k === mode ? 'on focus' : 'off'}" data-act="luSet" data-k="mode" data-v="${k}">${esc(m.label)}</button>`).join('')}</div>
-      <p class="note small muted">${esc(LU.MODES[mode].says)}${mode === lineupMode(t) ? ' (fits where this team is)' : ''}</p>
-      <p class="note small">📋 ${hc ? `${esc(hc.fn ? `${hc.fn} ${hc.ln}` : 'Head coach')}: ` : ''}${esc(ROT_TXT.bd[tn.benchDepth ?? 0] || ROT_TXT.bd[0])}, ${esc(ROT_TXT.bu[tn.benchUtilization ?? 1] || ROT_TXT.bu[1])} → ${mode === 'playoffs' ? 'playoffs: ' : ''}${cr.size}-man rotation, starters ${Math.round(cr.share * 100)}% / bench ${100 - Math.round(cr.share * 100)}%. <span class="muted">Now: starters ${Math.round(stMin / (5 * game) * 100)}%.</span></p>
-      <div class="drill-row"><span class="grow small">Players in the rotation</span><span class="trait-ctl"><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.max(7, size - 1)}">−</button><b class="small" style="min-width:2em;text-align:center">${size}</b><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.min(12, size + 1)}">+</button></span></div>
-      <fieldset class="frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend>${minLegend()}<div class="stack">${plan.rows.map(row).join('')}</div>
-        <p class="note small muted">Minutes follow stars (on a 48-minute game): 5★ 35–38, 4.5★ 32–35, 4★ 30–32, 3.5★ 25–30; good benches eat into them. 🌱 Prospects (24 or younger, 3★ or lower, 4★+ potential) get 22–28 on a developing team, or a good one that isn't deep.</p>
-        ${isComplete() ? '<p class="note small muted">When you set it on the rotation day, minutes move morale: a 3.5★+ player more than 4 minutes short of his range gets unhappy, a prospect playing 22+ gets happier, and a kept promise lifts him more.</p>' : ''}
-        <p class="note small muted">Bars are minutes out of a full ${game}; the % is his share of the game. Nobody plays out of position unless the roster has no one within 14 levels of the rotation's worst player who can play the spot.</p>
-        ${plan.short.length ? `<p class="note small down">Short at ${plan.short.map(x => `${x.slot} (${x.v})`).join(', ')}: add a player or minutes.</p>` : ''}</fieldset>
-      <div class="grid2"><button class="btn off" data-act="luSet" data-k="over" data-v="">↩ Clear hand edits</button><button class="btn focus" data-act="luApply">✅ Set this lineup</button></div>
-      <p class="note muted small">Writes the starting five, the bench order and every player's minutes by position into the save.</p>`,
+    body: `<p class="note small">${logoImg(t)} <b>${esc(teamFull(t))}</b></p>
+      <div class="tabs fa-tabs">${tabs.map(k => `<button class="btn small ${k === mode ? 'on focus' : 'off'}" data-act="luSet" data-k="mode" data-v="${k}">${LU_TABS[k]}</button>`).join('')}</div>
+      <div class="grid2 lu-acts"><button class="btn off" data-act="luSet" data-k="over" data-v="">↩ Clear edits</button><button class="btn focus" data-act="luApply">✅ Set the lineup</button></div>
+      <div class="drill-row"><span class="grow small">Players in the rotation</span><span class="trait-ctl"><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.max(7, size - 1)}">−</button><b class="small" style="min-width:2em;text-align:center">${plan.rot.length}</b><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.min(12, size + 1)}">+</button></span></div>
+      <fieldset class="frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend><div class="lu-list">${plan.rows.map(row).join('')}</div>
+        ${plan.short.length ? `<p class="note small down">Short at ${plan.short.map(x => `${x.slot} (${x.v})`).join(', ')}: add a player or minutes.</p>` : ''}</fieldset>`,
   });
 };
 const luArgs = () => state.stack[state.stack.length - 1].args || {};
 // The screen's plan: the mode you picked, the coach's rotation size and minutes split unless you changed the size.
 function luPlan(t, a) {
-  const mode = a.mode || lineupMode(t), cr = coachRot(t, mode === 'playoffs');
-  return LU.planLineup(t, { mode, size: a.size || cr.size, share: cr.share, game: gameMinutes(), over: a.over || {}, promised: promisedMinutes(t) });
+  let mode = a.mode || luDefault(t);
+  const real = mode === 'real' ? realMinutes(t) : null;
+  if (mode === 'real') mode = real ? 'normal' : lineupMode(t);
+  const cr = coachRot(t, mode === 'playoffs');
+  return LU.planLineup(t, { mode, size: real && !a.size ? 9 : a.size || cr.size, share: real ? null : cr.share, game: gameMinutes(), over: a.over || {}, promised: promisedMinutes(t), real });
 }
 actions.luSet = d => { const a = { ...luArgs() }; if (d.k === 'over') a.over = {}; else a[d.k] = d.k === 'size' ? +d.v : d.v; replace('lineup', a); };
 actions.luMin = d => {
@@ -8681,7 +8690,7 @@ actions.luApply = async () => {
   if (plan.short.length && !(await confirmBox('Some positions are short of a full game. Set it anyway?', 'Set it'))) return;
   LU.applyLineup(t, plan);
   state.dirty = true;
-  toast('🔁 Lineup set', `${t.shortName}: ${plan.rot.length}-man rotation, ${LU.MODES[a.mode || lineupMode(t)].label.toLowerCase()}.`);
+  toast('🔁 Lineup set', `${t.shortName}: ${plan.rot.length}-man rotation, ${(LU_TABS[a.mode || luDefault(t)] || 'normal').toLowerCase()}.`);
   // On the rotation day, setting your (last) team's lineup finishes the step.
   if (isStep('rotation')) {
     (calFlags().rotSet ||= []).push(t.id);
@@ -9439,7 +9448,7 @@ function ciStanding(L, t) {
   const row = t.season?.find(r => r.yr === L.season.currentYear)?.seasonStats || {};
   return { ...rec, seed, want, of: conf.length, pace: rec.gp ? Math.round(rec.pct * games) : 0, games, diff: row.GP ? (row.PTS - row.OPP) / row.GP : 0 };
 }
-const ciVerdict = x => (x.seed <= x.want - 2 ? ['Ahead of the roster', 'up'] : x.seed >= x.want + 3 ? ['Under what the roster should do', 'down'] : ['About where the roster says', 'gold']);
+const ciVerdict = x => (x.seed <= x.want - 2 ? ['Overperforming', 'up'] : x.seed >= x.want + 3 ? ['Underperforming', 'down'] : ['Performing as expected', 'gold']);
 // Hot and cold: this season's game score against last season's (10+ games both years).
 function ciForm(L, t) {
   const li = state.leagueIdx, y = L.season.currentYear;
@@ -9449,24 +9458,25 @@ const CI_ICON = { early: '📋', mid: '🗓️', stretch: '🏁' };
 const CI_TITLE = { early: '📋 Early-Season Check-in', mid: '🗓️ Mid-Season Check-in', stretch: '🏁 Stretch-Run Check-in' };
 const CI_CALLS = {
   early: {
-    meeting: { icon: '🤝', label: 'Players-only meeting', says: 'Clear the air early: everyone\'s morale up.' },
-    shake: { icon: '🔀', label: 'Shake up the rotation', says: 'Reset the minutes for where the team is: compete if you\'re winning, develop if you\'re not.' },
-    course: { icon: '🧭', label: 'Stay the course', says: 'It\'s early. Change nothing.' },
+    meeting: { icon: '🤝', label: 'Players-only meeting', says: 'Everyone\'s morale up.' },
+    dayoff: { icon: '🛌', label: 'Day off from practice', says: 'Fresh legs: minor injuries heal faster.' },
   },
   mid: {
-    meeting: { icon: '🤝', label: 'Halfway meeting', says: 'Reset the room at the halfway mark: everyone\'s morale up.' },
-    shake: { icon: '🔀', label: 'Shake up the rotation', says: 'Thirty games in: compete if you\'re winning, develop if you\'re not.' },
-    course: { icon: '🧭', label: 'Stay the course', says: 'Ride this group to the All-Star break.' },
+    meeting: { icon: '🤝', label: 'Players-only meeting', says: 'Everyone\'s morale up.' },
+    dayoff: { icon: '🛌', label: 'Day off from practice', says: 'Fresh legs: minor injuries heal faster.' },
+    shake: { icon: '🔀', label: 'Shake up the rotation', says: 'New minutes for the second half.' },
   },
   stretch: {
-    push: { icon: '🔥', label: 'Full push', says: 'Tighten to eight, stars near 38 minutes, starters fired up.' },
-    rest: { icon: '🛌', label: 'Rest up for the playoffs', says: 'Your top three drop to about 30 minutes to be fresh in April.' },
-    kids: { icon: '🌱', label: 'Play the kids', says: 'The season\'s gone: young players get the minutes.' },
+    push: { icon: '🔥', label: 'Full push', says: 'Eight-man rotation, stars play more.' },
+    rest: { icon: '🛌', label: 'Rest up for the playoffs', says: 'Your top three play about 30 minutes.' },
+    kids: { icon: '🌱', label: 'Play the kids', says: 'Young players get the minutes.' },
   },
 };
 function ciApply(t, k) {
   const game = gameMinutes(), morale = n => { for (const p of t.roster) if (p.season) p.season.morale = Math.max(0, Math.min(100, (p.season.morale ?? 60) + n)); };
   if (k === 'meeting') morale(dlPct(t).pct < 0.5 ? 5 : 3);
+  // A day off: minor injuries (not the serious ones) heal two games sooner, and a small lift for everyone.
+  if (k === 'dayoff') { for (const p of t.roster) { const i = p.season?.injury; if (i && (i.gamesOut || 0) > 1 && !(i.majorSeverity > 0)) i.gamesOut = Math.max(1, i.gamesOut - 2); } morale(1); }
   if (k === 'shake') LU.applyLineup(t, LU.planLineup(t, { mode: dlPct(t).pct >= 0.5 ? 'compete' : 'develop', size: 9, game }));
   if (k === 'push') { const plan = LU.planLineup(t, { mode: 'compete', size: 8, game }); LU.applyLineup(t, plan); for (const p of plan.starters) if (p.season) p.season.morale = Math.min(100, (p.season.morale ?? 60) + 3); }
   if (k === 'rest') { const top = FA.signedRoster(t).sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 3); LU.applyLineup(t, LU.planLineup(t, { mode: 'normal', size: 10, game, over: Object.fromEntries(top.map(p => [p.id, Math.round(game * 0.62)])) })); }
@@ -9525,12 +9535,15 @@ screens.checkin = () => {
     const hurt = t.roster.filter(p => (p.season?.injury?.gamesOut || 0) > 0).sort((a, b) => b.season.injury.gamesOut - a.season.injury.gamesOut);
     const calls = CI_CALLS[w], pick = st[w]?.[t.id];
     return `<fieldset class="frame"><legend>${esc(teamFull(t))}</legend>
-      ${x.w + x.l ? `<p class="note"><b>${x.w}-${x.l}</b> · ${ordinal(x.seed)} of ${x.of} in the conference · on pace for ${x.pace}-${x.games - x.pace} · ${x.diff >= 0 ? '+' : ''}${x.diff.toFixed(1)} a game</p>
-      <p class="note small"><span class="${vc}">${v}</span> <span class="muted">(the roster says ${ordinal(x.want)})</span>` : `<p class="note"><b>0-0</b> · the season hasn't tipped off</p>
-      <p class="note small muted">The roster says ${ordinal(x.want)} of ${x.of} in the conference`}${w === 'stretch' ? ` · ${x.seed <= 6 ? 'in the playoffs' : x.seed <= 10 ? 'in the play-in' : `${x.seed - 10} spot${x.seed - 10 === 1 ? '' : 's'} out of the play-in`}` : ''}</p>
+      ${x.w + x.l ? `<p class="note"><b>${x.w}-${x.l}</b> · Currently the ${ordinal(x.seed)} seed${x.w + x.l >= 10 ? ` · On pace for ${x.pace}-${x.games - x.pace}` : ''}</p>
+      <p class="note small"><span class="${vc}">${v}</span>` : `<p class="note"><b>0-0</b> · the season hasn't tipped off</p>
+      <p class="note small muted">Projected as the ${ordinal(x.want)} seed`}${w === 'stretch' ? ` · ${x.seed <= 6 ? 'in the playoffs' : x.seed <= 10 ? 'in the play-in' : `${x.seed - 10} spot${x.seed - 10 === 1 ? '' : 's'} out of the play-in`}` : ''}</p>
+      ${(() => { const hot = form.slice(0, 2).filter(f => f.d > 1), cold = form.slice(-2).filter(f => f.d < -1).filter(f => !hot.includes(f));
+        return `<div class="ci-form">${infoBtn('ciForm', '<p class="small"><b>Hot and cold</b> compare a player\'s production this season (points, rebounds, assists, steals and blocks against his misses and turnovers, per game) with his own last season. Ten games or more in both seasons count. Hot is clearly better than last year, cold clearly worse.</p>')}
+          <p class="note small">🔥 ${hot.length ? hot.map(f => `<b>${esc(shortName(f.p))}</b>`).join(', ') : 'Nobody is on a hot streak'}</p>
+          <p class="note small">🧊 ${cold.length ? cold.map(f => `<b>${esc(shortName(f.p))}</b>`).join(', ') : 'Nobody is on a cold streak'}</p></div>`; })()}
       ${hurt.length ? `<p class="note small">🩹 ${hurt.slice(0, 4).map(p => `<b>${esc(p.ln)}</b> ${p.season.injury.gamesOut}g`).join(' · ')}</p>` : '<p class="note small up">🩹 Healthy.</p>'}
-      ${form.length ? `<p class="note small">🔥 ${form.slice(0, 2).filter(f => f.d > 1).map(f => `<b>${esc(f.p.ln)}</b> +${f.d.toFixed(1)}`).join(' · ') || '—'} &nbsp; 🧊 ${form.slice(-2).filter(f => f.d < -1).map(f => `<b>${esc(f.p.ln)}</b> ${f.d.toFixed(1)}`).join(' · ') || '—'} <span class="muted">(game score vs last season)</span></p>` : ''}
-      ${me ? '' : pick ? `<p class="note small up">✓ ${calls[pick].icon} ${esc(calls[pick].label)}</p>` : `<div class="stack">${Object.entries(calls).filter(([k]) => !(k === 'rest' && x.seed > 8) && !(k === 'kids' && x.seed <= 6)).map(([k, c]) => `<button class="btn left small" data-act="ciPick" data-t="${t.id}" data-k="${k}"><span class="grow"><b>${c.icon} ${esc(c.label)}</b><br><span class="note small">${esc(c.says)}</span></span></button>`).join('')}</div>`}
+      ${me ? '' : pick ? `<p class="note small up">✓ ${calls[pick].icon} ${esc(calls[pick].label)}</p>` : `<div class="stack">${Object.entries(calls).filter(([k]) => !(k === 'rest' && x.seed > 8) && !(k === 'kids' && x.seed <= 6)).map(([k, c]) => `<button class="btn left small ci-call" data-act="ciPick" data-t="${t.id}" data-k="${k}"><span class="grow"><b>${c.icon} ${esc(c.label)}</b><span class="ci-says">${esc(c.says)}</span></span></button>`).join('')}</div>`}
       ${me ? '' : rotCheck(t)}
       ${me ? '' : `<button class="btn small" data-act="nav" data-to="lineup" data-arg="${t.id}" style="margin-top:6px">⏱️ Lineup</button>`}</fieldset>`;
   };
@@ -10552,11 +10565,11 @@ actions.medPick = d => {
 };
 
 // ---- League News: rumors, transactions, coaching moves, CPU trades and (at Opening Night) the report card, as tabs.
-const NEWS_TABS = [['rumors', 'Rumors'], ['transactions', 'Moves'], ['gram', 'Hoop Gram'], ['retire', 'Retirements'], ['coachnews', 'Coaches'], ['cputrades', 'CPU Trades'], ['report', 'Report Card']];
+const NEWS_TABS = [['rumors', 'Rumors'], ['block', 'Trade Block'], ['gram', 'Hoop Gram'], ['report', 'Report Card']];
 const newsTabs = cur => `<div class="tabs fa-tabs news-tabs">${NEWS_TABS.filter(([k]) => k !== 'report' || league().season.phase === 6).map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="newsTab" data-t="${k}">${l}</button>`).join('')}</div>`;
-actions.newsTab = d => (d.t === 'rumors' || d.t === 'transactions' ? replace(d.t, {}) : replace('news', { tab: d.t }));
+actions.newsTab = d => (d.t === 'rumors' ? replace('rumors', {}) : d.t === 'block' ? replace('transactions', { tab: 'block', only: true }) : replace('news', { tab: d.t }));
 screens.news = (args = {}) => {
-  const tab = args.tab || 'coachnews';
+  const tab = args.tab || 'gram';
   let body = '';
   if (tab === 'retire') body = retFixBox() + retirementsBox();
   else if (tab === 'gram') body = leagueGramCard().replace('<h2 class="team-title">Trending on Hoop Gram</h2>', '') || '<p class="note small muted">Quiet on Hoop Gram so far.</p>';
@@ -10713,7 +10726,7 @@ screens.transactions = (args = {}) => {
   const note = { sign: 'Free agents and portal moves this offseason, best first.', trade: 'Trades this offseason, the best player involved first.', block: 'Players teams are shopping. They could be on the move.' }[tab];
   layout({
     title: 'Hoop Gram',
-    body: `${newsTabs('transactions')}<div class="tabs fa-tabs">${[['sign', 'Signings'], ['trade', 'Trades'], ['block', 'The Block']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="txTab" data-v="${k}">${l}</button>`).join('')}</div>
+    body: `${args.only ? newsTabs('block') : `${newsTabs('transactions')}<div class="tabs fa-tabs">${[['sign', 'Signings'], ['trade', 'Trades'], ['block', 'The Block']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="txTab" data-v="${k}">${l}</button>`).join('')}</div>`}
       <p class="note small muted">${note}</p>
       ${tab === 'trade' ? tradeBlocks(L) : `<div class="list">${rows.slice(0, 60).map(r => card(r.p, r.a, r.b)).join('') || '<p class="note small muted">Nothing yet.</p>'}</div>`}`,
   });
@@ -10759,7 +10772,7 @@ screens.rumors = () => {
   layout({
     title: 'Hoop Gram',
     body: `${newsTabs('rumors')}${(() => { const cpu = Object.entries(shiftStore()).filter(([, r]) => r.cpu).map(([pid, r]) => ({ pid: +pid, ...r })); return cpu.length ? `<fieldset class="frame"><legend>🏀 From Camp</legend><div class="stack">${cpu.map(shiftRumor).join('')}</div></fieldset>` : ''; })()}<p class="note small muted">Whispers about who could be on the move. Some of it comes true, some doesn't.</p>
-      <div class="stack">${list.slice(0, 16).map(rumorPost).filter(Boolean).slice(0, 10).join('') || '<p class="note small muted">Quiet around the league.</p>'}</div>`,
+      <div class="stack">${list.slice(0, 16).map(rumorPost).filter(Boolean).slice(0, 10).join('') || '<p class="note small muted">Quiet around the league.</p>'}</div>${hotSeatBox(L)}`,
   });
 };
 actions.txTab = d => replace('transactions', { tab: d.v });
@@ -10768,7 +10781,7 @@ function rosterBreakdownBox(t) {
   const ro = [...t.roster].filter(p => p.status !== 4).sort((a, b) => shownLevel(b) - shownLevel(a));
   const G = [['guards', 'Guards'], ['wings', 'Wings'], ['bigs', 'Bigs']];
   const grp = k => ro.filter(p => posGroup(p) === k);
-  return `<details class="frame fa-roster" data-anchor="rbox" style="margin-top:10px" ${state.rbOpen ? 'open' : ''}><summary data-act="rbToggle"><b>Roster</b> <span class="small muted">${G.map(([k, l]) => `${l} ${grp(k).length}`).join(' · ')}</span></summary>
+  return `<details class="frame fa-roster" data-anchor="rbox" style="margin-top:10px" ${state.rbOpen ? 'open' : ''}><summary data-act="rbToggle"><b>Roster</b> <span class="ro-count">• ${FA.signedRoster(t).length}/${FA.FA_DEFAULTS.seasonMax}</span></summary>
     ${G.map(([k, l]) => `<p class="note small" style="margin-top:6px"><b>${l}</b> <span class="muted">(${grp(k).length})</span></p>
       ${grp(k).map(p => `<div class="small mv-row"><span class="mv-l">${esc(playerName(p))} <span class="gold">Lv ${shownLevel(p)}</span> <span class="muted">${esc(posName(p))} · ${p.age}y</span></span><span class="muted mv-r">${p.contract?.sal ? `$${p.contract.sal}M × ${p.contract.yrs}` : ''}</span></div>`).join('') || '<span class="small muted">None</span>'}`).join('')}
   </details>`;
@@ -11369,12 +11382,8 @@ function teamHeader(t) {
   const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
   const st = (lv, rk) => `${stars(levelStarsOf(Math.round(lv)))}<span class="th-rk">${ord(rk)}</span>`;
   const pct = Math.min(100, pay / cap * 100), over = pay > cap;
-  return `<div class="team-head">
-    <div class="bio-box th-pay"><span class="glbl">Total Salary</span><span class="th-bar"><i style="width:${pct.toFixed(1)}%" class="${over ? 'over' : ''}"></i><b>$${Math.round(pay)}M / $${Math.round(cap)}M cap</b></span></div>
-    <div class="bio-box"><span class="glbl">Roster</span><b>${n}/${FA.FA_DEFAULTS.seasonMax}</b></div>
-    <div class="bio-box"><span class="glbl">Cap Space</span><b class="${over ? 'down' : ''}">${over ? '−' : ''}$${Math.abs(Math.round(cap - pay))}M</b></div>
-    ${r ? `<div class="bio-box"><span class="glbl">Offense</span>${st(r.off, r.offRk)}</div><div class="bio-box"><span class="glbl">Defense</span>${st(r.def, r.defRk)}</div><div class="bio-box"><span class="glbl">Overall</span>${st(r.all, r.allRk)}</div>` : ''}
-  </div>`;
+  return `${r ? `<div class="th-grades"><span><span class="glbl">Offense</span>${st(r.off, r.offRk)}</span><span><span class="glbl">Defense</span>${st(r.def, r.defRk)}</span><span><span class="glbl">Overall</span>${st(r.all, r.allRk)}</span></div>` : ''}
+    ${FA.capSystemOn() ? capBar(t) : ''}`;
 }
 
 // ---- The record book: the league's single-game records (regular season, playoffs, Finals), from the save.
