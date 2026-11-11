@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.354.3';
+const APP_VERSION = '0.354.4';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -8669,13 +8669,12 @@ screens.lineup = (args = {}) => {
       <span class="lu-c-slot">${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? r.linePos + 1 : '—'}</span>
       <span class="lu-c-name tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln || playerName(p))}</b>${r.hand ? ' ✋' : ''}${split}
         <span class="lu-bar2"><i style="width:${(r.minutes[0] / game * 100).toFixed(1)}%"></i></span></span>
-      <span class="lu-c-pos">${esc(posN(p))}</span>
       <span class="lu-c-ovr">${shownLevel(p)}</span>
       <span class="lu-c-min"><button class="lu-step" data-act="luMin" data-id="${p.id}" data-d="-${step}" aria-label="Fewer minutes" ${inRot || r.hand ? '' : 'disabled'}>−</button><b>${r.minutes[0]}</b><button class="lu-step" data-act="luMin" data-id="${p.id}" data-d="${step}" aria-label="More minutes">+</button></span>
       <span class="lu-c-sug">${sv}${diff ? `<i class="${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '▲' : '▼'}</i>` : ''}</span>
     </div>`;
   };
-  const head = '<div class="lu-tr lu-th"><span class="lu-c-slot"></span><span class="lu-c-name">Name</span><span class="lu-c-pos">Pos</span><span class="lu-c-ovr">Ovr</span><span class="lu-c-min">Min</span><span class="lu-c-sug">Sug</span></div>';
+  const head = '<div class="lu-tr lu-th"><span class="lu-c-slot"></span><span class="lu-c-name">Name</span><span class="lu-c-ovr">Level</span><span class="lu-c-min">Min</span><span class="lu-c-sug">Sug</span></div>';
   const total = plan.rows.reduce((s, r) => s + r.minutes[0], 0);
   const tabs = Object.keys(LU_TABS).filter(k => (k !== 'real' || real) && (k !== 'playoffs' || PO.atPlayoffStart(L) || mode === 'playoffs'));
   layout({

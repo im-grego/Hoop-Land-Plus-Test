@@ -2125,7 +2125,7 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 
 /* Lineup table: Name · Pos · Ovr · Min · Sug */
 .lu-frame { padding-left: 8px; padding-right: 8px; }
-.lu-tr { display: grid; grid-template-columns: 22px minmax(0, 1fr) 26px 26px 72px 32px; align-items: center; gap: 4px; padding: 6px 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.lu-tr { display: grid; grid-template-columns: 22px minmax(0, 1fr) 40px 72px 32px; align-items: center; gap: 4px; padding: 6px 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
 .lu-tr:last-child { border-bottom: 0; }
 .lu-th { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim, #b9c8e8); padding-top: 2px; }
 .lu-tr.lu-st { background: rgba(255, 255, 255, 0.04); }
