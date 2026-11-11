@@ -337,18 +337,24 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
       if (morale >= 85) heat -= 1;
       if (heat >= 3) out.push({ kind: 'star', p: star, team, heat: Math.min(3, Math.floor(heat / 1.5)), why, level: level(star), mpg, morale });
     }
-    // The tax: an expensive team that isn't winning might blow it up; a
-    // contender over the line has to decide whether to pay.
+    // The money: a team near the top of what its owner will spend has to shed a contract. How high that is depends on
+    // where the team stands: a rebuilding or selling team shouldn't be anywhere near the tax, a team in the middle
+    // near the top of the 1st apron, and a contender (whose owner pays to keep a winner together, up to the 2nd apron)
+    // only near the 2nd apron. A 90+ player is the one they build around, never the one they sell (he only turns up
+    // as a disgruntled star): the biggest contract after him is the one that could move.
     if (FA.capSystemOn()) {
-      const C = FA.capLines(L), pay = FA.teamCommitted(team);
-      if (pay > C.tax) {
-        const bill = FA.taxBill(L, team);
-        // A 90+ player is the one they build around, never the one they sell to get under the tax (he only turns up as
-        // a disgruntled star): the biggest contract after him is the one that could move.
+      const C = FA.capLines(L), pay = FA.teamCommitted(team), near = 5;
+      const tier = st.tier, contender = tier === 'favorites' || tier === 'contending', seller = tier === 'rebuilding' || tier === 'selling';
+      const line = contender ? C.apron2 : seller ? C.tax : C.apron1;
+      if (pay >= line - near) {
+        const m = (v, s, at) => (v > 0 ? `$${v}M ${s}` : `right at ${at}`);
+        const where = pay >= C.apron2 ? m(pay - C.apron2, 'over the 2nd apron', 'the 2nd apron') : pay >= C.apron2 - near ? m(C.apron2 - pay, 'from the 2nd apron', 'the 2nd apron')
+          : pay >= C.apron1 ? m(pay - C.apron1, 'into the 1st apron', 'the 1st apron') : pay >= C.tax ? m(pay - C.tax, 'over the tax', 'the tax') : m(C.tax - pay, 'from the tax', 'the tax');
+        const bill = pay > C.tax ? FA.taxBill(L, team) : 0;
+        const why = [where, ...(bill ? [`a $${bill}M tax bill`] : []), ...(seller ? [`a ${tier} team`] : [])];
         const core = roster.filter(p => level(p) >= 90).sort((a, b) => level(b) - level(a))[0] || null;
-        const big = [...roster].filter(p => level(p) >= 76 && level(p) < 90).sort((a, b) => (b.contract?.sal || 0) - (a.contract?.sal || 0))[0];
-        if (big && FA.taxStance(L, team) !== 'pay') out.push({ kind: 'blowup', p: big, team, heat: 2, why: [`$${pay - C.tax}M over the tax`, `a $${bill}M tax bill`], level: level(big), morale: big.season?.morale ?? 70, bill, keep: core });
-        else if (big) out.push({ kind: 'taxpay', p: star, team, heat: 1, why: [`$${pay - C.tax}M over the tax`], level: level(star), morale: star.season?.morale ?? 70, bill });
+        const big = [...roster].filter(p => level(p) >= 74 && level(p) < 90).sort((a, b) => (b.contract?.sal || 0) - (a.contract?.sal || 0))[0];
+        if (big) out.push({ kind: 'blowup', p: big, team, heat: seller || pay >= C.apron2 ? 2 : 1, why, level: level(big), morale: big.season?.morale ?? 70, bill, keep: core });
       }
     }
     // Veterans a rebuilding (or sliding) team might move.
