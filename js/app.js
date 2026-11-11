@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.352.7';
+const APP_VERSION = '0.352.8';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -9419,10 +9419,10 @@ function ciState() { try { return JSON.parse(localStorage.getItem(ciKey())) || {
 function ciSave(v) { try { localStorage.setItem(ciKey(), JSON.stringify(v)); } catch { /* ignore */ } }
 function ciWindow(L = league()) {
   const s = L.season, asw = s.allStarWeekend || 0, dl = s.tradeDeadline || asw + 2;
-  if (s.phase !== 9 || isCollege() || seasonUnplayed()) return null;
-  if (s.currentDay >= 12 && (!asw || s.currentDay < asw - 4)) return 'early';
+  // Any point in the regular season, Opening Night included: early season up to the deadline, the stretch run after.
+  if (s.phase !== 9 || isCollege()) return null;
   if (asw && s.currentDay > dl) return 'stretch';
-  return null;
+  return 'early';
 }
 const ciConf = t => (t.division < 3 ? 0 : 1);
 // Seed within the conference by record, and the seed the roster says it should have (its best eight by level).
@@ -9495,8 +9495,9 @@ screens.checkin = () => {
     const hurt = t.roster.filter(p => (p.season?.injury?.gamesOut || 0) > 0).sort((a, b) => b.season.injury.gamesOut - a.season.injury.gamesOut);
     const calls = CI_CALLS[w], pick = st[w]?.[t.id];
     return `<fieldset class="frame"><legend>${esc(teamFull(t))}</legend>
-      <p class="note"><b>${x.w}-${x.l}</b> · ${ordinal(x.seed)} of ${x.of} in the conference · on pace for ${x.pace}-${x.games - x.pace} · ${x.diff >= 0 ? '+' : ''}${x.diff.toFixed(1)} a game</p>
-      <p class="note small"><span class="${vc}">${v}</span> <span class="muted">(the roster says ${ordinal(x.want)})</span>${w === 'stretch' ? ` · ${x.seed <= 6 ? 'in the playoffs' : x.seed <= 10 ? 'in the play-in' : `${x.seed - 10} spot${x.seed - 10 === 1 ? '' : 's'} out of the play-in`}` : ''}</p>
+      ${x.w + x.l ? `<p class="note"><b>${x.w}-${x.l}</b> · ${ordinal(x.seed)} of ${x.of} in the conference · on pace for ${x.pace}-${x.games - x.pace} · ${x.diff >= 0 ? '+' : ''}${x.diff.toFixed(1)} a game</p>
+      <p class="note small"><span class="${vc}">${v}</span> <span class="muted">(the roster says ${ordinal(x.want)})</span>` : `<p class="note"><b>0-0</b> · the season hasn't tipped off</p>
+      <p class="note small muted">The roster says ${ordinal(x.want)} of ${x.of} in the conference`}${w === 'stretch' ? ` · ${x.seed <= 6 ? 'in the playoffs' : x.seed <= 10 ? 'in the play-in' : `${x.seed - 10} spot${x.seed - 10 === 1 ? '' : 's'} out of the play-in`}` : ''}</p>
       ${hurt.length ? `<p class="note small">🩹 ${hurt.slice(0, 4).map(p => `<b>${esc(p.ln)}</b> ${p.season.injury.gamesOut}g`).join(' · ')}</p>` : '<p class="note small up">🩹 Healthy.</p>'}
       ${form.length ? `<p class="note small">🔥 ${form.slice(0, 2).filter(f => f.d > 1).map(f => `<b>${esc(f.p.ln)}</b> +${f.d.toFixed(1)}`).join(' · ') || '—'} &nbsp; 🧊 ${form.slice(-2).filter(f => f.d < -1).map(f => `<b>${esc(f.p.ln)}</b> ${f.d.toFixed(1)}`).join(' · ') || '—'} <span class="muted">(game score vs last season)</span></p>` : ''}
       ${me ? '' : pick ? `<p class="note small up">✓ ${calls[pick].icon} ${esc(calls[pick].label)}</p>` : `<div class="stack">${Object.entries(calls).filter(([k]) => !(k === 'rest' && x.seed > 8) && !(k === 'kids' && x.seed <= 6)).map(([k, c]) => `<button class="btn left small" data-act="ciPick" data-t="${t.id}" data-k="${k}"><span class="grow"><b>${c.icon} ${esc(c.label)}</b><br><span class="note small">${esc(c.says)}</span></span></button>`).join('')}</div>`}
