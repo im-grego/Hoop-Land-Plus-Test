@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.346.2';
+const APP_VERSION = '0.346.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -9123,7 +9123,8 @@ function playoffRotations() {
 // "1 year in the G League". Hoop Land has no G League of its own, so a player sent down comes off the game roster
 // (the app keeps him, as he was): his spot opens for a signing. A recall puts him back when there's room; anyone still
 // down when the season is over rejoins his team in the next offseason file.
-const GL_MAX = 3, GL_AGE = 24, GL_MPG = 15;
+// Who can go (the same rule as the summer stash): 23 or younger, with 0 or 1 seasons in the league.
+const GL_MAX = 3, GL_AGE = 23, GL_EXP = 1, GL_MPG = 15;
 const glKey = () => `hlc:gleague:${saveTag()}`;
 function glStore() { try { return JSON.parse(localStorage.getItem(glKey())) || {}; } catch { return {}; } }
 function glSave(v) { try { localStorage.setItem(glKey(), JSON.stringify(v)); } catch { /* ignore */ } }
@@ -9160,7 +9161,7 @@ function glCatchUp() {
 }
 const glNbaMpg = (p, y) => seasonLine(p, state.leagueIdx, y)?.mpg || 0;
 const glWhyNot = (p, t, y = league().season.currentYear) => p.age > GL_AGE ? `only players ${GL_AGE} and under` : p.status !== FA.STATUS_SIGNED ? 'not under contract'
-  : glNbaMpg(p, y) >= GL_MPG ? `he's in the rotation (${glNbaMpg(p, y).toFixed(1)} minutes)` : Object.values(glSeason(y)).filter(r => r.tid === t.id).length >= GL_MAX ? `${GL_MAX} already down` : '';
+  : proSeasons(p) > GL_EXP ? `only players with ${GL_EXP} season or less in the league` : Object.values(glSeason(y)).filter(r => r.tid === t.id).length >= GL_MAX ? `${GL_MAX} already down` : '';
 // Development points for a season down there.
 function glXp(p, rec, y) {
   const base = p.age <= 20 ? 3 : p.age <= 22 ? 2 : 1, up = (p.pot || 0) >= 8 ? 1 : 0;
@@ -9228,7 +9229,7 @@ const glRow = (p, right) => `<div class="drill-row"><span class="grow tap" style
 function glTeamBox(t) {
   const L = league(), y = L.season.currentYear, recs = glSeason(y), open = glOpen(L);
   const down = Object.entries(recs).filter(([, r]) => r.tid === t.id && !r.back).map(([pid, r]) => ({ p: glPlayer(pid, r), r })).filter(x => x.p);
-  const cand = open ? FA.signedRoster(t).filter(p => !recs[p.id] && p.age <= GL_AGE && glNbaMpg(p, y) < GL_MPG).sort((a, b) => (b.pot || 0) - (a.pot || 0) || a.age - b.age).slice(0, 8) : [];
+  const cand = open ? FA.signedRoster(t).filter(p => !recs[p.id] && p.age <= GL_AGE && proSeasons(p) <= GL_EXP).sort((a, b) => (b.pot || 0) - (a.pot || 0) || a.age - b.age).slice(0, 8) : [];
   const full = down.length >= GL_MAX;
   return `<fieldset class="frame"><legend>${esc(t.shortName)} · G League ${down.length}/${GL_MAX}</legend>
     <p class="note small">${FA.signedRoster(t).length}/15 on the active roster. Players down here don't count against it, and <b>Hoop Land won't show them</b>: they're kept here in Hoop Land Plus. Call one up any time this season; trim the active roster to 14 first to make room.</p>
@@ -9240,7 +9241,7 @@ screens.gleague = () => {
   const L = league(), mine = L.teams.filter(isUserTeam), settled = glAsw(L) && L.season.currentDay >= glAsw(L) && L.season.phase === 9;
   layout({
     title: 'G League',
-    body: `<p class="note small">${glOpen(L) ? `Send up to ${GL_MAX} young players (${GL_AGE} and under, under ${GL_MPG} minutes a night) down until the All-Star break${glAsw(L) ? ` (day ${glAsw(L)}; today is day ${L.season.currentDay})` : ''}. They earn development points there, added to their offseason progression. A player down here comes off your roster in the exported file (Hoop Land won't show him; he's kept here) and his spot opens up.`
+    body: `<p class="note small">${glOpen(L) ? `Send up to ${GL_MAX} young players (${GL_AGE} or younger, ${GL_EXP} season or less in the league) down until the All-Star break${glAsw(L) ? ` (day ${glAsw(L)}; today is day ${L.season.currentDay})` : ''}. They earn development points there, added to their offseason progression. A player down here comes off your roster in the exported file (Hoop Land won't show him; he's kept here) and his spot opens up.`
       : settled ? 'The All-Star break: here is what your players earned down there. It\'s added to their progression this offseason.' : 'Players go down during the regular season, before the All-Star break.'}</p>
       ${mine.map(glTeamBox).join('') || '<p class="note">Select your teams first.</p>'}`,
   });
