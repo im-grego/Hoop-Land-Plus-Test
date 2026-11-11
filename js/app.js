@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.339.0';
+const APP_VERSION = '0.339.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10263,6 +10263,10 @@ screens.leaders = (args) => {
     head = ATTRS.map(x => `<button class="btn small ${x === k ? 'on focus' : 'off'} ${RATING_GROUP[x] ? `sk-${RATING_GROUP[x]}` : ''}" data-act="openLeaders" data-m="ratings" data-k="${x}" data-r="1">${x}</button>`).join('');
     note = `${ATTR_NAMES[k]}: every player in the league and free agency. Ties go to the higher level.`;
   }
+  // Guards, wings, bigs: any one, two or all three (never none); the ranks count only who's shown.
+  const on = (state.ldGroups ||= new Set(['g', 'w', 'b'])), grpOf = q => (q.pos <= 2 ? 'g' : q.pos <= 5 ? 'w' : 'b');
+  rows = rows.filter(x => on.has(grpOf(x.e.p)));
+  const groupChips = `<div class="seg ld-groups">${[['g', 'Guards'], ['w', 'Wings'], ['b', 'Bigs']].map(([g, l]) => `<button class="btn small ${on.has(g) ? 'on focus' : 'off'}" data-act="ldGroup" data-g="${g}">${l}</button>`).join('')}</div>`;
   const shown = args.all ? rows : rows.slice(0, 25);
   // The player you came from: marked, and added under the list when he's past it.
   const meAt = args.pid ? rows.findIndex(x => x.e.p.id === args.pid) : -1;
@@ -10273,6 +10277,7 @@ screens.leaders = (args) => {
     title: 'League',
     body: `<div class="tabs"><button class="btn ${mode === 'stats' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="stats" data-k="${mode === 'stats' ? k : 'PTS'}" data-r="1">Stats</button><button class="btn ${mode === 'ratings' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="ratings" data-k="${mode === 'ratings' ? k : 'LAY'}" data-r="1">Ratings</button>${isCollege() ? '' : '<button class="btn off" data-act="openLeaders" data-m="rafters" data-r="1">🏟️ Rafters</button><button class="btn off" data-act="nav" data-to="records">📖 Records</button>'}</div>
       <div class="opts wrap ld-keys">${head}</div>
+      ${groupChips}
       <p class="note muted small" style="margin:6px 0">${esc(note)}</p>
       <div class="stack">${[...shown.map((x, i) => ({ ...x, at: i })), ...extra].map((x, j) => `${extra.length && j === shown.length ? '<p class="note small muted center" style="margin:2px 0">⋯</p>' : ''}<button class="ld-row ${x.e.team && isUserTeam(x.e.team) ? 'mine' : ''} ${x.e.p.id === args.pid ? 'me' : ''}" data-act="openPlayer" data-id="${x.e.p.id}">
         <span class="ld-n">${x.at + 1}</span>
@@ -10319,6 +10324,7 @@ function collegeLeaders(args) {
   });
 }
 
+actions.ldGroup = d => { const s = (state.ldGroups ||= new Set(['g', 'w', 'b'])); if (s.has(d.g)) { if (s.size > 1) s.delete(d.g); } else s.add(d.g); render(); };
 actions.openLeaders = d => {
   const prev = state.stack[state.stack.length - 1]?.args || {};
   const args = { m: d.m, k: d.k, ...(d.li != null ? { li: +d.li, yr: +d.yr } : {}), ...(d.pid ? { pid: +d.pid } : d.r && prev.pid ? { pid: prev.pid } : {}) };

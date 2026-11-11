@@ -2013,3 +2013,5 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .ld-row .ld-bar .gbar i { width: 3.4921%; flex: none; background: linear-gradient(to bottom, var(--gt) 0 72%, var(--gb) 72% 100%); }
 .ld-row.me { outline: 3px solid var(--gold); outline-offset: -3px; }
 .ld-row .ld-v { font-family: var(--game); font-size: 18px; }
+.ld-groups { display: flex; gap: 6px; margin: 10px 0 2px; }
+.ld-groups .btn { flex: 1; min-height: 36px; }
