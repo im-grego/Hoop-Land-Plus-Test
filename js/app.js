@@ -71,7 +71,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.330.6';
+const APP_VERSION = '0.330.7';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -19407,7 +19407,7 @@ const olyYr = () => draftYear(league());
 const olyEv = () => OLY.eventOf(olyYr());
 const olyOn = () => !isCollege() && labOn() && !!olyEv();
 const olyName0 = () => OLY.EVENT_NAME[olyEv()] || 'Olympics';
-const olyLogo = (size, ev = olyEv()) => (ev === 'worldcup' ? OLY.logo2Svg(size) : OLY.logoSvg(size));
+const olyLogo = (size, ev = olyEv()) => (ev === 'worldcup' ? `<img class="oly-logo wc-logo" src="img/worldcup.png" alt="World Cup" style="height:${Math.round(size * 0.62)}px">` : OLY.logoSvg(size));
 const olySeed = (y = olyYr()) => { let h = y * 7919; for (const ch of saveTag()) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0; return h >>> 0; };
 // Everyone under contract, everyone whose deal is up and every free agent: the federations call the league's players first.
 const olyPlayers = () => league().teams.flatMap(t => t.roster.filter(p => [FA.STATUS_SIGNED, FA.STATUS_DRAFTED, FA.STATUS_EXPIRING].includes(p.status))).concat((league().freeAgents || []).filter(p => p.status === FA.STATUS_FREE));
@@ -19547,7 +19547,7 @@ screens.olympics = (args = {}) => {
   // ---- Teams: a card for each nation; tap one for its roster.
   const card = t => { const star = t.roster.find(x => x.pid != null) || t.roster[0], via = OLY_VIA(F.via?.[t.c] || (t.c === F.host ? 'host' : ''));
     const medal = olyMedalMark(R, t.c);
-    return `<button class="oly-card tap" data-act="olyPick" data-c="${t.c}"><span class="oly-card-top">${flag(t.c, 2.4)}${medal}<span class="oly-via" title="${esc(via[1])}">${via[0]}</span></span>
+    return `<button class="oly-card tap" data-act="olyPick" data-c="${t.c}"><span class="oly-card-top">${flag(t.c, 2.4)}${medal}${wc ? '' : `<span class="oly-via" title="${esc(via[1])}">${via[0]}</span>`}</span>
       <span class="oly-card-name">${esc(OLY.nation(t.c))}</span>
       <span class="oly-bar"><span style="width:${Math.max(8, Math.min(100, (t.str - 70) * 3.6))}%"></span></span>
       <span class="oly-card-star">⭐ ${esc(star.pid != null ? olyName(star.pid) : `${star.fn} ${star.ln}`)}</span>
@@ -19566,7 +19566,7 @@ screens.olympics = (args = {}) => {
       ${edit}
       <button class="btn small off" data-act="olyPick" data-c="">← All teams</button></fieldset>`;
   })() : '';
-  const teamsTab = T ? teamDetail : `<div class="oly-grid">${F.field.map(card).join('')}</div><p class="note small muted">🏠 host · 🌍 through the World Cup · 🎟️ through a qualifier. Tap a team for its roster.</p>`;
+  const teamsTab = T ? teamDetail : `<div class="oly-grid">${F.field.map(card).join('')}</div><p class="note small muted">${wc ? 'Tap a team for its roster.' : '🏠 host · 🌍 through the World Cup · 🎟️ through a qualifier. Tap a team for its roster.'}</p>`;
   // ---- News: who got in, the snubs and the withdrawals, by country.
   const byC = list => { const m = new Map(); for (const x of list) (m.get(x.c) || m.set(x.c, []).get(x.c)).push(x); return [...m.entries()]; };
   const snubs = F.field.flatMap(t => t.snubs.map(s => ({ ...s, c: t.c })));
