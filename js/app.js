@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.336.1';
+const APP_VERSION = '0.337.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10581,6 +10581,20 @@ function gRow(p, snap, k, edit = false, ceilMode = false) {
     ${edit ? gBtn('attr', `data-k="${k}" data-dir="1"`, ceilMode && !PHYSICAL.includes(k) ? G_UP : G_PLUS, `Raise ${ATTR_NAMES[k]}`) : ''}
   </div>`;
 }
+// Every rating on one compact line (name, bar, value; − and + on the ends in Edit), all fifteen in view at once under
+// thin category labels: nothing to open.
+function gLine(p, snap, k, edit = false, ceilMode = false) {
+  const g = gKinds(p, snap, k), cls = G_CLS[gCat(k).key];
+  const sign = n => `${n > 0 ? '+' : '−'}${gVal(Math.abs(n))}`;
+  return `<div class="gline ${edit ? 'edit' : ''}">
+    ${edit ? gBtn('attr', `data-k="${k}" data-dir="-1"`, G_MINUS, `Lower ${ATTR_NAMES[k]}`) : ''}
+    <span class="gl-name">${esc({ ORE: 'Off Rebound', DRE: 'Def Rebound' }[k] || G_NAMES[k])}</span>
+    <span class="gmid">${gBar(cls, g.kinds)}</span>
+    <span class="gnum"><b class="${g.down ? 'down' : ''}">${gVal(g.shown)}</b>${g.delta ? `<i class="${g.delta > 0 ? 'up' : 'down'}">${sign(g.delta)}</i>` : ''}${g.t ? `<i class="${g.t > 0 ? 'up' : 'down'}" title="${esc(g.src || '')}: temporary">${sign(g.t)}*</i>` : ''}</span>
+    ${edit ? gBtn('attr', `data-k="${k}" data-dir="1"`, ceilMode && !PHYSICAL.includes(k) ? G_UP : G_PLUS, `Raise ${ATTR_NAMES[k]}`) : ''}
+  </div>`;
+}
+const gAllLines = (p, snap, edit, ceilMode) => `<div class="glines">${CATEGORIES.map(c => `<div class="gcat"><span class="gcat-h g-${G_CLS[c.key]}">${esc(c.name)}</span>${c.attrs.map(k => gLine(p, snap, k, edit, ceilMode)).join('')}</div>`).join('')}</div>`;
 // A category at a glance: its average bar (gold to red past his peak when declining), opening to its three ratings.
 function gGroup(p, snap, c) {
   const rows = c.attrs.map(k => gKinds(p, snap, k)), avg = f => rows.reduce((a, r) => a + f(r), 0) / rows.length;
@@ -10891,13 +10905,13 @@ screens.player = (args) => {
   // the game's − and + buttons, his potential, the ceilings switch, the trainer, upgrade points and skills.
   const ratingsView = `<fieldset class="frame g-frame"><legend>Ratings</legend>
       <div class="g-pot"><span>Potential</span>${potStars(p)}${declining(p) ? ' <span class="small down">Declining</span>' : ''}</div>
-      <div class="gstack">${CATEGORIES.map(c => gGroup(p, snap, c)).join('')}</div>
+      ${gAllLines(p, snap, false, false)}
       ${skillsChips(p)}</fieldset>`;
   const ratingsEdit = `<fieldset class="frame g-frame"><legend>Ratings</legend>${infoBtn('ratings', RATINGS_HELP)}
       <div class="gcell edit g-potrow"><span class="glbl">Potential</span>${gBtn('potAdj', 'data-dir="-1"', G_MINUS, 'Lower potential')}
         <span class="gmid">${potStars(p)}<span class="muted small"> ${capLeft > 0 ? `${capLeft} pts of room` : capLeft === 0 ? 'ceilings at potential' : `${-capLeft} pts over`}</span></span>
         <span class="gnum"><b class="${d.potDelta ? 'gold' : ''}">${p.pot}</b>${d.potDelta ? `<i class="up">${d.potDelta > 0 ? '+' : ''}${d.potDelta}</i>` : ''}</span>${gBtn('potAdj', 'data-dir="1"', G_PLUS, 'Raise potential')}</div>
-      ${CATEGORIES.map(c => `<div class="gsub open">${c.attrs.map(k => gRow(p, snap, k, true, ceilMode)).join('')}</div>`).join('')}
+      ${gAllLines(p, snap, true, ceilMode)}
       <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">${ceilMode ? '⇡ Raising ceilings' : 'Edit Ceilings'}</button></div>
     </fieldset>`;
   const content = edit ? `${detailsEdit(p, team)}${ratingsEdit}${trainer}${apCard}${skills}`

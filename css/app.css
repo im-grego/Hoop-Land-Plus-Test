@@ -1990,3 +1990,20 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .gbtn, .btn.square { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
 .pl-edit { position: absolute; top: 2px; right: 0; }
 .pl-head .pl-name { padding-right: 70px; }
+
+/* All fifteen ratings in view: compact lines under thin category labels */
+.glines { display: grid; grid-template-columns: 1fr; gap: 10px; font-family: var(--game); }
+.gcat { display: flex; flex-direction: column; gap: 4px; }
+.gcat-h { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--ft); border-bottom: 2px solid var(--fb); padding-bottom: 2px; }
+.gline { display: flex; align-items: center; gap: 8px; min-height: 26px; }
+.gline .gl-name { width: 104px; flex: none; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+.gline .gmid { flex: 1; min-width: 0; display: flex; align-items: center; }
+.gline .gbar { height: 13px; gap: 2px; }
+.gline .gbar i { width: calc((100% - 38px) / 20); }
+.gline .gnum { min-width: 30px; text-align: right; font-weight: 700; font-size: 15px; white-space: nowrap; }
+.gline .gnum i { font-style: normal; font-size: 10px; margin-left: 2px; vertical-align: 2px; }
+.gline.edit { gap: 6px; }
+.gline.edit .gl-name { width: 90px; font-size: 11px; letter-spacing: 0; }
+.gline .gbtn { width: 30px; height: 30px; margin: 2px; border-width: 2px; box-shadow: 0 0 0 2px #162e69; }
+.gline .gbtn svg { width: 16px; height: 16px; }
+@media (min-width: 700px) { .glines { grid-template-columns: 1fr 1fr; } }
