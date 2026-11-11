@@ -1944,9 +1944,6 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .rep-more .link { color: var(--cyan); text-decoration: underline; }
 .pl-stats .fa-tabs { margin-top: 4px; }
 .pl-stats .fa-tabs .btn { min-height: 34px; font-size: 13px; }
-/* The 10/20 mark (5 on the game's scale): a small notch under the 10th segment */
-.gbar i { position: relative; }
-.gbar i:nth-child(10)::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 2px; background: rgba(255, 255, 255, .45); }
 .aw-shelf { display: flex; flex-wrap: wrap; gap: 6px; font-family: var(--game); }
 .aw-chip { font-size: 12.5px; font-weight: 500; padding: 3px 8px; border: 2px solid #3f86d0; background: #1d4290; white-space: nowrap; }
 .aw-chip b { color: var(--gold); }
@@ -1991,19 +1988,20 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .pl-edit { position: absolute; top: 2px; right: 0; }
 .pl-head .pl-name { padding-right: 70px; }
 
-/* All fifteen ratings in view: compact lines under thin category labels */
-.glines { display: grid; grid-template-columns: 1fr; gap: 10px; font-family: var(--game); }
-.gcat { display: flex; flex-direction: column; gap: 4px; }
-.gcat-h { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--ft); border-bottom: 2px solid var(--fb); padding-bottom: 2px; }
-.gline { display: flex; align-items: center; gap: 8px; min-height: 26px; }
-.gline .gl-name { width: 104px; flex: none; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+
+
+/* The game's rating cells, measured off its Custom Archetype screen: segments 11 wide with 5 between (20 to a full bar,
+   so a segment is 11/315 of the bar and a gap 5/315), the bottom 28% of each a darker band; navy segments run to his
+   ceiling and nothing past it. */
+.glines { display: grid; grid-template-columns: 1fr; gap: 18px; font-family: var(--game); }
+.gcat { display: flex; flex-direction: column; gap: 18px; }
+.gcell.gline { min-height: 50px; padding: 14px 12px 10px; gap: 10px; }
 .gline .gmid { flex: 1; min-width: 0; display: flex; align-items: center; }
-.gline .gbar { height: 13px; gap: 2px; }
-.gline .gbar i { width: calc((100% - 38px) / 20); }
-.gline .gnum { min-width: 30px; text-align: right; font-weight: 700; font-size: 15px; white-space: nowrap; }
-.gline .gnum i { font-style: normal; font-size: 10px; margin-left: 2px; vertical-align: 2px; }
-.gline.edit { gap: 6px; }
-.gline.edit .gl-name { width: 90px; font-size: 11px; letter-spacing: 0; }
-.gline .gbtn { width: 30px; height: 30px; margin: 2px; border-width: 2px; box-shadow: 0 0 0 2px #162e69; }
-.gline .gbtn svg { width: 16px; height: 16px; }
-@media (min-width: 700px) { .glines { grid-template-columns: 1fr 1fr; } }
+.gline .gbar { width: 100%; height: 24px; display: flex; column-gap: 1.5873%; }
+.gline .gbar i { width: 3.4921%; flex: none; background: linear-gradient(to bottom, var(--gt) 0 72%, var(--gb) 72% 100%); }
+.gline .gnum { min-width: 38px; text-align: right; font-weight: 700; font-size: 20px; color: #fff; white-space: nowrap; }
+.gline .gnum i { font-style: normal; font-size: 11px; margin-left: 3px; vertical-align: 3px; }
+.gline.edit { padding: 14px 6px 8px; gap: 8px; }
+.gline .gbtn { width: 38px; height: 38px; margin: 3px; }
+.gline .gbtn svg { width: 22px; height: 22px; }
+@media (min-width: 760px) { .glines { grid-template-columns: 1fr 1fr; } }

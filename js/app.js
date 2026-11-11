@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.337.0';
+const APP_VERSION = '0.338.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10586,15 +10586,14 @@ function gRow(p, snap, k, edit = false, ceilMode = false) {
 function gLine(p, snap, k, edit = false, ceilMode = false) {
   const g = gKinds(p, snap, k), cls = G_CLS[gCat(k).key];
   const sign = n => `${n > 0 ? '+' : '−'}${gVal(Math.abs(n))}`;
-  return `<div class="gline ${edit ? 'edit' : ''}">
+  return `<div class="gcell gline ${edit ? 'edit' : ''}"><span class="glbl">${esc(G_NAMES[k])}</span>
     ${edit ? gBtn('attr', `data-k="${k}" data-dir="-1"`, G_MINUS, `Lower ${ATTR_NAMES[k]}`) : ''}
-    <span class="gl-name">${esc({ ORE: 'Off Rebound', DRE: 'Def Rebound' }[k] || G_NAMES[k])}</span>
     <span class="gmid">${gBar(cls, g.kinds)}</span>
     <span class="gnum"><b class="${g.down ? 'down' : ''}">${gVal(g.shown)}</b>${g.delta ? `<i class="${g.delta > 0 ? 'up' : 'down'}">${sign(g.delta)}</i>` : ''}${g.t ? `<i class="${g.t > 0 ? 'up' : 'down'}" title="${esc(g.src || '')}: temporary">${sign(g.t)}*</i>` : ''}</span>
     ${edit ? gBtn('attr', `data-k="${k}" data-dir="1"`, ceilMode && !PHYSICAL.includes(k) ? G_UP : G_PLUS, `Raise ${ATTR_NAMES[k]}`) : ''}
   </div>`;
 }
-const gAllLines = (p, snap, edit, ceilMode) => `<div class="glines">${CATEGORIES.map(c => `<div class="gcat"><span class="gcat-h g-${G_CLS[c.key]}">${esc(c.name)}</span>${c.attrs.map(k => gLine(p, snap, k, edit, ceilMode)).join('')}</div>`).join('')}</div>`;
+const gAllLines = (p, snap, edit, ceilMode) => `<div class="glines">${CATEGORIES.map(c => `<div class="gcat">${c.attrs.map(k => gLine(p, snap, k, edit, ceilMode)).join('')}</div>`).join('')}</div>`;
 // A category at a glance: its average bar (gold to red past his peak when declining), opening to its three ratings.
 function gGroup(p, snap, c) {
   const rows = c.attrs.map(k => gKinds(p, snap, k)), avg = f => rows.reduce((a, r) => a + f(r), 0) / rows.length;
