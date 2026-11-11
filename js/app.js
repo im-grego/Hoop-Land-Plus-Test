@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.332.1';
+const APP_VERSION = '0.332.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -1508,8 +1508,8 @@ function buildExport() {
   clearSeasonPoints();
   const stamped = stampDraftYear();
   // History starts: the starting year (the game scrolls back as far as it), on every league in the save.
-  const startWas = (!isCollege() && state.params.startYear > 0) ? state.data.seasonLeagues.map(x => x.season.startingYear) : null;
-  if (startWas) state.data.seasonLeagues.forEach(x => { x.season.startingYear = state.params.startYear; });
+  const startWas = (!isCollege() && histStart() > 0) ? state.data.seasonLeagues.map(x => x.season.startingYear) : null;
+  if (startWas) state.data.seasonLeagues.forEach(x => { x.season.startingYear = histStart(); });
   state.data.seasonLeagues.forEach(usePlaybooks);
   // The game's next-player-id counter (meta.uPID) must sit at or above every id in the league: the app makes players
   // too (draft classes, signings), and the game would otherwise hand out an id that's already taken.
@@ -1607,7 +1607,7 @@ actions.downloadLeague = async () => {
   const C = saveToLeague(L, { keepDraft: L.season.phase < 5, settle, ...(leagueCapSettings(L) || {}) });
   usePlaybooks(C);
   cleanCoachPool(C);
-  if (!isCollege() && state.params.startYear > 0) C.season.startingYear = state.params.startYear;
+  if (!isCollege() && histStart() > 0) C.season.startingYear = histStart();
   const name = `${state.fileName.replace(/\.[a-z0-9]{2,4}$/i, '')} LEAGUE`;
   const file = new File([serializeSave(C)], name, { type: 'application/octet-stream' });
   // The pack: traits, far-out traded picks, fans and tags, for giving back to a franchise started from this league.
@@ -2332,6 +2332,14 @@ function setupFlags() { try { return JSON.parse(localStorage.getItem(setupKey())
 // Who this save is, so it can be recognized later even under another name or slot: the user team plus the two best
 // players of every team (id and last name). Players retire over the years, so a match only needs most of them.
 const setupAnchors = L => L.teams.flatMap(t => [...t.roster].sort((a, b) => levelOf(b) - levelOf(a)).slice(0, 2).map(p => `${p.id}|${p.ln}`));
+// History from 1977: only for a save that chose it (the Realistic NBA setup or Settings), never by default, and never
+// carried over from another save.
+const histStart = () => (setupFlags().history === true ? 1977 : 0);
+function setHistory(on) {
+  const L = league(), cur = setupFlags();
+  try { localStorage.setItem(setupKey(), JSON.stringify({ ...cur, history: !!on, anchors: cur.anchors || setupAnchors(L), team: L.season.teamId, year: L.season.currentYear, short: L.shortName })); } catch { /* ignore */ }
+}
+actions.setHistory = d => { setHistory(d.v === '1'); state.dirty = true; render(); };
 function setSetupFlag(k) {
   const L = league(), cur = setupFlags();
   try { localStorage.setItem(setupKey(), JSON.stringify({ ...cur, [k]: true, anchors: cur.anchors || setupAnchors(L), team: L.season.teamId, year: L.season.currentYear, short: L.shortName, name: L.meta?.saveName || '' })); } catch { /* ignore */ }
@@ -2464,7 +2472,7 @@ function nbaSetupCard() {
     <button class="btn tiny off" data-act="nbaSetupSkip" aria-label="Not now">✕</button></div>`;
 }
 screens.nbaSetup = () => {
-  const f = setupFlags(), on = state.nbaSel ||= Object.fromEntries(NBA_SETUP.map(x => [x.k, true]));
+  const f = setupFlags(), on = state.nbaSel ||= Object.fromEntries(NBA_SETUP.map(x => [x.k, x.k !== 'history']));
   const done = k => (k === 'picks' && f.picks) || (k === 'dead' && f.dead) || (k === 'expansion' && !!expStore()?.real);
   layout({
     title: 'Realistic NBA',
@@ -2474,14 +2482,14 @@ screens.nbaSetup = () => {
     action: { act: 'nbaSetupApply', label: 'Apply' },
   });
 };
-actions.nbaSetupToggle = d => { const on = state.nbaSel ||= Object.fromEntries(NBA_SETUP.map(x => [x.k, true])); on[d.k] = !on[d.k]; render(); };
+actions.nbaSetupToggle = d => { const on = state.nbaSel ||= Object.fromEntries(NBA_SETUP.map(x => [x.k, x.k !== 'history'])); on[d.k] = !on[d.k]; render(); };
 actions.nbaSetupSkip = () => { setSetupFlag('nbaSkip'); render(); };
 actions.nbaSetupApply = () => {
-  const on = state.nbaSel || Object.fromEntries(NBA_SETUP.map(x => [x.k, true])), f = setupFlags();
+  const on = state.nbaSel || Object.fromEntries(NBA_SETUP.map(x => [x.k, x.k !== 'history'])), f = setupFlags();
   checkpoint('Realistic NBA setup');
   state.params.capSystem = !!on.cap;
   setDepth(on.rules ? 'complete' : 'simple');
-  state.params.startYear = on.history ? 1977 : 0;
+  setHistory(!!on.history);
   saveParams();
   const out = [];
   if (on.picks && !f.picks) { const r = applyRealPicksNow(); out.push(`${r.moved} picks moved`); }
@@ -10991,7 +10999,7 @@ const TAB_KEYS = {
   basics: ['capSystem', 'commissioner', 'tradeValues', 'pixelIcons', 'canBeFired', 'realClasses'],
   ai: ['liveCpuTradeChance', 'cpuCoachChanges', 'redoOptions', 'faClearCpuOffers', 'spendCpuPoints'],
   draft: ['scoutVariance', 'workoutSlots', 'readiness', 'rookieBands', 'rookieIncludeUndrafted', 'recoveryBands'],
-  nba: ['startYear'],
+  nba: [],
   dev: ['bumpMode', 'strengthBias', 'includeFreeAgents', 'seed', 'mentorTeachElite', ...F_MENTOR, ...F_MIN, ...F_REG, ...F_TRAIN, ...F_POT, ...F_INJ, ...F_INJC, 'ageBands', ...STEP_FIELDS.skills.map(x => x[0])],
   data: [],
 };
@@ -11042,7 +11050,7 @@ screens.settings = (args) => {
         })]) +
       advGroup('Age Adjustment', ['recoveryBands'], P.recoveryBands.map((b, i) => setStep(`Age ${i === 0 ? `up to ${b[0]}` : b[0] >= 99 ? `${P.recoveryBands[i - 1][0] + 1}+` : `${P.recoveryBands[i - 1][0] + 1}–${b[0]}`}: points back`, 'recBand', `data-i="${i}"`, `+${b[1]}`)));
   } else if (tab === 'nba') {
-    body = isCollege() ? '<p class="note">Real NBA settings are for pro saves.</p>' : setGroup('Realistic NBA', [options('History starts', 'startYear', [[1977, '1977 (merger)'], [0, 'As is']], 'Written as the save\'s starting year on export, so the game lets you scroll back through the history from that season.'), '<button class="btn" data-act="resetPicks">↩️ Reset All Picks</button>', '<span class="note muted small">Every team gets its own picks back, every year: trades, protections and swaps undone.</span>', '<button class="btn" data-act="applyRealPicks">🏀 Apply Real Picks</button>', '<span class="note muted small">Moves 2027-2033 picks to where they really are, matched by team name. Picks already traded in the game stay put. Top 3 and lottery protections are added where the real deal has one. The five forfeited Clippers first-rounders are removed. Swaps and rollovers are left to the app.</span>', '<button class="btn" data-act="addRealDead">💸 Add Real Dead Cap</button>', '<span class="note muted small">Stretched contracts through 2029-30: Lillard $21M a year on Milwaukee, Beal $22M a year on Phoenix.</span>']);
+    body = isCollege() ? '<p class="note">Real NBA settings are for pro saves.</p>' : setGroup('Realistic NBA', [`<div class="set-row col"><span class="grow">History starts</span><div class="seg">${[['1', '1977 (merger)'], ['0', 'As is']].map(([v, l]) => `<button class="btn small ${(histStart() ? '1' : '0') === v ? 'on focus' : 'off'}" data-act="setHistory" data-v="${v}">${l}</button>`).join('')}</div><span class="note muted small">For this save only. 1977 is written as the save's starting year on export, so the game lets you scroll back through the history from that season. As is leaves the file's own.</span></div>`, '<button class="btn" data-act="resetPicks">↩️ Reset All Picks</button>', '<span class="note muted small">Every team gets its own picks back, every year: trades, protections and swaps undone.</span>', '<button class="btn" data-act="applyRealPicks">🏀 Apply Real Picks</button>', '<span class="note muted small">Moves 2027-2033 picks to where they really are, matched by team name. Picks already traded in the game stay put. Top 3 and lottery protections are added where the real deal has one. The five forfeited Clippers first-rounders are removed. Swaps and rollovers are left to the app.</span>', '<button class="btn" data-act="addRealDead">💸 Add Real Dead Cap</button>', '<span class="note muted small">Stretched contracts through 2029-30: Lillard $21M a year on Milwaukee, Beal $22M a year on Phoenix.</span>']);
   } else if (tab === 'dev') {
     let lo = 0;
     body = setGroup('Offseason Bump', [
@@ -20735,7 +20743,7 @@ function buildLeagueExport() {
   }
   usePlaybooks(L);
   const yWas = L.season.startingYear;
-  if (!isCollege() && state.params.startYear > 0) L.season.startingYear = state.params.startYear;
+  if (!isCollege() && histStart() > 0) L.season.startingYear = histStart();
   const text = serializeSave(L);
   L.season.startingYear = yWas;
   for (const [p, t] of keep) p.traits = t;
