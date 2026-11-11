@@ -2147,3 +2147,7 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .lu-bar2 { position: relative; display: block; height: 5px; background: rgba(0, 0, 0, 0.35); }
 .lu-bar2 i { display: block; height: 100%; background: #fff; }
 .lu-bar2::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 2px), var(--panel, #10469e) calc(25% - 2px) 25%); }
+
+/* The title board fills the header's height: its bottom lines up with the back/home button and the coin and token chips. */
+.header .marquee { height: auto; min-height: 84px; align-self: stretch; }
+@media (min-width: 700px) { .header .marquee { min-height: 96px; } }
