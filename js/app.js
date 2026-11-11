@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.347.0';
+const APP_VERSION = '0.348.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -2798,7 +2798,7 @@ const STEP_SCREENS = {
   dev: ['staff', 'meeting', 'offseason', 'report', 'mentor', 'rookies', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'teamBooks', 'coaches', 'coach'], media: ['storylines', 'survey', 'mediaRumors'], cuts: ['cuts', 'latefa', 'liveTrade'], rotation: ['lineup', 'player'], export: ['export'],
   review: ['review', 'teamStats', 'player'], waters: ['waters', 'player'], nil: ['nil', 'player'], retention: ['retention', 'player'], carousel: ['carousel'], camps: ['camps', 'recruitee'], legacy: ['legacy', 'player'], schedule: ['schedule'], tour: ['tour', 'player'], walkons: ['walkons', 'player'], redshirt: ['redshirt', 'player'], madness: ['madness'], mediaday: ['mediaday', 'player'], departures: ['departures'], seniors: ['seniors'], portal: ['portal'], showcase: ['showcase', 'recruitee'], rw1: ['recruit', 'recruitee', 'recruitweek'], rw2: ['recruit', 'recruitee', 'recruitweek'], rw3: ['recruit', 'recruitee', 'recruitweek'], rw4: ['recruit', 'recruitee', 'recruitweek'], signing: ['signing'], preseason: ['preseason'], rosterlock: ['rosterlock'], practice: ['practice'], summer: ['offseason', 'report', 'mentor', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook'],
 };
-const ALWAYS = ['start', 'startTeam', 'startFA', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks'];
+const ALWAYS = ['start', 'startTeam', 'startFA', 'market', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks'];
 function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
@@ -3269,6 +3269,7 @@ screens.main = () => {
       </div>
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
       ${startCard()}
+      ${marketCard()}
       ${retireeCard()}
       ${careerCard()}
       ${expAskCard()}
@@ -8618,6 +8619,54 @@ const dlRole = t => { const { pct, gp } = dlPct(t); return gp < 15 ? 'bubble' : 
 // Just traded (a fresh stint with no games yet): not flipped again the same deadline.
 const justMoved = p => { const r = (p.stats || []).find(s => s.league === 0 && s.yr === league().season.currentYear); return !!r && r.season.length > 1 && !r.season[r.season.length - 1].GP; };
 const dlValueYear = () => { const L = league(), y = L.season.currentYear; return L.teams.some(t => (dlPct(t).gp || 0) >= 20) ? y : lastYear(); };
+// The in-season trade market. Hoop Land's own CPU trades are off in the season files (they made wild deals), so the
+// league's trades happen here, and only when you ask: from about 30 games in until the deadline, contenders shop the
+// sellers' veterans. Usually a role player (1-3 smaller deals), now and then a bigger name. Once per day of the season.
+const MKT_GP = 30;
+const mktKey = () => `hlc:market:${saveTag()}:${league().season.currentYear}`;
+function mktState() { try { return JSON.parse(localStorage.getItem(mktKey())) || {}; } catch { return {}; } }
+function mktSave(s) { try { localStorage.setItem(mktKey(), JSON.stringify(s)); } catch { /* ignore */ } }
+const mktGames = () => { const L = league(), g = L.teams.map(t => dlPct(t).gp); return g.length ? Math.round(g.reduce((a, b) => a + b, 0) / g.length) : 0; };
+const mktOpen = () => { const L = league(); return !isCollege() && !CAR.isCareer(L) && L.season.phase === 9 && mktGames() >= MKT_GP && (!L.season.tradeDeadline || L.season.currentDay < L.season.tradeDeadline) && !dlState().done; };
+function marketCard() {
+  if (!state.data || !mktOpen()) return '';
+  const today = mktState().days?.[league().season.currentDay];
+  return `<fieldset class="frame"><legend>📞 Trade Market</legend><p class="note small">${today ? `Today: ${today.length ? `${today.length} deal${today.length > 1 ? 's' : ''} went down.` : 'nothing got done.'}` : 'Contenders are calling the sellers. Nothing moves unless you open the market.'}</p>
+    <button class="btn" data-act="nav" data-to="market">📞 Trade Market</button></fieldset>`;
+}
+screens.market = () => {
+  const L = league(), s = mktState(), day = L.season.currentDay, today = s.days?.[day];
+  const group = r => L.teams.filter(t => dlRole(t) === r).sort((a, b) => dlPct(b).pct - dlPct(a).pct);
+  const chip = t => `<span class="style-chip">${esc(t.shortName)} ${dlPct(t).w}-${dlPct(t).l}</span>`;
+  // On the block: the sellers' veterans the buyers are asking about.
+  const block = group('seller').filter(t => !isUserTeam(t)).flatMap(t => FA.signedRoster(t).filter(p => p.age >= 27 && shownLevel(p) >= 72 && (p.contract?.yrs || 0) <= 2 && !tradeLock(p)).map(p => ({ p, t }))).sort((a, b) => shownLevel(b.p) - shownLevel(a.p)).slice(0, 8);
+  const past = Object.entries(s.days || {}).filter(([d, x]) => +d !== day && x.length).sort((a, b) => b[0] - a[0]);
+  layout({
+    title: 'Trade Market',
+    body: `<p class="note small">Day ${day} · about ${mktGames()} games in${L.season.tradeDeadline ? ` · the deadline is day ${L.season.tradeDeadline}` : ''}. The game's own CPU trades are off: the league deals here, when you open the market.</p>
+      <fieldset class="frame"><legend>Who's Calling</legend><p class="note small"><b>Buying</b></p><div class="style-chips">${group('buyer').map(chip).join('') || '<span class="muted small">nobody yet</span>'}</div>
+        <p class="note small" style="margin-top:6px"><b>Selling</b></p><div class="style-chips">${group('seller').map(chip).join('') || '<span class="muted small">nobody yet</span>'}</div></fieldset>
+      <fieldset class="frame"><legend>On the Block</legend>${block.length ? `<div class="stack">${block.map(({ p, t }) => `<div class="drill-row"><span class="grow tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(playerName(p))}</b> ${lvTag(p)}<br><span class="small muted">${esc(t.shortName)} · ${esc(posName(p))} · ${p.age}y · $${p.contract?.sal || 0}M × ${p.contract?.yrs || 0}</span></span></div>`).join('')}</div>` : '<p class="note small muted">Nobody shopping anyone yet.</p>'}</fieldset>
+      <fieldset class="frame"><legend>Today</legend>${today ? `<div class="stack">${today.map(x => `<p class="note small">${esc(x)}</p>`).join('') || '<p class="note small muted">Phones rang, nothing got done.</p>'}</div><p class="note small muted">Come back on a later day (export, play on, load the file) for another round.</p>`
+        : `<p class="note small">Open the market and the league's teams may make a deal or two: mostly a contender adding a piece from a seller. Make your own moves first if you like.</p><button class="btn big focus" data-act="mktRun">📞 Open the market</button>`}
+        <button class="btn" data-act="nav" data-to="liveTrade" style="margin-top:8px">🔁 Make your own trade</button></fieldset>
+      ${past.length ? `<fieldset class="frame"><legend>Earlier</legend><div class="stack">${past.map(([d, x]) => x.map(y => `<p class="note small"><span class="muted">Day ${d}</span> ${esc(y)}</p>`).join('')).join('')}</div></fieldset>` : ''}`,
+  });
+};
+actions.mktRun = async () => {
+  const L = league(), day = L.season.currentDay, s = mktState();
+  if (!mktOpen() || s.days?.[day]) return;
+  if (!(await confirmBox('Open the market? CPU teams may trade with each other (usually a smaller deal or two). Those trades go in your export.', 'Open'))) return;
+  checkpoint('Trade market');
+  const r = mulberry32((saveSalt() ^ (day * 7919)) >>> 0);
+  const max = r() < 0.2 ? 0 : 1 + Math.floor(r() * 3);
+  const deals = max ? runDeadline({ max, lvMin: 72, bigLv: 82, bigOdds: 0.2, salt: day }) : [];
+  (s.days ||= {})[day] = deals;
+  mktSave(s);
+  state.dirty = true;
+  render();
+  toast('📞 Trade market', deals.length ? `${deals.length} deal${deals.length > 1 ? 's' : ''} around the league` : 'Phones rang, nothing got done', 4200);
+};
 function deadlineCard() {
   const d = dlState(), L = league(), s = L.season;
   return `<fieldset class="frame"><legend>🔔 Trade Deadline</legend><p class="note small">All-Star weekend: the deadline is day ${s.tradeDeadline}. ${d.done ? `${d.deals.length} deals went down around the league.` : 'Contenders are buying, the rebuilding teams are selling.'}</p>
@@ -8625,18 +8674,20 @@ function deadlineCard() {
 }
 // The league's deadline deals: each seller shops its best veterans (27+, Lv 76+, two years or less left), each
 // buyer makes one deal at most, about eight in all. Returns the log lines.
-function runDeadline() {
+function runDeadline(o = {}) {
   const L = league(), yr = L.season.currentYear, vy = dlValueYear(), li = state.leagueIdx;
-  const rng = mulberry32((saveSalt() ^ Math.imul(yr + 17, 0x9e3779b1)) >>> 0);
+  const MAX = o.max ?? 8, LV = o.lvMin ?? 76, BIG = o.bigLv ?? 99, BIG_ODDS = o.bigOdds ?? 1;
+  const rng = mulberry32((saveSalt() ^ Math.imul(yr + 17 + (o.salt || 0), 0x9e3779b1)) >>> 0);
   const cpu = L.teams.filter(t => !isUserTeam(t));
   const sellers = cpu.filter(t => dlRole(t) === 'seller').sort(() => rng() - 0.5), buyers = cpu.filter(t => dlRole(t) === 'buyer');
   const used = new Set(), out = [];
   const val = p => playerValue(p, li, vy);
   for (const t of sellers) {
-    if (out.length >= 8) break;
-    const vets = FA.signedRoster(t).filter(p => p.age >= 27 && shownLevel(p) >= 76 && (p.contract?.yrs || 0) <= 2 && !tradeLock(p) && !justMoved(p) && !FA.isLifer(L, p, t)).sort((a, b) => val(b) - val(a)).slice(0, 2);
+    if (out.length >= MAX) break;
+    // A big name only now and then (the market's usual deal is a piece, not a star).
+    const vets = FA.signedRoster(t).filter(p => p.age >= 27 && shownLevel(p) >= LV && (shownLevel(p) < BIG || rng() < BIG_ODDS) && (p.contract?.yrs || 0) <= 2 && !tradeLock(p) && !justMoved(p) && !FA.isLifer(L, p, t)).sort((a, b) => val(b) - val(a)).slice(0, 2);
     for (const p of vets) {
-      if (out.length >= 8 || rng() > 0.65) continue;
+      if (out.length >= MAX || rng() > 0.65) continue;
       const want = val(p);
       let best = null;
       for (const u of buyers.filter(x => !used.has(x.id)).sort(() => rng() - 0.5).slice(0, 8)) {
