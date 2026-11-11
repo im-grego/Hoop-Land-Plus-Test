@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.332.3';
+const APP_VERSION = '0.332.4';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -459,14 +459,16 @@ function stars(halfStars, now = halfStars / 2, peak = now) {
   const total = halfStars / 2;
   const gold = Math.max(0, Math.min(total, now));
   const red = Math.max(gold, Math.min(total, peak));
+  // Regressing: the row stops at his peak (gold, then red, no white beyond it), cut to the pixel column even mid-star.
+  const end = red > gold ? red : total;
   const out = [];
-  for (let i = 0; i < Math.ceil(total); i++) {
-    const cols = total - i < 1 ? 3 : 5;
+  for (let i = 0; i < Math.ceil(end - 1e-9); i++) {
+    const cols = red > gold ? Math.max(1, Math.min(5, Math.round((end - i) * 5))) : total - i < 1 ? 3 : 5;
     // A column is gold (or lost) when the level reaches its middle: five columns a star, like the game.
     const kind = c => { const mid = i + (c + 0.5) / 5; return gold >= mid ? 'gold' : red >= mid ? 'lost' : 'room'; };
     out.push(`<span class="st" style="width:${cols * 3}px">${starSprite(kind, cols)}</span>`);
   }
-  const lbl = `${total} star potential, ${Math.round(gold * 10) / 10} now${red > gold ? `, ${Math.round((red - gold) * 10) / 10} lost to age` : ''}`;
+  const lbl = `${red > gold ? `${Math.round(red * 10) / 10} star peak` : `${total} star potential`}, ${Math.round(gold * 10) / 10} now${red > gold ? `, ${Math.round((red - gold) * 10) / 10} lost to age` : ''}`;
   return `<span class="st-row" aria-label="${lbl}">${out.join('')}</span>`;
 }
 
