@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.349.12';
+const APP_VERSION = '0.349.13';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -12985,7 +12985,7 @@ screens.combine = (args) => {
     body = `<p class="note muted small">Check the buzz on Hoop Gram.</p>
       <div class="stack">${posts.map(x => `<button class="hg-post" ${rowAct(x.p)}>
         <div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>${esc(x.handle)}</b><span class="hg-tag">${esc(x.tag)}</span></div>
-        <p class="hg-text">${esc(x.text)}</p>
+        <p class="hg-text">${esc(gram(x.text))}</p>
         <div class="hg-foot"><span>❤️ ${x.likes.toLocaleString()}</span><span class="cyan">${esc(playerName(x.p))} ›</span></div>
       </button>`).join('') || '<p class="note">Quiet combine.</p>'}</div>`;
   } else if (tab === 'ath' || tab === 'shoot') {
@@ -17945,7 +17945,7 @@ function leagueGramCard() {
   return `<h2 class="team-title">Trending on Hoop Gram</h2>
     <div class="stack">${posts.map(x => `<${x.pid ? `button data-act="openPlayer" data-id="${x.pid}"` : 'div'} class="hg-post ${x.pid ? 'tap' : ''}">
       <div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>${esc(x.handle)}</b></div>
-      <p class="hg-text">${esc(x.text)}</p>
+      <p class="hg-text">${esc(gram(x.text))}</p>
       <div class="hg-foot"><span>❤️ ${x.likes.toLocaleString()}</span><span class="muted">${esc(x.team.shortName)}</span></div>
     </${x.pid ? 'button' : 'div'}>`).join('')}</div>`;
 }
@@ -18086,7 +18086,7 @@ const NICKNAMES = {
   'Bam Adebayo': 'Bam', 'OG Anunoby': 'OG', 'RJ Barrett': 'RJ', 'CJ McCollum': 'CJ', 'Jaylen Brown': 'JB', 'Jalen Williams': 'J-Dub',
   'Tyrese Haliburton': 'Hali', 'Jimmy Butler III': 'Jimmy', 'Draymond Green': 'Draymond', 'Scottie Barnes': 'Scottie', 'Cade Cunningham': 'Cade',
   'Franz Wagner': 'Franz', 'Paolo Banchero': 'Paolo', 'LaMelo Ball': 'LaMelo', 'Lonzo Ball': 'Lonzo', 'Devin Booker': 'Book', 'Damian Lillard': 'Dame',
-  'Chet Holmgren': 'Chet', 'Klay Thompson': 'Klay', 'Carmelo Anthony': 'Melo',
+  'Chet Holmgren': 'Chet', 'Klay Thompson': 'Klay', 'Carmelo Anthony': 'Melo', 'Luka Dončić': 'Luka', 'Nikola Jokić': 'Jokic',
 };
 const plain = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
 const shortNames = new WeakMap();
@@ -18114,6 +18114,14 @@ function shortName(p, L = league()) {
   if (mine(f) && (!mine(l) || f.length <= l.length - 4)) return f;
   if (mine(l)) return l;
   return playerName(p);
+}
+// Hoop Gram posts read like the real thing: in the NBA league, a player with a nickname goes by it (AD, KAT, Ant).
+function gram(s, L = league()) {
+  if (!s || !L) return s;
+  shortName(L.teams.find(t => t.roster?.length)?.roster[0] || {}, L);
+  if (!shortNames.get(L)?.nba) return s;
+  for (const [full, nick] of Object.entries(NICKNAMES)) if (s.includes(full)) s = s.split(full).join(nick);
+  return s.replace(/\b(\w+)\.\./g, '$1.');
 }
 function rumorPost(r) {
   const p = r.p, t = r.team, nm = playerName(p), first = shortName(p), city = t.city;
@@ -18176,7 +18184,7 @@ function rumorPost(r) {
   const likes = 800 + (seed % 9000) + r.heat * 4000;
   return `<button class="hg-post tap" data-act="openPlayer" data-id="${p.id}">
     <div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>${handle}</b></div>
-    <p class="hg-text">${esc(pick(r.kind === 'vet' ? vet : r.kind === 'blowup' ? blowup : r.kind === 'taxpay' ? taxpay : r.kind === 'block' ? block : star).trim())}</p>
+    <p class="hg-text">${esc(gram(pick(r.kind === 'vet' ? vet : r.kind === 'blowup' ? blowup : r.kind === 'taxpay' ? taxpay : r.kind === 'block' ? block : star).trim()))}</p>
     <div class="hg-foot"><span>❤️ ${likes.toLocaleString()}</span><span class="muted">${esc(t.shortName)} · ${esc(nm)} ${lvTag(p)}</span></div>
   </button>`;
 }
