@@ -1945,3 +1945,6 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .rep-more .link { color: var(--cyan); text-decoration: underline; }
 .pl-stats .fa-tabs { margin-top: 4px; }
 .pl-stats .fa-tabs .btn { min-height: 34px; font-size: 13px; }
+/* The 10/20 mark (5 on the game's scale): a small notch under the 10th segment */
+.gbar i { position: relative; }
+.gbar i:nth-child(10)::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 2px; background: rgba(255, 255, 255, .45); }
