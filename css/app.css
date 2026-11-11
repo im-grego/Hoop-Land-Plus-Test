@@ -2046,5 +2046,6 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .rec-more summary::before { content: '▸ '; }
 .rec-more[open] summary::before { content: '▾ '; }
 .rec-more > .stack { margin-top: 2px; }
-.rec-tri { background: none; border: 0; padding: 0 2px 0 6px; color: var(--dim, #9fb6e0); font-size: 13px; line-height: 1; align-self: flex-end; cursor: pointer; }
+.rec-tri { background: none; border: 0; padding: 0 4px; color: var(--dim, #9fb6e0); font-size: 13px; line-height: 1; cursor: pointer; }
+.rec-tri-row { display: flex; justify-content: flex-end; margin-top: -6px; height: 14px; }
 .rec-tri.open { transform: rotate(180deg); }

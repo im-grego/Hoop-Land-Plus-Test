@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.346.1';
+const APP_VERSION = '0.346.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -11229,9 +11229,9 @@ screens.records = (args = {}) => {
   const list = cache.get(ck).filter(([, rows]) => rows.length).map(([name, rows]) => {
     const key = `rec-${kind}-${name}`, open = !!state.recOpen?.[key];
     const tri = rows.length > 3 ? `<button class="rec-tri ${open ? 'open' : ''}" data-act="recMore" data-k="${esc(key)}" aria-label="${open ? 'Show fewer' : 'Show 4-10'}">▾</button>` : '';
-    return `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.slice(0, 3).map((r, i) => recRow(r, i, i === Math.min(2, rows.length - 1) ? tri : '')).join('')}${open ? rows.slice(3).map((r, i) => recRow(r, i + 3)).join('') : ''}</div></fieldset>`;
+    return `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.slice(0, 3).map((r, i) => recRow(r, i)).join('')}${open ? rows.slice(3).map((r, i) => recRow(r, i + 3)).join('') : ''}${tri ? `<div class="rec-tri-row">${tri}</div>` : ''}</div></fieldset>`;
   }).join('');
-  layout({ title: 'Record Book', body: `${tabs}<p class="note small muted">${kind === 'career' ? 'Career totals, all time (regular season).' : `Single-game bests, all time: every player's career high${kind === 'playoffs' ? ' in the playoffs' : ''}.`} Tap ▾ to see 4-10.</p>${list || `<p class="note muted">No ${kind === 'playoffs' ? 'playoff ' : ''}games on record yet.</p>`}` });
+  layout({ title: 'Record Book', body: `${tabs}<p class="note small muted">Tap ▾ to see 4-10.</p>${list || `<p class="note muted">No ${kind === 'playoffs' ? 'playoff ' : ''}games on record yet.</p>`}` });
 };
 
 // ---- Career milestones: his career totals, where they rank all-time in this league (active, free agents, retired and
