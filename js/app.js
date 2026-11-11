@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.345.4';
+const APP_VERSION = '0.346.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -983,6 +983,7 @@ async function loadFile(file) {
     if (!isCollege() && applyStreaks()) state.dirty = true;
     if (!isCollege() && applyFatigue()) state.dirty = true;
     if (!isCollege()) cupKnockout();
+    if (!isCollege()) glCatchUp();
     if (!isCollege() && (applyRisers() + settleRisers())) state.dirty = true;
     if (!isCollege() && stashReturn()) state.dirty = true;
     if (!isCollege() && capFreeThrows()) state.dirty = true;
@@ -9119,7 +9120,9 @@ function playoffRotations() {
 // G League: a team sends up to three young players (24 or under) who aren't in the rotation down during the first half
 // of the season. At the All-Star break each earns development points for his time there (more for the youngest and
 // the ones with real upside, less if he was getting NBA minutes anyway); the offseason bump adds them, listed as
-// "1 year in the G League". Hoop Land has no G League of its own: keep him out of the rotation in the game.
+// "1 year in the G League". Hoop Land has no G League of its own, so a player sent down comes off the game roster
+// (the app keeps him, as he was): his spot opens for a signing. A recall puts him back when there's room; anyone still
+// down when the season is over rejoins his team in the next offseason file.
 const GL_MAX = 3, GL_AGE = 24, GL_MPG = 15;
 const glKey = () => `hlc:gleague:${saveTag()}`;
 function glStore() { try { return JSON.parse(localStorage.getItem(glKey())) || {}; } catch { return {}; } }
@@ -9129,6 +9132,32 @@ const glAsw = (L = league()) => L.season.allStarWeekend || 0;
 // Sending players down: the regular season, up to the All-Star break.
 const glOpen = (L = league()) => !isCollege() && !CAR.isCareer(L) && L.season.phase === 9 && (!glAsw(L) || L.season.currentDay < glAsw(L));
 const inGL = p => league().season.phase === 9 && !!glSeason(league().season.currentYear)[p.id];
+// The player himself: on a roster (an older send-down kept him there) or the copy the app holds while he's down.
+const glPlayer = (pid, rec) => findPlayer(+pid)?.p || rec?.player || null;
+// Back on his team's roster (no-op if he's already there).
+function glReturn(L, pid, rec) {
+  const t = L.teams.find(x => x.id === rec.tid);
+  if (!t || !rec.player || t.roster.some(x => x.id === +pid)) return false;
+  const p = rec.player;
+  p.tid = t.id; p.status = FA.STATUS_SIGNED; p.linePos = t.roster.length;
+  t.roster.push(p);
+  delete rec.player;
+  return true;
+}
+// A new season's file: whoever is still down from an earlier season rejoins his team.
+function glCatchUp() {
+  const L = league();
+  if (isCollege() || CAR.isCareer(L)) return 0;
+  const all = glStore();
+  let n = 0;
+  for (const [y, recs] of Object.entries(all)) for (const [pid, rec] of Object.entries(recs)) {
+    if (!rec.player) continue;
+    if (+y === L.season.currentYear && L.season.phase === 9) continue;   // still this season: he stays down until recalled
+    if (glReturn(L, pid, rec)) n++;
+  }
+  if (n) { glSave(all); state.dirty = true; setTimeout(() => toast('⬆️ Back from the G League', `${n} player${n > 1 ? 's' : ''} rejoined ${n > 1 ? 'their teams' : 'his team'}.`, 4200), 1600); }
+  return n;
+}
 const glNbaMpg = (p, y) => seasonLine(p, state.leagueIdx, y)?.mpg || 0;
 const glWhyNot = (p, t, y = league().season.currentYear) => p.age > GL_AGE ? `only players ${GL_AGE} and under` : p.status !== FA.STATUS_SIGNED ? 'not under contract'
   : glNbaMpg(p, y) >= GL_MPG ? `he's in the rotation (${glNbaMpg(p, y).toFixed(1)} minutes)` : Object.values(glSeason(y)).filter(r => r.tid === t.id).length >= GL_MAX ? `${GL_MAX} already down` : '';
@@ -9154,7 +9183,7 @@ function glSettle() {
   if (!recs || Object.values(recs).every(r => r.xp != null)) return;
   for (const [pid, rec] of Object.entries(recs)) {
     if (rec.xp != null) continue;
-    const p = findPlayer(+pid)?.p;
+    const p = glPlayer(pid, rec);
     if (!p) { delete recs[pid]; continue; }
     rec.xp = glXp(p, rec, y);
     rec.line = glLine(p, rec, y);
@@ -9166,30 +9195,43 @@ actions.glSend = d => {
   if (!e?.team || !isUserTeam(e.team) || !glOpen(L)) return;
   const why = glWhyNot(e.p, e.team);
   if (why) { toast(`Can't send him down: ${why}`); return; }
-  const all = glStore(), y = L.season.currentYear;
-  (all[y] ||= {})[e.p.id] = { tid: e.team.id, day: L.season.currentDay || 0 };
+  const all = glStore(), y = L.season.currentYear, p = e.p, t = e.team;
+  checkpoint(`Send ${playerName(p)} down`);
+  // Off the game roster; the app holds him as he is.
+  (all[y] ||= {})[p.id] = { tid: t.id, day: L.season.currentDay || 0, player: JSON.parse(JSON.stringify(p)) };
+  t.roster.splice(t.roster.indexOf(p), 1);
+  if (Array.isArray(t.startingLineup)) t.startingLineup = t.startingLineup.filter(x => x.pid !== p.id);
+  t.roster.forEach((x, i) => { x.linePos = i; });
   glSave(all);
+  state.dirty = true;
   render();
-  toast(`🏀 ${playerName(e.p)} sent to the G League`, 'Keep him out of the rotation in Hoop Land.');
+  toast(`🏀 ${playerName(p)} sent to the G League`, `A roster spot opens (${FA.signedRoster(t).length}/15).`);
 };
 actions.glRecall = d => {
-  const all = glStore(), y = league().season.currentYear;
-  if (!all[y]?.[+d.id] || !glOpen()) return;
-  delete all[y][+d.id];
+  const L = league(), all = glStore(), y = L.season.currentYear, rec = all[y]?.[+d.id];
+  if (!rec || L.season.phase !== 9) return;
+  const t = L.teams.find(x => x.id === rec.tid);
+  if (rec.player) {
+    if (FA.signedRoster(t).length >= 15) { toast('No room to bring him up', `${t.shortName} are at 15: waive someone first.`, 3200, true); return; }
+    checkpoint(`Recall ${playerName(rec.player)}`);
+    glReturn(L, d.id, rec);
+  }
+  // A recall before the All-Star break ends his stint (no points); after it he keeps what he earned.
+  if (rec.xp == null) delete all[y][+d.id]; else rec.back = true;
   glSave(all);
+  state.dirty = true;
   render();
 };
 const glRow = (p, right) => `<div class="drill-row"><span class="grow tap" style="min-width:0" data-act="openPlayer" data-id="${p.id}"><b>${esc(playerName(p))}</b> ${lvTag(p)}<br><span class="small muted">${esc(posName(p))} · ${p.age}y · ${glNbaMpg(p, league().season.currentYear).toFixed(1)} NBA min a night</span></span>${right}</div>`;
 // One team's G League: who's down there and who could go.
 function glTeamBox(t) {
   const L = league(), y = L.season.currentYear, recs = glSeason(y), open = glOpen(L);
-  const down = Object.entries(recs).filter(([, r]) => r.tid === t.id).map(([pid, r]) => ({ p: findPlayer(+pid)?.p, r })).filter(x => x.p);
+  const down = Object.entries(recs).filter(([, r]) => r.tid === t.id && !r.back).map(([pid, r]) => ({ p: glPlayer(pid, r), r })).filter(x => x.p);
   const cand = open ? FA.signedRoster(t).filter(p => !recs[p.id] && p.age <= GL_AGE && glNbaMpg(p, y) < GL_MPG).sort((a, b) => (b.pot || 0) - (a.pot || 0) || a.age - b.age).slice(0, 8) : [];
   const full = down.length >= GL_MAX;
   return `<fieldset class="frame"><legend>${esc(t.shortName)} · G League ${down.length}/${GL_MAX}</legend>
-    ${down.length ? `<div class="stack">${down.map(({ p, r }) => glRow(p, r.xp != null
-      ? `<span class="small up" style="text-align:right">+${r.xp} dev pts<br><span class="muted">${r.line.ppg}/${r.line.rpg}/${r.line.apg} · ${r.line.gp}g</span></span>`
-      : open ? `<button class="btn small off" data-act="glRecall" data-id="${p.id}">↩ Recall</button>` : '')).join('')}</div>` : '<p class="note small muted">Nobody down there.</p>'}
+    <p class="note small muted">${FA.signedRoster(t).length}/15 on the roster. Players down here don't count.</p>
+    ${down.length ? `<div class="stack">${down.map(({ p, r }) => glRow(p, `<span class="small" style="text-align:right">${r.xp != null ? `<span class="up">+${r.xp} dev pts</span><br><span class="muted">${r.line.ppg}/${r.line.rpg}/${r.line.apg} · ${r.line.gp}g</span><br>` : ''}${L.season.phase === 9 && r.player ? `<button class="btn small off" data-act="glRecall" data-id="${p.id}">↩ Recall</button>` : ''}</span>`)).join('')}</div>` : '<p class="note small muted">Nobody down there.</p>'}
     ${cand.length ? `<h4 class="ov-h">Could use the reps</h4><div class="stack">${cand.map(p => glRow(p, `<button class="btn small ${full ? 'off' : 'focus'}" data-act="glSend" data-id="${p.id}" ${full ? 'disabled' : ''}>🏀 Send down</button>`)).join('')}</div>` : ''}
   </fieldset>`;
 }
