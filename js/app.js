@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.354.7';
+const APP_VERSION = '0.354.8';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -686,8 +686,7 @@ function layout({ title, left = '', right = '', body, action = null, actionLeft 
   const t = esc(title);
   keepLogos(() => { $app.innerHTML = `
     ${bare ? `<h1 class="sr-only">${t}</h1>` : `<div class="header">
-      ${state.stack.length > 1 ? `<button class="btn back" data-act="back" aria-label="Back">${BACK_ARROW}</button>` : ''}
-      ${state.stack.length > 2 ? `<button class="btn back home-btn" data-act="home" aria-label="Main menu">${HOME_ICON}</button>` : ''}
+      ${state.stack.length === 2 ? `<button class="btn back home-btn" data-act="back" aria-label="Main menu">${HOME_ICON}</button>` : state.stack.length > 2 ? `<button class="btn back" data-act="back" aria-label="Back">${BACK_ARROW}</button>` : ''}
       ${left}
       <div class="marquee" role="heading" aria-level="1" aria-label="${t}">
         <div class="marquee-track" aria-hidden="true"><span>${t}</span><span>${t}</span></div>
