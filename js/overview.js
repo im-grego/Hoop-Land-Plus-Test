@@ -343,8 +343,11 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
       const C = FA.capLines(L), pay = FA.teamCommitted(team);
       if (pay > C.tax) {
         const bill = FA.taxBill(L, team);
-        const big = [...roster].filter(p => level(p) >= 76).sort((a, b) => (b.contract?.sal || 0) - (a.contract?.sal || 0))[0];
-        if (big && FA.taxStance(L, team) !== 'pay') out.push({ kind: 'blowup', p: big, team, heat: 2, why: [`$${pay - C.tax}M over the tax`, `a $${bill}M tax bill`], level: level(big), morale: big.season?.morale ?? 70, bill });
+        // A 90+ player is the one they build around, never the one they sell to get under the tax (he only turns up as
+        // a disgruntled star): the biggest contract after him is the one that could move.
+        const core = roster.filter(p => level(p) >= 90).sort((a, b) => level(b) - level(a))[0] || null;
+        const big = [...roster].filter(p => level(p) >= 76 && level(p) < 90).sort((a, b) => (b.contract?.sal || 0) - (a.contract?.sal || 0))[0];
+        if (big && FA.taxStance(L, team) !== 'pay') out.push({ kind: 'blowup', p: big, team, heat: 2, why: [`$${pay - C.tax}M over the tax`, `a $${bill}M tax bill`], level: level(big), morale: big.season?.morale ?? 70, bill, keep: core });
         else if (big) out.push({ kind: 'taxpay', p: star, team, heat: 1, why: [`$${pay - C.tax}M over the tax`], level: level(star), morale: star.season?.morale ?? 70, bill });
       }
     }
