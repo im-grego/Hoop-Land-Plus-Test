@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.333.2';
+const APP_VERSION = '0.333.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10569,9 +10569,9 @@ function profileFacts(p, team, mpg) {
   const hurt = p.season?.injury?.gamesOut > 0 ? p.season.injury : null, ct = contractText(p, true);
   const yd = declineYear(p);
   const f = [
-    team ? (ct ? `💵 ${esc(ct)}` : '') : '<span class="muted">Free agent</span>',
+    team ? (ct ? `📋 ${esc(ct)}` : '') : '<span class="muted">Free agent</span>',
     mpg?.mpg ? `⏱️ ${Math.round(mpg.mpg)} MPG` : '',
-    hurt ? `<span class="down">🩹 Out ${hurt.gamesOut}g</span>` : '<span class="up">✚ Healthy</span>',
+    hurt ? `<span class="down">🩹 Out ${hurt.gamesOut}g</span>` : '',
     declining(p) ? `<span class="down">📉 ${yd > 0 ? `Decline yr ${yd}` : 'Decline starts'}</span>` : p.regressionAge ? `<span class="muted">Prime to ${p.regressionAge}</span>` : '',
   ].filter(Boolean);
   return `<div class="pl-facts">${f.map(x => `<span>${x}</span>`).join('')}</div>`;
