@@ -364,6 +364,30 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
         if (big) out.push({ kind: 'blowup', p: big, team, heat: seller || pay >= C.apron2 ? 2 : 1, why, level: level(big), morale: big.season?.morale ?? 70, bill, keep, seller });
       }
     }
+    // Same duo, same result: two of its best three (84+, within 8 levels of each other) have gone out in the playoffs together three years running
+    // without a title. Before their value slips, the team would move one to build around the other (the higher
+    // potential, then the younger, is the one it keeps).
+    {
+      const top = roster.slice(0, 3).filter(p => level(p) >= 82);
+      const runs = (team.season || []).filter(s => (s.round || 0) > 0 && (s.yr < L.season.currentYear || L.season.phase > 9)).sort((x, y) => y.yr - x.yr);
+      const together = (p, yr) => (p.stats || []).some(x => x.league === li && x.yr === yr && (x.playoffs || []).some(r => r.tid === team.id));
+      const streak = (a, b) => {
+        let n = 0;
+        for (const s of runs) {
+          if (s.yr !== runs[0].yr - n) break;
+          const champ = (s.round === 4 && s.seriesWins === 4) || team.championships?.yearsWon?.includes(s.yr);
+          if (champ || !together(a, s.yr) || !together(b, s.yr)) break;
+          n++;
+        }
+        return n;
+      };
+      const pairs = top.flatMap((a, i) => top.slice(i + 1).map(b => [a, b])).filter(([a, b]) => Math.min(level(a), level(b)) >= 84 && Math.abs(level(a) - level(b)) <= 8);   // a real duo, not a star and his sidekick
+      const hit = runs[0] && runs[0].yr >= L.season.currentYear - 1 && pairs.map(([a, b]) => ({ a, b, n: streak(a, b) })).find(x => x.n >= 3);
+      if (hit) {
+        const [keep, move] = [hit.a, hit.b].sort((x, y) => (y.pot || 0) - (x.pot || 0) || x.age - y.age || level(y) - level(x));
+        out.push({ kind: 'split', p: move, team, heat: 2, why: [], level: level(move), morale: move.season?.morale ?? 70, keep: [keep], pair: [hit.a, hit.b], years: hit.n });
+      }
+    }
     // Sell high: a team that isn't contending, a good player (78-89) a year or two from the age his game starts to
     // slip. His value won't be higher than it is now (more so when he's playing better than last season).
     if (st.tier !== 'favorites' && st.tier !== 'contending') {

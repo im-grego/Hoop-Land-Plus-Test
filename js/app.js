@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.349.8';
+const APP_VERSION = '0.349.9';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -18074,8 +18074,23 @@ function teamDirections(L) {
 }
 // A rumor as a Hoop Gram post: the wording varies by player so a list of
 // them never reads the same twice.
+// A player's short name: the shorter of his first and last name that only he has in the league (Jokic, Towns, Giannis,
+// VJ), never a common one (Smith); his full name when neither is his alone.
+const shortNames = new WeakMap();
+function shortName(p, L = league()) {
+  let c = shortNames.get(L);
+  if (!c) {
+    c = new Map();
+    const all = [...L.teams.flatMap(t => t.roster || []), ...(L.freeAgents || [])];
+    const fn = x => (x.fn || '').replace(/\./g, '').trim(), ln = x => (x.ln || '').replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i, '').trim();
+    for (const x of all) for (const k of new Set([fn(x), ln(x)])) if (k) c.set(k, (c.get(k) || 0) + 1);
+    c.fn = fn; c.ln = ln; shortNames.set(L, c);
+  }
+  const opts = [c.ln(p), c.fn(p)].filter(k => k && c.get(k) === 1).sort((a, b) => a.length - b.length);
+  return opts[0] || playerName(p);
+}
 function rumorPost(r) {
-  const p = r.p, t = r.team, nm = playerName(p), first = p.fn || nm, city = t.city;
+  const p = r.p, t = r.team, nm = playerName(p), first = shortName(p), city = t.city;
   const why = r.why.length ? r.why.join(', ') : '';
   const seed = (p.id * 7 + t.id * 13) >>> 0;
   const pick = a => a[seed % a.length];
@@ -18102,7 +18117,7 @@ function rumorPost(r) {
   ];
   // Near the line with a core to build around (one player or a duo): they retool around them, and the next contract is the one in play.
   if (r.kind === 'blowup' && r.keep?.length) {
-    const fnm = x => (x.fn || playerName(x)).replace(/\./g, ''), k = r.keep.map(x => playerName(x)).join(' or '), kf = r.keep.map(fnm).join(' and ');   // short names are first names (Tyrese and VJ)
+    const fnm = x => shortName(x), k = r.keep.map(x => playerName(x)).join(' or '), kf = r.keep.map(fnm).join(' and ');
     blowup.splice(0, blowup.length,
       `${city} is ${why}. Nobody's trading ${k}, so ${nm} could be on the move.`,
       `${r.seller ? 'Rebuild' : 'Re-tool'} around ${kf} in ${city}? The payroll says something has to give, and ${first}'s contract is the one teams are asking about.`,
@@ -18118,6 +18133,13 @@ function rumorPost(r) {
     `${city} has a decision on ${nm}: build around a ${p.age}-year-old, or move him while he still brings back a haul.`,
   ];
   if (r.kind === 'sellhigh') star.splice(0, star.length, ...sellhigh);
+  if (r.kind === 'split') {
+    const [a, b] = r.pair, k = shortName(r.keep[0]), yrs = r.years === 3 ? 'three' : r.years === 4 ? 'four' : `${r.years}`;
+    star.splice(0, star.length,
+      `${yrs[0].toUpperCase()}${yrs.slice(1)} straight playoff exits with ${shortName(a)} and ${shortName(b)}. ${city} is listening on ${first} to build around ${k}.`,
+      `Is it time to split up ${shortName(a)} and ${shortName(b)}? ${city} has come up short ${yrs} years running, and ${first}'s value won't get any higher.`,
+      `Sources: ${city} would consider moving ${nm} and building around ${k} before his value slips.`);
+  }
   if (r.kind === 'blowup' || r.kind === 'taxpay') star.splice(0, star.length, ...(r.kind === 'blowup' ? blowup : taxpay));
   const block = [
     `${city} is shopping ${nm}. Expect calls to pick up around the league.`,
