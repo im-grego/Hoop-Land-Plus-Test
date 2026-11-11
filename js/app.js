@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.349.7';
+const APP_VERSION = '0.349.8';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -18102,11 +18102,11 @@ function rumorPost(r) {
   ];
   // Near the line with a core to build around (one player or a duo): they retool around them, and the next contract is the one in play.
   if (r.kind === 'blowup' && r.keep?.length) {
-    const k = r.keep.map(x => playerName(x)).join(' or '), kf = r.keep.map(x => x.ln || playerName(x)).join(' and ');
+    const fnm = x => (x.fn || playerName(x)).replace(/\./g, ''), k = r.keep.map(x => playerName(x)).join(' or '), kf = r.keep.map(fnm).join(' and ');   // short names are first names (Tyrese and VJ)
     blowup.splice(0, blowup.length,
       `${city} is ${why}. Nobody's trading ${k}, so ${nm} could be on the move.`,
-      `Re-tool around ${kf} in ${city}? The payroll says something has to give, and ${first}'s contract is the one teams are asking about.`,
-      `You're not trading ${r.keep.map(x => x.ln || playerName(x)).join(' or ')}. With ${city} ${r.why[0]}, ${nm} is the name to watch.`);
+      `${r.seller ? 'Rebuild' : 'Re-tool'} around ${kf} in ${city}? The payroll says something has to give, and ${first}'s contract is the one teams are asking about.`,
+      `You're not trading ${r.keep.map(fnm).join(' or ')}. With ${city} ${r.why[0]}, ${nm} is the name to watch.`);
   }
   const sellhigh = r.hot ? [
     `Sell high? ${nm} is putting up ${why} at ${p.age}. ${city} won't get a better offer than the ones coming now.`,
