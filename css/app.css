@@ -2080,4 +2080,4 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .devlog-rel summary { cursor: pointer; padding: 4px 0; }
 .devlog-list { margin: 6px 0 8px; padding-left: 20px; }
 .devlog-list li { margin: 4px 0; font-size: 14px; line-height: 1.35; }
-.devlog-sub { margin: 10px 0 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim, #b9c8e8); }
+.devlog-sub { margin: 12px 0 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim, #b9c8e8); }

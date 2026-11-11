@@ -72,37 +72,44 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.352.3';
+const APP_VERSION = '0.352.4';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
 // the player hasn't looked at yet.
 const DEVLOG = [
-  { v: 'Beta 0.2.0', items: [
-    'Start Today: start a franchise from the real 2026-27 season',
-    'Start from Opening Night or an earlier date',
-    'Team picker with each team\'s top players and rankings',
-    'Trade machine and minimum free agents before you begin',
-    'In-season Trade Market',
-    'Team needs',
-    'Rotations built from real minutes',
-    'New Hoop Gram rumors: salary, aprons, sell-high, retool and paydays',
-    'Nicknames on Hoop Gram',
-    'Smarter CPU draft boards and draft-day trades',
-    'CPU teams manage the tax and aprons',
-    'Aging superstars ask for 1+1 and 2+1 deals',
-    'Draft classes reworked: prospect levels, comps and schools',
-    'Career Arc on the player profile',
-    'Game icons, award trophies and notification dots',
-    'Summer League back on its own step',
-  ], fixes: [
-    'Season files with stray characters now load',
-    'Awards and play-in phase shows the right screen',
-    'Saving on iPhone and iPad',
-    'Free throws top out at 15',
-    'Rookie of the Year only counts true rookies',
-    'Gear colors on dark jerseys and sleeves',
-    'Draft history setting no longer carries across saves',
+  { v: 'Beta 0.2.0', sections: [
+    ['Features', [
+      'Start a Franchise right in the app: pick a real team, make your moves, then load it in Hoop Land',
+      'Start Today: begin from today\'s date in the real 2026-27 season',
+      'Start from an earlier date, back to Opening Night',
+      'Team picker with each team\'s top players and rankings',
+      'Trade machine and minimum free agents before you begin',
+      'In-season Trade Market',
+      'Team needs',
+      'New Hoop Gram rumors: salary, aprons, sell-high, retool and paydays',
+      'Nicknames on Hoop Gram',
+      'Career Arc on the player profile',
+      'Game icons, award trophies and notification dots',
+      'Summer League back on its own step',
+    ]],
+    ['CPU Logic', [
+      'Rotations built from real minutes',
+      'Smarter CPU draft boards',
+      'Draft-day trades with a reason behind them',
+      'CPU teams manage the tax and aprons',
+      'Aging superstars ask for 1+1 and 2+1 deals',
+      'Draft classes reworked: prospect levels, comps and schools',
+    ]],
+    ['Bug Fixes', [
+      'Season files with stray characters now load',
+      'Awards and play-in phase shows the right screen',
+      'Saving on iPhone and iPad',
+      'Free throws top out at 15',
+      'Rookie of the Year only counts true rookies',
+      'Gear colors on dark jerseys and sleeves',
+      'Draft history setting no longer carries across saves',
+    ]],
   ] },
 ];
 const devlogKey = 'hlc:devlogSeen';
@@ -3009,8 +3016,7 @@ actions.devlog = () => {
   try { localStorage.setItem(devlogKey, DEVLOG[0].v); } catch { /* ignore */ }
   const box = overlay(`<h2 class="devlog-h">What's New</h2>
     <div class="devlog">${DEVLOG.map((r, i) => `<details class="devlog-rel" ${i === 0 ? 'open' : ''}><summary><b>${esc(r.v)}</b></summary>
-      <ul class="devlog-list">${r.items.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
-      ${r.fixes?.length ? `<p class="devlog-sub">Fixes</p><ul class="devlog-list">${r.fixes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      ${r.sections.map(([h, list]) => `<p class="devlog-sub">${esc(h)}</p><ul class="devlog-list">${list.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`).join('')}
     </details>`).join('')}</div>
     <button class="btn focus" data-close>Close</button>`);
   box.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === box) { box.remove(); render(); } });
