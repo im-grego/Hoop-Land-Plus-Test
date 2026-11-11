@@ -172,6 +172,23 @@ export function tradeCheckMulti(league, flows) {
 // How a front office feels about the tax: 'pay' (a contender keeping a
 // winner together, up to the 2nd apron), 'avoid' (stay under the tax line),
 // or 'blowup' (expensive, over the tax and not winning: shed salary).
+// How far a CPU team will spend. Everyone else stays under the tax; a contender pays into the aprons but stays off
+// the 2nd apron ($5M short of it). Only last season's champion running it back goes all the way to the 2nd apron,
+// and only for that one season (a repeat champion doesn't get a second pass).
+export function wonTitleIn(team, yr) {
+  const row = (team.season || []).find(s => s.yr === yr);
+  return (row?.round === 4 && row?.seriesWins === 4) || !!team.championships?.yearsWon?.includes(yr);
+}
+export function runningItBack(league, team) {
+  const yr = league.season.phase > 9 ? league.season.currentYear : league.season.currentYear - 1;
+  return wonTitleIn(team, yr) && !wonTitleIn(team, yr - 1);
+}
+export function cpuCeiling(league, team) {
+  if (!CAP_ON) return Infinity;
+  const C = capLines(league);
+  if (taxStance(league, team) !== 'pay') return C.tax;
+  return runningItBack(league, team) ? C.apron2 : C.apron2 - 5;
+}
 export function taxStance(league, team) {
   if (!CAP_ON) return 'pay';
   const st = teamStatus(league, team), pct = teamRecord(team).pct ?? 0.5;
@@ -606,6 +623,8 @@ export function cpuBids(league, market, bids, day, userTeams, rng, used = {}, o 
         const keep = m.p.age <= 25 || offer.sal <= 12 || (st === 'contending' && levelOf(m.p) >= 85);
         if (!keep || teamCommitted(team) + offer.sal > capLines(league).apron2) continue;
       }
+      // A contender stays off the 2nd apron unless it's the champion running it back.
+      if (!lifer && CAP_ON && offer.sal > minFor(m.p, o) && teamCommitted(team) + offer.sal > cpuCeiling(league, team)) continue;
       const list = bids.get(m.p.id) || [];
       if (list.some(b => b.tid === team.id)) continue;
       list.push(offer);

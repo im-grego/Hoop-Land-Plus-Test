@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.350.2';
+const APP_VERSION = '0.351.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -18245,6 +18245,20 @@ function rumorPost(r) {
       `${k ? `Building around ${k}, ` : ''}${city} would love to move ${nm}'s deal.`,
       `Hearing ${city} is shopping ${nm}. ${r.why[0][0].toUpperCase()}${r.why[0].slice(1)} is a lot for where he is now.`);
   }
+  if (r.kind === 'payday') {
+    const ri = shortName(r.rising), rf = playerName(r.rising);
+    star.splice(0, star.length,
+      `${rf} gets paid in ${r.when}. With $${r.tied}M already tied up in ${r.tiedN} players, ${city} may have to move ${first} first.`,
+      `One step back to take two forward? ${city} has ${ri}'s payday coming, and ${nm}'s contract is the one that could go.`,
+      `${city} can't pay everyone. ${ri} is due a big raise, and rival teams are asking about ${first}.`);
+  }
+  if (r.kind === 'replace') {
+    const h = shortName(r.heir);
+    star.splice(0, star.length,
+      `${city} could move ${nm} with ${h} ready for his minutes. The savings buy depth, or room under the aprons.`,
+      `A slight downgrade for a lot of money back: ${first} is the contract ${city} could move, with ${h} coming on.`,
+      `Sources: with ${h} ready, ${city} would listen on ${first} for depth and flexibility.`);
+  }
   if (r.kind === 'shaky') {
     const [a, b] = r.pair.map(x => shortName(x));
     star.splice(0, star.length,
@@ -18259,6 +18273,14 @@ function rumorPost(r) {
       `One full season of ${a} and ${b}${r.rec ? `, and ${city} is ${r.rec}` : ` in ${city}`}. Teams are wondering if ${first} could be had.`,
       `Early, but rival executives are watching ${city}: if this doesn't turn around, ${first} could be available and ${k} becomes the centerpiece.`,
       ...(r.alphas ? [`Two alphas, one ball. The ${a}-${b} fit in ${city} is already being questioned.`] : []));
+  }
+  if (r.kind === 'split' && r.mode === 'retool') {
+    const need = (() => { try { return teamNeed(t); } catch { return ''; } })();
+    const [a, b] = r.pair.map(x => shortName(x)), k = shortName(r.keep[0]);
+    star.splice(0, star.length,
+      `${(['', 'One', 'Two', 'Three', 'Four', 'Five'][r.years] || r.years)} seasons of ${a} and ${b}, and no conference finals yet. ${city} is looking at a retool around ${k}.`,
+      `${city} looks good on paper, but the playoffs keep ending early. ${first} is the piece teams are calling about.`,
+      ...(need ? [`${city} could flip ${first} for ${need.toLowerCase()} that fits better next to ${k}.`] : []));
   }
   if (r.kind === 'split' && r.mode === 'blowup') {
     const need = (() => { try { return teamNeed(t); } catch { return ''; } })();
