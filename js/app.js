@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.336.0';
+const APP_VERSION = '0.336.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10889,11 +10889,11 @@ screens.player = (args) => {
   const personality = traitsBox(p) || '<p class="note muted">Personality isn\'t set for this player yet. Reload the file and it fills in.</p>';
   // Ratings in the game's look: the five categories at a glance (tap one for its ratings); Edit shows every rating with
   // the game's − and + buttons, his potential, the ceilings switch, the trainer, upgrade points and skills.
-  const ratingsView = `<fieldset class="frame g-frame"><legend>Ratings</legend><button class="btn tiny g-edit ${edit ? 'on focus' : 'off'}" data-act="plEdit">${edit ? '✓ Done' : '✎ Edit'}</button>
+  const ratingsView = `<fieldset class="frame g-frame"><legend>Ratings</legend>
       <div class="g-pot"><span>Potential</span>${potStars(p)}${declining(p) ? ' <span class="small down">Declining</span>' : ''}</div>
       <div class="gstack">${CATEGORIES.map(c => gGroup(p, snap, c)).join('')}</div>
       ${skillsChips(p)}</fieldset>`;
-  const ratingsEdit = `<fieldset class="frame g-frame"><legend>Ratings</legend><button class="btn tiny g-edit on focus" data-act="plEdit">✓ Done</button>${infoBtn('ratings', RATINGS_HELP)}
+  const ratingsEdit = `<fieldset class="frame g-frame"><legend>Ratings</legend>${infoBtn('ratings', RATINGS_HELP)}
       <div class="gcell edit g-potrow"><span class="glbl">Potential</span>${gBtn('potAdj', 'data-dir="-1"', G_MINUS, 'Lower potential')}
         <span class="gmid">${potStars(p)}<span class="muted small"> ${capLeft > 0 ? `${capLeft} pts of room` : capLeft === 0 ? 'ceilings at potential' : `${-capLeft} pts over`}</span></span>
         <span class="gnum"><b class="${d.potDelta ? 'gold' : ''}">${p.pot}</b>${d.potDelta ? `<i class="up">${d.potDelta > 0 ? '+' : ''}${d.potDelta}</i>` : ''}</span>${gBtn('potAdj', 'data-dir="1"', G_PLUS, 'Raise potential')}</div>
@@ -10910,7 +10910,7 @@ screens.player = (args) => {
     title: 'Player Profile',
     body: `
       <div class="pl-head">
-        <button class="pl-pencil ${edit ? 'on' : ''}" data-act="plEdit" aria-label="${edit ? 'Done editing' : 'Edit this player'}">${edit ? '✓' : '✏️'}</button>
+        <button class="btn tiny g-edit pl-edit ${edit ? 'on focus' : 'off'}" data-act="plEdit" aria-label="${edit ? 'Done editing' : 'Edit this player'}">${edit ? '✓ Done' : '✎ Edit'}</button>
         <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
         <p class="note">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'} · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
         <p class="note small pl-meta"><span class="stars">${potStars(p)}</span>${[archName(p) && `<b class="arch">${esc(archName(p))}</b>`, isAllAmerican(p) && '<span class="gold">⭐ All-American</span>'].filter(Boolean).map(x => ` ${x}`).join(' ·')}</p>
