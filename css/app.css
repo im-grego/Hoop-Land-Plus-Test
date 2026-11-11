@@ -2058,3 +2058,4 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .start-h { margin: 0 0 2px; font-size: 16px; font-weight: 800; color: var(--text); text-transform: none; letter-spacing: 0; }
 .start-older summary { padding: 6px 0; }
 .start-older > .stack { margin-top: 6px; }
+.trade-need { margin: 0; font-size: 12.5px; }

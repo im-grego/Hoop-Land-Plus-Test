@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.348.0';
+const APP_VERSION = '0.349.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -3177,6 +3177,8 @@ actions.startTeam = async d => {
   state.startPack = null;
   state.dirty = false;
   await loadFile(file);
+  // Every team's rotation from the real season so far (starters, minutes, who's hurt).
+  for (const tt of league().teams) if (tt.roster.length) LU.applyLineup(tt, defaultPlan(tt));
   try { localStorage.setItem(START_KEY(), JSON.stringify({ season: P.season, date: P.date, day: league().season.currentDay })); } catch { /* ignore */ }
   state.dirty = true;
   goHome();
@@ -8510,7 +8512,20 @@ actions.openPlayer = d => go('player', { id: +d.id });
 const gameMinutes = () => Math.round(48 / minScale(state.leagueIdx));
 // The head coach's default rotation (lineups.js coachRotation): size and the starters' share of the minutes.
 const coachRot = (t, po = false) => LU.coachRotation(CO.headCoach(t), po);
-const defaultPlan = (t, po = false) => LU.planLineup(t, { mode: po ? 'playoffs' : lineupMode(t), ...coachRot(t, po), game: gameMinutes(), promised: promisedMinutes(t) });
+const defaultPlan = (t, po = false) => LU.planLineup(t, { mode: po ? 'playoffs' : lineupMode(t), ...coachRot(t, po), game: gameMinutes(), promised: promisedMinutes(t), real: po ? null : realMinutes(t) });
+// This season's minutes and starts, mid-season (the team has played 5+ games): { pid: { mpg, start } } for anyone with
+// 3+ games (with any team this season), minutes on a 48-minute game.
+function realMinutes(t) {
+  const L = league();
+  if (L.season.phase !== 9 || dlPct(t).gp < 5) return null;
+  const y = L.season.currentYear, k = 48 / gameMinutes(), out = {};
+  for (const p of t.roster) {
+    const rows = (p.stats || []).find(s => (s.league ?? 0) === state.leagueIdx && s.yr === y)?.season || [];
+    const gp = rows.reduce((a, r) => a + (r.GP || 0), 0), gs = rows.reduce((a, r) => a + (r.GS || 0), 0), sec = rows.reduce((a, r) => a + (r.MIN?.[0] || 0), 0);
+    if (gp >= 3) out[p.id] = { mpg: sec / 60 / gp * k, start: gs / gp };
+  }
+  return out;
+}
 // Open exit-interview promises for the season being played (made after last season): "more minutes" is his minutes
 // then plus 4, at least 26; "you'll start" is a starting spot. Your teams only.
 function promisedMinutes(t) {
@@ -8637,7 +8652,7 @@ function marketCard() {
 screens.market = () => {
   const L = league(), s = mktState(), day = L.season.currentDay, today = s.days?.[day];
   const group = r => L.teams.filter(t => dlRole(t) === r).sort((a, b) => dlPct(b).pct - dlPct(a).pct);
-  const chip = t => `<span class="style-chip">${esc(t.shortName)} ${dlPct(t).w}-${dlPct(t).l}</span>`;
+  const chip = t => `<span class="style-chip">${esc(t.shortName)} ${dlPct(t).w}-${dlPct(t).l}${dlRole(t) === 'buyer' ? ` <span class="muted">· ${esc(teamNeed(t))}</span>` : ''}</span>`;
   // On the block: the sellers' veterans the buyers are asking about.
   const block = group('seller').filter(t => !isUserTeam(t)).flatMap(t => FA.signedRoster(t).filter(p => p.age >= 27 && shownLevel(p) >= 72 && (p.contract?.yrs || 0) <= 2 && !tradeLock(p)).map(p => ({ p, t }))).sort((a, b) => shownLevel(b.p) - shownLevel(a.p)).slice(0, 8);
   const past = Object.entries(s.days || {}).filter(([d, x]) => +d !== day && x.length).sort((a, b) => b[0] - a[0]);
@@ -8723,7 +8738,7 @@ function runDeadline(o = {}) {
 screens.deadline = () => {
   const L = league(), d = dlState(), mine = L.teams.filter(isUserTeam);
   const group = r => L.teams.filter(t => dlRole(t) === r).sort((a, b) => dlPct(b).pct - dlPct(a).pct);
-  const chip = t => `<span class="style-chip">${esc(t.shortName)} ${dlPct(t).w}-${dlPct(t).l}</span>`;
+  const chip = t => `<span class="style-chip">${esc(t.shortName)} ${dlPct(t).w}-${dlPct(t).l}${dlRole(t) === 'buyer' ? ` <span class="muted">· ${esc(teamNeed(t))}</span>` : ''}</span>`;
   // Calls for your players: what the buyers would give for each of your veterans.
   const calls = mine.flatMap(t => FA.signedRoster(t).filter(p => p.age >= 26 && shownLevel(p) >= 74 && !tradeLock(p)).sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 4).map(p => ({ t, p })));
   const me = CAR.isCareer(L) ? CAR.careerPlayer(L) : null;
@@ -15072,6 +15087,46 @@ function liveExecuteMulti(teams, items) {
   return entry;
 }
 // Settings → Trade values: each asset shows its value (and each side its total), as a rough guide next to the bar.
+// A team's biggest hole today (not a long-term plan): its healthy top nine, measured against the league on seven
+// things a rotation needs; the weakest one (or a missing backup at guard or big) is the need.
+const NEED_LABELS = { gplay: 'Guard playmaking', wplay: 'Wing playmaking', shoot: '3-point shooting', create: 'Shot creation', rim: 'Rim protection', reb: 'Rebounding', perim: 'Perimeter defense' };
+function teamNeedMetrics(t) {
+  const A = (p, k) => p.attributes?.[k]?.[0] || 0, grp = p => ((p.pos ?? 4) <= 2 ? 0 : (p.pos ?? 4) <= 5 ? 1 : 2);
+  const rot = FA.signedRoster(t).filter(p => !(p.season?.injury?.gamesOut > 0)).sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 9);
+  const top = (list, f, n = 1) => { const v = list.map(f).sort((a, b) => b - a).slice(0, n); return v.length ? v.reduce((a, b) => a + b, 0) / n : 0; };
+  const G = rot.filter(p => grp(p) === 0), W = rot.filter(p => grp(p) === 1), B = rot.filter(p => grp(p) === 2);
+  return {
+    rot, G, B,
+    m: {
+      // Playmaking: the top two (a creator behind the star; one missing counts against it).
+      gplay: top(G, p => (A(p, 'PAS') + A(p, 'DRB')) / 2, 2),
+      wplay: top(W, p => (A(p, 'PAS') + A(p, 'DRB')) / 2, 2),
+      shoot: top(rot, p => A(p, 'TPT'), 6),
+      create: top(rot, p => (Math.max(A(p, 'INS'), A(p, 'MID'), A(p, 'LAY')) + A(p, 'DRB')) / 2, 2),
+      rim: top(B.length ? B : rot, p => A(p, 'BLK')),
+      reb: top(rot, p => A(p, 'DRE'), 2),
+      perim: top([...G, ...W], p => A(p, 'STL'), 3),
+    },
+  };
+}
+function teamNeed(t) {
+  const cache = (state.compCache[state.leagueIdx] ||= new Map());
+  if (!cache.has('needs')) {
+    const L = league(), all = L.teams.map(x => [x, teamNeedMetrics(x)]);
+    const stat = Object.fromEntries(Object.keys(NEED_LABELS).map(k => { const v = all.map(([, x]) => x.m[k]), mean = v.reduce((a, b) => a + b, 0) / v.length; return [k, { mean, sd: Math.sqrt(v.reduce((a, b) => a + (b - mean) ** 2, 0) / v.length) || 1 }]; }));
+    const out = new Map();
+    for (const [x, { m, G, B }] of all) {
+      // No second guard or big in the healthy top nine: that's the hole.
+      if (B.length < 2) { out.set(x.id, 'Frontcourt depth'); continue; }
+      if (G.length < 2) { out.set(x.id, 'Backcourt depth'); continue; }
+      const k = Object.keys(NEED_LABELS).sort((a, b) => (m[a] - stat[a].mean) / stat[a].sd - (m[b] - stat[b].mean) / stat[b].sd)[0];
+      out.set(x.id, NEED_LABELS[k]);
+    }
+    cache.set('needs', out);
+  }
+  return cache.get('needs').get(t.id) || '';
+}
+const needLine = t => (t && !isCollege() ? `<p class="note small center trade-need">Need: <b>${esc(teamNeed(t))}</b></p>` : '');
 const showVals = () => !!state.params.tradeValues;
 const valTag = v => showVals() ? `<span class="muted small">${Math.round(v)}</span>` : '';
 // What a side is sending, by name, under its team at the top (so you can see it without scrolling the list).
@@ -15280,8 +15335,8 @@ screens.liveTrade = (args) => {
     body: `
       <div class="trade-top">
         <div class="grid2 trade">
-          <div class="stack">${select('a', aId)}${capRoomLine(A, playersOf(sentA), playersOf(sentB))}${sendingLine(sentA, vA)}</div>
-          <div class="stack">${select('b', bId)}${capRoomLine(B, playersOf(sentB), playersOf(sentA))}${sendingLine(sentB, vB)}</div>
+          <div class="stack">${select('a', aId)}${needLine(A)}${capRoomLine(A, playersOf(sentA), playersOf(sentB))}${sendingLine(sentA, vA)}</div>
+          <div class="stack">${select('b', bId)}${needLine(B)}${capRoomLine(B, playersOf(sentB), playersOf(sentA))}${sendingLine(sentB, vB)}</div>
         </div>
         ${tradeBar(A, B, vA, vB)}
         <div class="seg trade-tabs">${[['you', A, sentA], ['them', B, sentB]].map(([k, t, sent]) => `<button class="btn small ${step === k ? 'on focus' : 'off'}" data-act="liveStep" data-s="${k}">${esc(t.shortName)} Assets${sent.length ? ` · ${sent.length}` : ''}</button>`).join('')}</div>

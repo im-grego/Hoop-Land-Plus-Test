@@ -201,13 +201,27 @@ const offMinutes = (rot, g) => rot.reduce((a, q) => a + g.slots.get(q).reduce((b
 // The plan: starters by slot, the bench in order, each player's minutes by slot. size: players in the rotation (7-12).
 // over: { pid: total } minutes you've set by hand (the rest share what's left).
 // promised: { pid: { min, start } } from exit interviews: a floor on his minutes, or a starting spot.
-export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = {}, share = null, promised = {} } = {}) {
+// real: { pid: { mpg, start } } from this season's games (mid-season): who has been starting and playing leads the
+// order, a player with no games yet (back from injury, just signed) slots in by his level next to the teammate
+// closest to it; the rotation runs 9 to 12 deep and stops where the talent drops off (4+ levels below the man
+// before), and the minutes follow what each has been playing.
+export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = {}, share = null, promised = {}, real = null } = {}) {
   const roster = team.roster.filter(p => p.status === 3 || p.status === 2), deep = isDeep(roster);
-  const score = p => playScore(p, mode, deep) + (promised[p.id]?.start ? 25 : promised[p.id]?.min ? 8 : 0);
+  const known = real ? roster.filter(p => real[p.id]) : [];
+  const realOn = known.length >= 5;
+  const estMpg = p => { if (real?.[p.id]) return real[p.id].mpg + real[p.id].start * 10; const lv = levelOf(p); const near = [...known].sort((a, b) => Math.abs(levelOf(a) - lv) - Math.abs(levelOf(b) - lv))[0]; return near ? real[near.id].mpg + real[near.id].start * 10 + (lv - levelOf(near)) * 0.5 : 0; };
+  const score = p => (realOn ? estMpg(p) * 3 + playScore(p, mode, deep) * 0.1 : playScore(p, mode, deep)) + (promised[p.id]?.start ? 25 : promised[p.id]?.min ? 8 : 0);
   // Set to 0 by hand: out of the rotation. Set above 0: in it, whoever else gets squeezed.
   const cands = roster.filter(p => healthy(p) && over[p.id] !== 0).sort((a, b) => score(b) - score(a));
   const starters = pickStarters(cands, score);
   const bench = cands.filter(p => !starters.includes(p));
+  if (realOn) {
+    // How deep: at least nine (and everyone getting real minutes), then on while the next man is within 3 levels of
+    // the one before him, never past twelve.
+    let n = Math.max(9, Math.min(12, 5 + bench.filter(p => (real[p.id]?.mpg || 0) >= 12).length));
+    while (n < 12 && bench[n - 5] && bench[n - 6] && levelOf(bench[n - 5]) >= levelOf(bench[n - 6]) - 3) n++;
+    size = Math.min(n, cands.length);
+  }
   // The bench: a backup big and a backup guard always (a weaker true center beats a point guard playing the five),
   // a backup wing when there's one close enough, then the best of the rest.
   const nBench = Math.max(0, Math.min(12, size) - 5), grp = p => ((p.pos ?? 4) <= 2 ? 0 : (p.pos ?? 4) <= 5 ? 1 : 2);
@@ -219,6 +233,23 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
   for (const p of bench) if (picks.length < nBench && !picks.includes(p)) picks.push(p);
   picks.sort((a, b) => score(b) - score(a));
   let rot = [...starters, ...picks];
+  // Real minutes: each player's minutes this season (on this game length), scaled so the five spots fill; anyone
+  // without games yet shares what's left.
+  if (realOn) {
+    const k = game / 48, total = 5 * game, own = rot.filter(p => real[p.id] && over[p.id] == null), others = rot.filter(p => !real[p.id] && over[p.id] == null);
+    const fixed = rot.filter(p => over[p.id] != null).reduce((a, p) => a + over[p.id], 0);
+    const room = total - fixed - others.length * Math.round(16 * k), sum = own.reduce((a, p) => a + real[p.id].mpg * k, 0);
+    over = { ...over };
+    const base = p => real[p.id].mpg * k, top = Math.round(36 * k);
+    if (sum > room) for (const p of own) over[p.id] = base(p) * room / sum;   // too many: everyone a little less
+    else {
+      // Minutes left over (a player hurt since, a short rotation): to whoever has the most room below a starter's load,
+      // so the bench picks them up before the stars go past their usual.
+      const head = p => Math.max(0, top - base(p)), H = own.reduce((a, p) => a + head(p), 0), extra = room - sum;
+      for (const p of own) over[p.id] = base(p) + (H ? extra * head(p) / H : 0);
+    }
+    for (const p of own) over[p.id] = Math.max(Math.round(6 * k), Math.min(Math.round(game * 0.8), Math.round(over[p.id])));
+  }
   let { want, hi, cap } = minutesFor(rot, mode, game, over, share, deep, promised), got = assign(rot, starters, want, hi, game, over, cap);
   // Still out of position somewhere? Bring in a bench player who can play the spot, if he's within 14 levels of the
   // worst player in the rotation, in place of the last man whose spots are covered without him. Kept only if it
