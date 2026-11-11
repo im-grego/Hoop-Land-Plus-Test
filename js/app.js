@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.342.3';
+const APP_VERSION = '0.342.4';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -5493,6 +5493,11 @@ screens.coaches = () => {
 };
 
 
+// Paying a coach over his market rate comes out of the team's coins (Complete rules): 5 coins for every $1M a year
+// over, paid once when he signs. Under or at the market costs nothing extra.
+const COACH_OVER_COINS = 5;
+const coachOverCost = (c, o) => (isComplete() ? Math.max(0, o.sal - marketSalary(c, league())) * o.yrs * COACH_OVER_COINS : 0);
+const coachCostLine = (c, o, team) => { const n = coachOverCost(c, o); if (!n) return ''; const have = coinsOf(team); return `<p class="note small ${have >= n ? 'gold' : 'down'}">🪙 Over market: $${o.sal - marketSalary(c, league())}M × ${o.yrs} yr${o.yrs > 1 ? 's' : ''} = <b>${n} coins</b> (you have ${have})</p>`; };
 const coachOffer = c => {
   const o = (state.coachOffer ||= {});
   if (o.id !== c.id) { const y = c.age >= 58 ? 2 : c.age >= 50 ? 3 : 4; Object.assign(o, { id: c.id, yrs: y, sal: marketSalary(c, league()) }); }
@@ -5520,7 +5525,8 @@ function extBox({ c, t }) {
       <span class="small" style="margin-left:10px">Pay</span><button class="btn tiny" data-act="coachOfferAdj" data-k="sal" data-d="-1" ${o.sal > 1 ? '' : 'disabled'}>−</button><b>$${o.sal}M</b><button class="btn tiny" data-act="coachOfferAdj" data-k="sal" data-d="1">+</button></div>
     ${w.factors.map(x => `<div class="small" style="display:flex;justify-content:space-between;gap:8px"><span>${esc(x.label)} <span class="muted">${esc(x.note)}</span></span><b class="${x.val > 0 ? 'up' : x.val < 0 ? 'down' : ''}">${x.val > 0 ? '+' : ''}${x.val}</b></div>`).join('')}
     <p class="note"><b>${w.score}</b> <span class="small muted">needs 60 to sign</span></p>
-    <button class="btn ${w.accept ? 'focus' : ''}" data-act="coachExtend" ${w.accept ? '' : 'disabled'}>${w.accept ? '🖊️ Offer Extension' : 'He would refuse'}</button></div></fieldset>`;
+    ${coachCostLine(c, o, mine)}
+    <button class="btn ${w.accept ? 'focus' : ''}" data-act="coachExtend" ${w.accept && coinsOf(mine) >= coachOverCost(c, o) ? '' : 'disabled'}>${!w.accept ? 'He would refuse' : coinsOf(mine) < coachOverCost(c, o) ? 'Not enough coins' : '🖊️ Offer Extension'}</button></div></fieldset>`;
 }
 actions.coachOfferAdj = d => { const o = state.coachOffer; if (!o) return; o[d.k] = Math.max(d.k === 'yrs' ? 1 : 1, Math.min(d.k === 'yrs' ? 5 : 40, o[d.k] + +d.d)); render(); };
 actions.coachExtend = () => {
@@ -5528,8 +5534,11 @@ actions.coachExtend = () => {
   if (!c || !o || o.id !== c.id) return;
   const w = coachWillingness(league(), mine, c, { yrs: o.yrs, sal: o.sal });
   if (!w.accept) { toast('He would refuse'); return; }
+  const cost = coachOverCost(c, o);
+  if (coinsOf(mine) < cost) { toast('Not enough coins', `Paying him over market costs ${cost} coins`, 3200, true); return; }
   checkpoint('Coach extension');
   c.contract.ext = { yrs: o.yrs, sal: o.sal, opt: 0, noTrd: 0 };
+  if (cost) mine.frontOffice.coins = coinsOf(mine) - cost;
   state.dirty = true;
   toast(`${c.fn} ${c.ln} extended`, `$${o.sal}M for ${o.yrs} years`);
   render();
@@ -5570,9 +5579,14 @@ function hireBox({ c, t }, staff) {
   if (!mine) return '';
   if (t === mine) return '<p class="note small muted">Your head coach.</p>';
   if (t) return '';
-  const ask = askingContract(c, staff.map(x => x.c)), cur = CO.headCoach(mine);
+  const ask = askingContract(c, staff.map(x => x.c)), cur = CO.headCoach(mine), o = coachOffer(c), w = coachWillingness(league(), mine, c, { yrs: o.yrs, sal: o.sal }), cost = coachOverCost(c, o);
   return `<fieldset class="frame"><legend>Hire</legend><div class="stack">
-    <p class="note small">${coachWillingness(league(), mine, c, { yrs: ask.yrs, sal: ask.sal }).accept ? '✅ He would sign.' : '🚫 He would turn the job down.'} Asks <b>$${ask.sal}M for ${ask.yrs} years</b>. He replaces ${cur ? esc(`${cur.fn} ${cur.ln}`) : 'your head coach'}${cur?.contract?.yrs ? `, who has $${cur.contract.sal}M × ${cur.contract.yrs} left and goes to the available pool` : ''}.</p>
+    <div class="so-ctl"><span class="small">Years</span><button class="btn tiny" data-act="coachOfferAdj" data-k="yrs" data-d="-1" ${o.yrs > 1 ? '' : 'disabled'}>−</button><b>${o.yrs}</b><button class="btn tiny" data-act="coachOfferAdj" data-k="yrs" data-d="1" ${o.yrs < 5 ? '' : 'disabled'}>+</button>
+      <span class="small" style="margin-left:10px">Pay</span><button class="btn tiny" data-act="coachOfferAdj" data-k="sal" data-d="-1" ${o.sal > 1 ? '' : 'disabled'}>−</button><b>$${o.sal}M</b><button class="btn tiny" data-act="coachOfferAdj" data-k="sal" data-d="1">+</button></div>
+    ${w.factors.map(x => `<div class="small" style="display:flex;justify-content:space-between;gap:8px"><span>${esc(x.label)} <span class="muted">${esc(x.note)}</span></span><b class="${x.val > 0 ? 'up' : x.val < 0 ? 'down' : ''}">${x.val > 0 ? '+' : ''}${x.val}</b></div>`).join('')}
+    <p class="note"><b>${w.score}</b> <span class="small muted">needs 60 to sign</span></p>
+    ${coachCostLine(c, o, mine)}
+    <p class="note small">${w.accept ? '✅ He would sign this.' : '🚫 He would turn this down.'} Market: <b>$${marketSalary(c, league())}M</b> (asks $${ask.sal}M for ${ask.yrs} years). He replaces ${cur ? esc(`${cur.fn} ${cur.ln}`) : 'your head coach'}${cur?.contract?.yrs ? `, who has $${cur.contract.sal}M × ${cur.contract.yrs} left and goes to the available pool` : ''}.</p>
     <button class="btn focus" data-act="hireCoach" data-arg="${c.id}">🤝 Make Head Coach</button></div></fieldset>`;
 }
 const L_myTeam = () => myTeam();
@@ -5581,12 +5595,17 @@ actions.hireCoach = async d => {
   const c = (L.coaches || []).find(x => x.id === +d.arg);
   if (!mine || !c || !hireable(c)) return;   // a retired coach is off the market, whatever the game lists
   const cur = CO.headCoach(mine);
-  const will = coachWillingness(L, mine, c, { yrs: 3, sal: marketSalary(c, L) });
+  const o = state.coachOffer?.id === c.id ? { yrs: state.coachOffer.yrs, sal: state.coachOffer.sal } : { yrs: 3, sal: marketSalary(c, L) };
+  const will = coachWillingness(L, mine, c, o), cost = coachOverCost(c, o);
   if (!will.accept) { const worst = [...will.factors].sort((x, y) => x.val - y.val)[0]; toast(`${c.ln} turns you down`, `${worst.label}: ${worst.note}`, 4200, true); return; }
-  if (!(await confirmBox(`Hire ${c.fn} ${c.ln} to replace ${cur ? `${cur.fn} ${cur.ln}` : 'your head coach'}?`, 'Hire'))) return;
+  if (coinsOf(mine) < cost) { toast('Not enough coins', `Paying him over market costs ${cost} coins (you have ${coinsOf(mine)})`, 4200, true); return; }
+  if (!(await confirmBox(`Hire ${c.fn} ${c.ln} at $${o.sal}M × ${o.yrs} to replace ${cur ? `${cur.fn} ${cur.ln}` : 'your head coach'}?${cost ? ` It costs ${cost} coins over his market rate.` : ''}`, 'Hire'))) return;
   checkpoint('Coach change');
   const r = hireHeadCoach(L, mine, c);
   if (!r) { toast('No head coach slot on this team'); return; }
+  // His deal is the one you offered (not just his ask), and any premium comes out of the coins.
+  Object.assign(c.contract, { yrs: o.yrs, sal: o.sal }); r.ask = { yrs: o.yrs, sal: o.sal };
+  if (cost) mine.frontOffice.coins = coinsOf(mine) - cost;
   const book = installSignature(mine, c);
   const tr = treeStore();
   if (tr.planOrig && r.old) delete tr.planOrig[r.old.id];
