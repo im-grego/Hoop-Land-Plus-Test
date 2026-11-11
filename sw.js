@@ -1,6 +1,8 @@
 // Offline support: cache-first for the app shell, stale-while-revalidate for
-// fonts and team logos.
-const VERSION = 'hlc-v0.354.5';
+// fonts. Team and league logos live in their own cache that survives updates:
+// fetched once, then always served from the phone.
+const LOGOS = 'hlc-logos';
+const VERSION = 'hlc-v0.354.6';
 const SHELL = [
   './',
   'index.html',
@@ -36,6 +38,7 @@ const SHELL = [
   'js/campus.js', 'js/madeprod.js', 'js/helptext.js', 'js/schedule.js',
   'js/appearance-pool.js',
   'manifest.webmanifest',
+  'data/logos.json',
   'icons/icon.svg',
   'img/flags.png',
   'img/worldcup.png',
@@ -74,7 +77,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== LOGOS).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -86,6 +89,15 @@ self.addEventListener('fetch', e => {
   if (url.hostname.endsWith('goatcounter.com')) return;   // the usage counter: straight to the network, never cached
   if (url.origin === location.origin) {
     e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req)));
+    return;
+  }
+  // Logos (Dropbox and any other image host): cache-first in the logo cache, kept across app updates.
+  if (req.destination === 'image' || /dropbox(usercontent)?\.com$/.test(url.hostname) || /\.(png|jpe?g|gif|webp|svg)$/i.test(url.pathname)) {
+    e.respondWith(caches.open(LOGOS).then(async cache => {
+      const hit = await cache.match(req, { ignoreVary: true });
+      if (hit) return hit;
+      try { const res = await fetch(req); if (res.ok || res.type === 'opaque') cache.put(req, res.clone()); return res; } catch { return Response.error(); }
+    }));
     return;
   }
   e.respondWith(

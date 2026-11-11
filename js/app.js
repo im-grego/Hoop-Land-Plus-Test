@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.354.5';
+const APP_VERSION = '0.354.6';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -551,6 +551,15 @@ function loadLogo(u, entry, tries = 0) {
   img.src = tries ? `${u}${u.includes('?') ? '&' : '?'}r=${tries}` : u;
   entry.img = img;
 }
+// Every NBA team's logo (and the league's), fetched into the phone's logo cache the first time the app opens, so the
+// Start a Franchise screens and every season file show them at once, online or off.
+async function warmLogos() {
+  try {
+    const urls = await (await fetch('data/logos.json')).json();
+    for (const u of urls) { const e = { done: false, img: null }; if (!logoCache.has(u)) { logoCache.set(u, e); loadLogo(u, e); } }
+  } catch { /* offline the first time: they come in with the first save */ }
+}
+setTimeout(warmLogos, 300);
 function preloadLogos(data) {
   const urls = new Set();
   for (const L of data.seasonLeagues || []) for (const t of L.teams || []) { const u = logoUrl(t.logoURL); if (u) urls.add(u); }
