@@ -357,6 +357,17 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
         if (big) out.push({ kind: 'blowup', p: big, team, heat: seller || pay >= C.apron2 ? 2 : 1, why, level: level(big), morale: big.season?.morale ?? 70, bill, keep: core });
       }
     }
+    // Sell high: a team that isn't contending, a good player (78-89) a year or two from the age his game starts to
+    // slip. His value won't be higher than it is now (more so when he's playing better than last season).
+    if (st.tier !== 'favorites' && st.tier !== 'contending') {
+      const sh = roster.filter(p => level(p) >= 78 && level(p) < 90 && !out.some(x => x.p === p) && p.age >= (p.regressionAge || 31) - 2 && p.age <= (p.regressionAge || 31))
+        .sort((a, b) => level(b) - level(a))[0];
+      if (sh) {
+        const now = seasonLine(sh, li, L.season.currentYear), before = seasonLine(sh, li, L.season.currentYear - 1);
+        const hot = now && before && now.gp >= 8 && now.ppg >= before.ppg + 2;
+        out.push({ kind: 'sellhigh', p: sh, team, heat: hot ? 2 : 1, why: hot ? [`${now.ppg.toFixed(1)} a night, up from ${before.ppg.toFixed(1)}`] : [], level: level(sh), morale: sh.season?.morale ?? 70, hot });
+      }
+    }
     // Veterans a rebuilding (or sliding) team might move.
     if (st.status === 'rebuilding') {
       for (const p of roster.slice(0, 6)) {

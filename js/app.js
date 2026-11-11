@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.349.2';
+const APP_VERSION = '0.349.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -18107,6 +18107,16 @@ function rumorPost(r) {
       `Re-tool around ${kf} in ${city}? The payroll says something has to give, and ${first}'s contract is the one teams are asking about.`,
       `You're not trading ${kf}. With ${city} ${r.why[0]}, ${nm} is the name to watch.`);
   }
+  const sellhigh = r.hot ? [
+    `Sell high? ${nm} is putting up ${why} at ${p.age}. ${city} won't get a better offer than the ones coming now.`,
+    `${first}'s value has never been higher: ${why}. Rival executives think ${city} should cash in before it slips.`,
+    `${nm} at ${p.age}, ${why}. If ${city} isn't winning now, this is the moment to move him.`,
+  ] : [
+    `${nm} is ${p.age}. His value won't be higher than it is right now, and ${city} isn't contending.`,
+    `Hearing teams are asking ${city} about ${first}. At ${p.age}, the window to get real value back is closing.`,
+    `${city} has a decision on ${nm}: build around a ${p.age}-year-old, or move him while he still brings back a haul.`,
+  ];
+  if (r.kind === 'sellhigh') star.splice(0, star.length, ...sellhigh);
   if (r.kind === 'blowup' || r.kind === 'taxpay') star.splice(0, star.length, ...(r.kind === 'blowup' ? blowup : taxpay));
   const block = [
     `${city} is shopping ${nm}. Expect calls to pick up around the league.`,
