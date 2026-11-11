@@ -206,7 +206,7 @@ export function awardRace(L, p, val) {
 
 // ---------------------------------------------------------------------------
 // 13. Rookie and vet duties.
-export const isRookie = p => (p.yrs ?? 0) <= 1;
+export const isRookie = p => (p.yrs ?? 0) === 0;   // yrs goes up at the rollover: 0 is a rookie, 1 a second-year player
 export const isVet = p => p.age >= 30;
 
 // ---------------------------------------------------------------------------

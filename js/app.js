@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.331.0';
+const APP_VERSION = '0.331.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -3930,7 +3930,7 @@ function careerDutyBox(L, p, team) {
   const { cy } = careerYear();
   if (cy.duty) return `<fieldset class="frame"><legend>${CL2.isRookie(p) ? 'Rookie Duties' : 'Vet Duties'}</legend><p class="note small">${esc(cy.duty)}</p></fieldset>`;
   if (CL2.isRookie(p)) return `<fieldset class="frame"><legend>Rookie Duties</legend><p class="note small">The vets expect you to carry the bags and bring the donuts.</p><div class="grid2"><button class="btn small focus" data-act="careerDuty" data-v="yes">🍩 Do it</button><button class="btn small off" data-act="careerDuty" data-v="no">🙄 Skip it</button></div></fieldset>`;
-  if (CL2.isVet(p) && team.roster.some(m => m.id !== p.id && (m.yrs ?? 0) <= 1)) return `<fieldset class="frame"><legend>Vet Duties</legend><p class="note small">The rookies are looking to you.</p><div class="grid2"><button class="btn small focus" data-act="careerDuty" data-v="yes">👋 Welcome them</button><button class="btn small off" data-act="careerDuty" data-v="no">Not my job</button></div></fieldset>`;
+  if (CL2.isVet(p) && team.roster.some(m => m.id !== p.id && (m.yrs ?? 0) === 0)) return `<fieldset class="frame"><legend>Vet Duties</legend><p class="note small">The rookies are looking to you.</p><div class="grid2"><button class="btn small focus" data-act="careerDuty" data-v="yes">👋 Welcome them</button><button class="btn small off" data-act="careerDuty" data-v="no">Not my job</button></div></fieldset>`;
   return '';
 }
 actions.careerDuty = d => {
@@ -3943,7 +3943,7 @@ actions.careerDuty = d => {
     if (yes) drift(p, 'career:duty', EGO_KEY, -1, 'paid his rookie dues'); else drift(p, 'career:duty', EGO_KEY, 1, 'skipped rookie duties');
     cy.duty = yes ? `You paid your dues. The vets respect it (+5 each).` : 'You skipped it. The vets noticed (-5 each).';
   } else {
-    const rooks = team.roster.filter(m => m.id !== p.id && (m.yrs ?? 0) <= 1);
+    const rooks = team.roster.filter(m => m.id !== p.id && (m.yrs ?? 0) === 0);
     if (yes) { for (const m of rooks) careerBond(m, 8); drift(p, 'career:duty', 'lockerRoom', 1, 'took the rookies in'); cy.duty = `You took the rookies in (+8 each, locker room +1).`; }
     else cy.duty = 'You left the rookies to figure it out.';
   }
@@ -8216,7 +8216,7 @@ function mvpLadder() {
   return [
     { k: 'mvp', label: '🏅 MVP', list: top(x => x.l.gs * 2.2 + shownLevel(x.p) * 0.6 + pct(x.t) * 25) },
     { k: 'dpoy', label: '🛡️ Defensive Player', list: top(x => def(x.p) * 1.5 + (x.l.spg + x.l.bpg) * 6 + x.l.rpg * 0.8 + pct(x.t) * 10) },
-    { k: 'roy', label: '🐣 Rookie of the Year', list: rows.filter(x => (x.p.yrs ?? 0) <= 1).map(x => ({ ...x, score: x.l.gs * 2 + x.l.mpg * 0.3 })).sort((a, b) => b.score - a.score).slice(0, 5) },
+    { k: 'roy', label: '🐣 Rookie of the Year', list: rows.filter(x => (x.p.yrs ?? 0) === 0).map(x => ({ ...x, score: x.l.gs * 2 + x.l.mpg * 0.3 })).sort((a, b) => b.score - a.score).slice(0, 5) },
     { k: 'smoy', label: '🪑 Sixth Man', list: rows.filter(x => x.l.starts / x.l.gp < 0.25).map(x => ({ ...x, score: x.l.ppg * 2 + x.l.gs })).sort((a, b) => b.score - a.score).slice(0, 5) },
   ];
 }
