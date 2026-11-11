@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.341.0';
+const APP_VERSION = '0.341.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10739,9 +10739,9 @@ function bioBoxes(p, team) {
   const dr = p.history?.draft, c = OLY.countryOf(p), rk = team ? playerRanks(p) : null;
   const box = (l, v, act = '') => `<div class="bio-box ${act ? 'tap' : ''}" ${act}><span class="glbl">${esc(l)}</span><b>${v}</b></div>`;
   return `<div class="bio-grid">
-    ${box('Drafted', dr?.rd > 0 && dr.yr ? `${dr.yr} R${dr.rd} #${dr.pk}` : 'Undrafted', dr?.rd > 0 && dr.yr ? `data-act="draftsOf" data-yr="${dr.yr}" data-pid="${p.id}"` : '')}
     ${rk ? box(`${POSITIONS[p.pos]} Rank`, `#${rk.pos}`, `data-act="ranksOf" data-pid="${p.id}" data-pos="${p.pos}"`) : ''}
     ${rk ? box('Overall Rank', `#${rk.all}`, `data-act="ranksOf" data-pid="${p.id}"`) : ''}
+    ${box('Drafted', dr?.rd > 0 && dr.yr ? `${dr.yr} R${dr.rd} #${dr.pk}` : 'Undrafted', dr?.rd > 0 && dr.yr ? `data-act="draftsOf" data-yr="${dr.yr}" data-pid="${p.id}"` : '')}
   </div>`;
 }
 
