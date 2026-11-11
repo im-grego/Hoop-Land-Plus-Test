@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.345.1';
+const APP_VERSION = '0.345.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -11161,19 +11161,27 @@ function recordsHeld(p) {
     for (const [k, name] of REC_STATS) { const top = (R[kind]?.[k] || [])[0]; if (top && top.pid === p.id && k !== 'TO') out.push(`${lbl}${name.toLowerCase()}: <b>${top.value}</b> (${top.yr})`); }
   return out;
 }
+// Single-game bests, all time: every player's career game highs (active, free agents, retired and the Hall of Fame),
+// regular season or playoffs, top 10 for each stat.
+const BOOK_STATS = [['PTS', 'Points'], ['REB', 'Rebounds'], ['AST', 'Assists'], ['STL', 'Steals'], ['BLK', 'Blocks'], ['TPM', '3-Pointers Made'],
+  ['TPA', '3-Point Attempts'], ['FGM', 'Field Goals Made'], ['FGA', 'Field Goal Attempts'], ['FTM', 'Free Throws Made'], ['FTA', 'Free Throw Attempts'],
+  ['ORB', 'Offensive Rebounds'], ['MIN', 'Minutes'], ['PM', 'Plus/Minus'], ['TO', 'Turnovers'], ['PF', 'Fouls']];
+const bookVal = (h, k) => (k === 'MIN' ? Math.round((h?.MIN?.[0] || 0) / 60) : h?.[k] || 0);
 screens.records = (args = {}) => {
-  const L = league(), R = L.records || {}, kind = ['season', 'playoffs', 'finals'].includes(args.arg) ? args.arg : 'season';
-  const tabs = `<div class="tabs fa-tabs">${[['season', 'Regular Season'], ['playoffs', 'Playoffs'], ['finals', 'Finals']].map(([k, l]) => `<button class="btn small ${k === kind ? 'on focus' : 'off'}" data-act="nav" data-replace="1" data-to="records" data-arg="${k}">${l}</button>`).join('')}</div>`;
-  const list = REC_STATS.map(([k, name]) => {
-    const rows = [...(R[kind]?.[k] || [])].sort((a, b) => b.value - a.value).slice(0, 5);
-    if (!rows.length) return '';
-    return `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.map((r, i) => {
-      const p = anyPlayer(r.pid), g = r.gameResults || {}, opp = g.homeTeam === r.tid ? g.awayTeam : g.homeTeam, home = g.homeTeam === r.tid;
-      const won = g.winner === r.tid, sc = g.homeScore != null ? (home ? `${g.homeScore}-${g.awayScore}` : `${g.awayScore}-${g.homeScore}`) : '';
-      return `<div class="rec-row ${i ? '' : 'top'}"><span class="rank-no">${i + 1}</span><span class="grow">${p ? `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b>` : '<b>Unknown</b>'} <span class="muted small">${esc(recTeam(r.tid)?.shortName || '')} ${home ? 'vs' : '@'} ${esc(recTeam(opp)?.shortName || '?')} · ${r.yr}${sc ? ` · <span class="${won ? 'up' : 'down'}">${won ? 'W' : 'L'} ${sc}</span>` : ''}</span></span><b class="rec-v">${r.value}</b></div>`;
-    }).join('')}</div></fieldset>`;
-  }).join('');
-  layout({ title: 'Record Book', body: `${tabs}${list || `<p class="note muted">No ${kind === 'season' ? '' : kind === 'playoffs' ? 'playoff ' : 'Finals '}records in this save yet.</p>`}` });
+  const L = league(), kind = args.arg === 'playoffs' ? 'playoffs' : 'season', key = kind === 'playoffs' ? 'playoffHighs' : 'seasonHighs';
+  const cache = (state.compCache[state.leagueIdx] ||= new Map()), ck = `book:${kind}`;
+  if (!cache.has(ck)) {
+    const seen = new Set(), all = [];
+    for (const p of [...leaguePlayers(L, true).map(e => e.p), ...(L.freeAgents || []), ...(L.retirees || []), ...(L.hallOfFame || [])]) {
+      if (seen.has(p.id) || !p.careerStats?.[key]) continue;
+      seen.add(p.id); all.push(p);
+    }
+    cache.set(ck, BOOK_STATS.map(([k, name]) => [name, all.map(p => ({ p, v: bookVal(p.careerStats[key], k) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 10)]));
+  }
+  const tabs = `<div class="tabs fa-tabs">${[['season', 'Regular Season'], ['playoffs', 'Playoffs']].map(([k, l]) => `<button class="btn small ${k === kind ? 'on focus' : 'off'}" data-act="nav" data-to="records" data-arg="${k}">${l}</button>`).join('')}</div>`;
+  const list = cache.get(ck).filter(([, rows]) => rows.length).map(([name, rows]) => `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.map((r, i) =>
+    `<div class="rec-row ${i ? '' : 'top'}"><span class="rank-no">${i + 1}</span><span class="grow"><b class="tap" data-act="openPlayer" data-id="${r.p.id}">${esc(playerName(r.p))}</b></span><b class="rec-v">${r.v}</b></div>`).join('')}</div></fieldset>`).join('');
+  layout({ title: 'Record Book', body: `${tabs}<p class="note small muted">Single-game bests, all time: every player's career high${kind === 'playoffs' ? ' in the playoffs' : ''}.</p>${list || `<p class="note muted">No ${kind === 'playoffs' ? 'playoff ' : ''}games on record yet.</p>`}` });
 };
 
 // ---- Career milestones: his career totals, where they rank all-time in this league (active, free agents, retired and
@@ -15152,7 +15160,7 @@ screens.liveTrade = (args) => {
     return `<div class="tsel">${arrow(-1, '◀')}<span class="tsel-team"><span class="tsel-name"><b>${esc(T.shortName)}</b></span></span>${arrow(1, '▶')}</div>`;
   };
   // Step by step: what you want from them, then what you'll give. The deal and the bar stay pinned on top.
-  const step = args.step === 'you' ? 'you' : 'them';
+  const step = args.step === 'them' ? 'them' : 'you';
   const sentA = aa.filter(x => selA.has(x.key)), sentB = bb.filter(x => selB.has(x.key));
   const playersOf = xs => xs.filter(x => x.player).map(x => x.player);
   const T = step === 'them' ? B : A;
@@ -15166,7 +15174,7 @@ screens.liveTrade = (args) => {
           <div class="stack">${select('b', bId)}${capRoomLine(B, playersOf(sentB), playersOf(sentA))}${sendingLine(sentB, vB)}</div>
         </div>
         ${tradeBar(A, B, vA, vB)}
-        <div class="seg trade-tabs">${[['them', B, sentB], ['you', A, sentA]].map(([k, t, sent]) => `<button class="btn small ${step === k ? 'on focus' : 'off'}" data-act="liveStep" data-s="${k}">${esc(t.shortName)} Assets${sent.length ? ` · ${sent.length}` : ''}</button>`).join('')}</div>
+        <div class="seg trade-tabs">${[['you', A, sentA], ['them', B, sentB]].map(([k, t, sent]) => `<button class="btn small ${step === k ? 'on focus' : 'off'}" data-act="liveStep" data-s="${k}">${esc(t.shortName)} Assets${sent.length ? ` · ${sent.length}` : ''}</button>`).join('')}</div>
       </div>
       <div class="trade-step">
         <p class="note small muted" style="margin:4px 0 6px">${step === 'them' ? 'What you want from them' : 'What you give'}</p>
