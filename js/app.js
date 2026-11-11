@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.346.3';
+const APP_VERSION = '0.346.4';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -11232,7 +11232,7 @@ screens.records = (args = {}) => {
     const tri = rows.length > 3 ? `<button class="rec-tri ${open ? 'open' : ''}" data-act="recMore" data-k="${esc(key)}" aria-label="${open ? 'Show fewer' : 'Show 4-10'}">▾</button>` : '';
     return `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.slice(0, 3).map((r, i) => recRow(r, i)).join('')}${open ? rows.slice(3).map((r, i) => recRow(r, i + 3)).join('') : ''}${tri ? `<div class="rec-tri-row">${tri}</div>` : ''}</div></fieldset>`;
   }).join('');
-  layout({ title: 'Record Book', body: `${tabs}<p class="note small muted">Tap ▾ to see 4-10.</p>${list || `<p class="note muted">No ${kind === 'playoffs' ? 'playoff ' : ''}games on record yet.</p>`}` });
+  layout({ title: 'Record Book', body: `${tabs}<p class="note small muted">${{ season: 'Single-game bests, all time', playoffs: 'Playoff single-game bests, all time', career: 'Career totals, all time' }[kind]}. Tap ▾ to see 4-10.</p>${list || `<p class="note muted">No ${kind === 'playoffs' ? 'playoff ' : ''}games on record yet.</p>`}` });
 };
 
 // ---- Career milestones: his career totals, where they rank all-time in this league (active, free agents, retired and
