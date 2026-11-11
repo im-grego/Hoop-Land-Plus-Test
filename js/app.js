@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.352.8';
+const APP_VERSION = '0.353.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3131,7 +3131,7 @@ const ndot = n => (n ? `<span class="ndot">${n === true ? '' : n > 9 ? '9+' : n}
 const rumorKey = r => `${r.kind}:${r.p.id}`;
 function rumorTop() {
   const L = league(), k = `${state.leagueIdx}|${L.season.phase}|${L.season.day ?? ''}|${L.season.currentYear}`;
-  if (state.rumorTopK !== k) { state.rumorTopK = k; try { state.rumorTop = rumorMill(L, { level: shownLevel, li: state.leagueIdx, skip: isUserTeam }).slice(0, 30).map(rumorKey); } catch { state.rumorTop = []; } }
+  if (state.rumorTopK !== k) { state.rumorTopK = k; try { state.rumorTop = rumorMill(L, { level: shownLevel, li: state.leagueIdx, skip: isUserTeam }).slice(0, 10).map(rumorKey); } catch { state.rumorTop = []; } }
   return state.rumorTop;
 }
 const rumorSeen = () => new Set(offGet('hgSeen').ids || []);
@@ -3323,11 +3323,11 @@ screens.main = () => {
   layout({
     title: 'Main Menu',
     body: `
-      <div class="league-card compact">
+      ${myTeamCard(L) || `<div class="league-card compact">
         ${leagueBadge(L)}
         <div class="grow"><b>${esc(L.leagueName || L.shortName)}</b>
-          <span class="note small">${esc(isCollege() ? collegePhaseName(s) : phaseName(s))} · ${CAR.isCareer(L) ? 'Career mode' : `Your ${isCollege() || isFranchise() ? (isCollege() ? 'school' : 'team') : 'teams'}: ${esc(yourTeams)}`}</span></div>
-      </div>
+          <span class="note small">${CAR.isCareer(L) ? 'Career mode' : `Your ${isCollege() || isFranchise() ? (isCollege() ? 'school' : 'team') : 'teams'}: ${esc(yourTeams)}`}</span></div>
+      </div>`}
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
       ${startCard()}
       ${marketCard()}
@@ -9422,7 +9422,8 @@ function ciWindow(L = league()) {
   // Any point in the regular season, Opening Night included: early season up to the deadline, the stretch run after.
   if (s.phase !== 9 || isCollege()) return null;
   if (asw && s.currentDay > dl) return 'stretch';
-  return 'early';
+  const mine = L.teams.find(isUserTeam), gp = mine ? (ciStanding(L, mine).w + ciStanding(L, mine).l) : 0;
+  return gp >= 30 ? 'mid' : 'early';
 }
 const ciConf = t => (t.division < 3 ? 0 : 1);
 // Seed within the conference by record, and the seed the roster says it should have (its best eight by level).
@@ -9444,11 +9445,18 @@ function ciForm(L, t) {
   const li = state.leagueIdx, y = L.season.currentYear;
   return t.roster.filter(p => p.status === 3).map(p => { const a = seasonLine(p, li, y), b = seasonLine(p, li, y - 1); return a && b && a.gp >= 10 && b.gp >= 10 ? { p, d: a.gs - b.gs, a } : null; }).filter(Boolean).sort((a, b) => b.d - a.d);
 }
+const CI_ICON = { early: '📋', mid: '🗓️', stretch: '🏁' };
+const CI_TITLE = { early: '📋 Early-Season Check-in', mid: '🗓️ Mid-Season Check-in', stretch: '🏁 Stretch-Run Check-in' };
 const CI_CALLS = {
   early: {
     meeting: { icon: '🤝', label: 'Players-only meeting', says: 'Clear the air early: everyone\'s morale up.' },
     shake: { icon: '🔀', label: 'Shake up the rotation', says: 'Reset the minutes for where the team is: compete if you\'re winning, develop if you\'re not.' },
     course: { icon: '🧭', label: 'Stay the course', says: 'It\'s early. Change nothing.' },
+  },
+  mid: {
+    meeting: { icon: '🤝', label: 'Halfway meeting', says: 'Reset the room at the halfway mark: everyone\'s morale up.' },
+    shake: { icon: '🔀', label: 'Shake up the rotation', says: 'Thirty games in: compete if you\'re winning, develop if you\'re not.' },
+    course: { icon: '🧭', label: 'Stay the course', says: 'Ride this group to the All-Star break.' },
   },
   stretch: {
     push: { icon: '🔥', label: 'Full push', says: 'Tighten to eight, stars near 38 minutes, starters fired up.' },
@@ -9472,18 +9480,40 @@ const CI_CAREER = {
     dinner: { icon: '🍽️', label: 'Team dinner on you', says: '20 coins: the whole roster closer.', fx: { mates: 3 }, coins: -20 },
     film: { icon: '🎞️', label: 'Extra film with the coach', says: 'Earn his trust early.', fx: { coach: 3 } },
   },
+  mid: {
+    post: { icon: '📸', label: 'Post a highlight', says: 'Halfway there: remind the fans who you are.', fx: { fans: 0.02 } },
+    dinner: { icon: '🍽️', label: 'Team dinner on you', says: '20 coins: the whole roster closer.', fx: { mates: 3 }, coins: -20 },
+    film: { icon: '🎞️', label: 'Extra film with the coach', says: 'Fix what the first half showed.', fx: { coach: 3 } },
+  },
   stretch: {
     rally: { icon: '🗣️', label: 'Rally the room', says: 'Take the locker room into the final weeks.', fx: { mates: 2, morale: 3, ego: 1 } },
     case: { icon: '🏅', label: 'Make your award case', says: 'Talk yourself up with the media.', fx: { fans: 0.03, coach: -1, ego: 1 } },
     quiet: { icon: '🧘', label: 'Keep your head down', says: 'Let the play talk.', fx: { morale: 3, coach: 1 } },
   },
 };
+// The top of the main menu with one team of your own: its logo and name, the record and where it sits in the conference
+// (last season's in the offseason), and its biggest need.
+function myTeamCard(L) {
+  if (isCollege() || CAR.isCareer(L)) return '';
+  const mine = L.teams.filter(isUserTeam);
+  if (mine.length !== 1) return '';
+  const t = mine[0], x = ciStanding(L, t), conf = ciConf(t) ? 'West' : 'East';
+  const played = L.season.phase === 9 && x.w + x.l > 0;
+  const last = teamRecord(t);
+  const line = played ? `${x.w}-${x.l} · ${ordinal(x.seed)} in the ${conf}` : last.yr && last.W + last.L ? `Last season ${last.W}-${last.L}` : `${conf}ern Conference`;
+  const need = (() => { try { return teamNeed(t); } catch { return ''; } })();
+  return `<div class="league-card compact">
+      ${logoImg(t)}
+      <div class="grow"><b>${esc(teamFull(t))}</b>
+        <span class="note small">${esc(line)}${need ? ` · Need: ${esc(need)}` : ''}</span></div>
+    </div>`;
+}
 function checkinCard() {
   const w = ciWindow();
   if (!w) return '';
   const st = ciState(), done = st[w];
-  return `<fieldset class="frame"><legend>${w === 'early' ? '📋 Early-Season Check-in' : '🏁 Stretch-Run Check-in'}</legend><p class="note small">Day ${league().season.currentDay}. ${done ? 'Done for this stretch.' : w === 'early' ? 'A few weeks in: where you stand, who\'s hurt, who\'s hot, and one call.' : 'The final weeks: the race, your health, and how to finish.'}</p>
-    <button class="btn big ${done ? '' : 'focus'}" data-act="nav" data-to="checkin">${w === 'early' ? '📋' : '🏁'} Season Check-in</button></fieldset>`;
+  return `<fieldset class="frame"><legend>${CI_TITLE[w]}</legend><p class="note small">Day ${league().season.currentDay}. ${done ? 'Done for this stretch.' : { early: 'A few weeks in: where you stand, who\'s hurt, who\'s hot, and one call.', mid: 'Thirty games in: where you stand at the halfway mark, who\'s hurt, who\'s hot, and one call to the break.', stretch: 'The final weeks: the race, your health, and how to finish.' }[w]}</p>
+    <button class="btn big ${done ? '' : 'focus'}" data-act="nav" data-to="checkin">${CI_ICON[w]} Season Check-in</button></fieldset>`;
 }
 screens.checkin = () => {
   const L = league(), w = ciWindow(L), st = ciState();
@@ -9516,7 +9546,7 @@ screens.checkin = () => {
       ${pick ? `<p class="note small up">✓ ${calls[pick].icon} ${esc(calls[pick].label)}${st[w].meText ? ` · ${esc(st[w].meText)}` : ''}</p>` : `<div class="stack">${Object.entries(calls).map(([k, c]) => `<button class="btn left small" data-act="ciMe" data-k="${k}"><span class="grow"><b>${c.icon} ${esc(c.label)}</b><br><span class="note small">${esc(c.says)}</span></span></button>`).join('')}</div>`}
     </fieldset>`;
   }
-  layout({ title: w === 'early' ? 'Early-Season Check-in' : 'Stretch-Run Check-in', body: career + teams.map(box).join('') + (teams.length ? '' : '<p class="note">No team to check in on.</p>') + streaksBox() });
+  layout({ title: CI_TITLE[w].replace(/^\S+ /, ''), body: career + teams.map(box).join('') + (teams.length ? '' : '<p class="note">No team to check in on.</p>') + streaksBox() });
 };
 // What's drifted in a team's rotation since it was set: the hurt still playing, stars short of their minutes,
 // prospects and promises not getting theirs. One tap sets the suggested rotation again.
@@ -10722,14 +10752,14 @@ screens.rumors = () => {
   // One rumor per team: a team with nothing in the mill gets its best trade-block name.
   const seen = new Set(list.map(r => r.p.id)), teams = new Set(list.map(r => r.team));
   for (const t of L.teams.filter(x => !isUserTeam(x) && !teams.has(x))) for (const p of FA.signedRoster(t).sort((a, b) => shownLevel(b) - shownLevel(a))) {
-    if (!teams.has(t) && p.season?.onTradeBlock === 1 && !seen.has(p.id) && shownLevel(p) >= 68 && teams.add(t)) list.push({ kind: 'block', p, team: t, heat: 1, why: [], level: shownLevel(p), morale: p.season?.morale ?? 70 });
+    if (!teams.has(t) && p.season?.onTradeBlock === 1 && !seen.has(p.id) && shownLevel(p) >= 76 && (p.contract?.sal || 0) >= 5 && teams.add(t)) list.push({ kind: 'block', p, team: t, heat: 1, why: [], level: shownLevel(p), morale: p.season?.morale ?? 70 });
   }
   list.sort((x, y) => y.heat - x.heat || y.level - x.level);
   offSet('hgSeen', { ids: [...rumorSeen(), ...rumorTop()].slice(-300) });
   layout({
     title: 'Hoop Gram',
     body: `${newsTabs('rumors')}${(() => { const cpu = Object.entries(shiftStore()).filter(([, r]) => r.cpu).map(([pid, r]) => ({ pid: +pid, ...r })); return cpu.length ? `<fieldset class="frame"><legend>🏀 From Camp</legend><div class="stack">${cpu.map(shiftRumor).join('')}</div></fieldset>` : ''; })()}<p class="note small muted">Whispers about who could be on the move. Some of it comes true, some doesn't.</p>
-      <div class="stack">${list.slice(0, 30).map(rumorPost).join('') || '<p class="note small muted">Quiet around the league.</p>'}</div>`,
+      <div class="stack">${list.slice(0, 16).map(rumorPost).filter(Boolean).slice(0, 10).join('') || '<p class="note small muted">Quiet around the league.</p>'}</div>`,
   });
 };
 actions.txTab = d => replace('transactions', { tab: d.v });
@@ -18367,11 +18397,21 @@ function gram(s, L = league()) {
   for (const [full, nick] of Object.entries(NICKNAMES)) if (s.includes(full)) s = s.split(full).join(nick);
   return s.replace(/\b(\w+)\.\./g, '$1.');
 }
-function rumorPost(r) {
+const gramUsed = new WeakMap();
+function rumorPost(r, _i, all) {
   const p = r.p, t = r.team, nm = playerName(p), first = shortName(p), city = t.city;
   const why = r.why.length ? r.why.join(', ') : '';
   const seed = (p.id * 7 + t.id * 13) >>> 0;
-  const pick = a => a[seed % a.length];
+  // Within one list, a wording is used once (the next unused one for this kind of rumor, if any are left).
+  const used = all ? (gramUsed.get(all) || gramUsed.set(all, new Set()).get(all)) : null;
+  const kindKey = `${r.kind}:${r.mode || ''}:${r.hot ? 1 : 0}:${r.keep?.length ? 1 : 0}:${r.also ? 1 : 0}`;
+  const pick = a => {
+    for (let k = 0; k < a.length; k++) {
+      const i = (seed + k) % a.length, key = `${kindKey}:${i}`;
+      if (!used || !used.has(key)) { used?.add(key); return a[i]; }
+    }
+    return used ? null : a[seed % a.length];   // every wording already on this list: the post sits out
+  };
   const star = [
     `Sources: ${nm} has grown frustrated in ${city}${why ? ` after ${why}` : ''}. Teams are monitoring.`,
     `${first}'s camp is quietly gauging the market. ${why ? `${why[0].toUpperCase()}${why.slice(1)} will do that.` : ''}`,
@@ -18383,6 +18423,9 @@ function rumorPost(r) {
     `Is ${first} part of ${city}'s timeline? At ${p.age}, a move to a contender makes sense for both sides.`,
     `${city} would listen to offers on ${nm}. A ${p.age}-year-old ${['guard', 'guard', 'guard', 'wing', 'wing', 'wing', 'big', 'big'][p.pos] || 'vet'} doesn't fit a rebuild.`,
     `Keep an eye on ${nm}. Rival teams see a ${p.age}-year-old who could swing a playoff series.`,
+    `${city} is open to moving ${nm}. At ${p.age}, he means more to a contender than to a team in transition.`,
+    `Rival executives have ${first} circled, and ${city} is listening.`,
+    `${nm} might be the best veteran on the market this season. ${city} isn't in a spot to keep him.`,
   ];
   const blowup = [
     `${city} is ${why}. Something has to give, and ${nm}'s name keeps coming up.`,
@@ -18488,11 +18531,13 @@ function rumorPost(r) {
     `${nm} is on the table in ${city}. The price is a quality starter or real picks.`,
     `Hearing ${city} would move ${nm} for the right offer. Several teams have checked in.`,
   ];
-  const handle = pick(['@HoopInsider', '@LeagueWhispers', '@CapSpaceGuy', '@TradeMachine', '@CourtsideSources']);
+  const text = pick(r.kind === 'vet' ? vet : r.kind === 'blowup' ? blowup : r.kind === 'taxpay' ? taxpay : r.kind === 'block' ? block : star);
+  if (!text) return '';
+  const handle = ['@HoopInsider', '@LeagueWhispers', '@CapSpaceGuy', '@TradeMachine', '@CourtsideSources'][seed % 5];
   const likes = 800 + (seed % 9000) + r.heat * 4000;
   return `<button class="hg-post tap" data-act="openPlayer" data-id="${p.id}">
     <div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>${handle}</b></div>
-    <p class="hg-text">${esc(gram(pick(r.kind === 'vet' ? vet : r.kind === 'blowup' ? blowup : r.kind === 'taxpay' ? taxpay : r.kind === 'block' ? block : star).trim()))}</p>
+    <p class="hg-text">${esc(gram(text.trim()))}</p>
     <div class="hg-foot"><span>❤️ ${likes.toLocaleString()}</span><span class="muted">${esc(t.shortName)} · ${esc(nm)} ${lvTag(p)}</span></div>
   </button>`;
 }

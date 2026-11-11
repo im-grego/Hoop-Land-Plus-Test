@@ -313,6 +313,8 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
     for (let y = seasonDone ? cur : cur - 1; (p.stats || []).some(x => x.league === li && x.yr === y && (x.season || []).some(r => r.tid === team.id)); y--) n++;
     return n;
   };
+  // A rookie (no earlier season in this league) is never the one a team is said to build around.
+  const rookie = p => !(p.stats || []).some(x => x.league === li && x.yr < cur && (x.season || []).some(r => r.GP > 0));
   const asb = L.season.allStarWeekend ? L.season.currentDay >= L.season.allStarWeekend : false;
   for (const team of L.teams) {
     if (skip(team)) continue;
@@ -365,7 +367,7 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
         // The one they build around: a good player (80+) under 33 who hasn't reached his decline age, the highest potential
         // first; on a tie a player 27 or younger, then the better one (Maxey over Brown and Edgecombe, Amen over Durant).
         // Two tied that way (same potential, both 27 or younger or both older) are a duo they build around together.
-        const cands = roster.filter(p => level(p) >= 80 && p.age <= 32 && p.age < (p.regressionAge || 31))
+        const cands = roster.filter(p => !rookie(p) && level(p) >= 80 && p.age <= 32 && p.age < (p.regressionAge || 31))
           .sort((a, b) => (b.pot || 0) - (a.pot || 0) || (b.age <= 27) - (a.age <= 27) || level(b) - level(a));
         const core = cands[0] || null, duo = cands[1] && cands[1].pot === core.pot && (cands[1].age <= 27) === (core.age <= 27) ? cands[1] : null;
         const keep = core ? [core, ...(duo ? [duo] : [])] : null;
@@ -471,7 +473,7 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
       const over = x => (x.contract?.sal || 0) - fairSalary(level(x) - Math.max(0, x.age - 32) * 2);   // an older player's deal is judged on where he's headed
       const bad = roster.filter(p => fullYrs(p, team) >= 1 && (p.contract?.yrs || 0) >= 2 && over(p) >= 10 && level(p) < 90).sort((a, b) => over(b) - over(a))[0];
       if (bad) {
-        const young = roster.filter(p => p !== bad && p.age <= 25 && level(p) >= 76).sort((a, b) => (b.pot || 0) - (a.pot || 0) || level(b) - level(a))[0];
+        const young = roster.filter(p => p !== bad && !rookie(p) && p.age <= 25 && level(p) >= 76).sort((a, b) => (b.pot || 0) - (a.pot || 0) || level(b) - level(a))[0];
         out.push({ kind: 'contract', p: bad, team, heat: 1, why: [`$${bad.contract.sal}M a year through ${cur + bad.contract.yrs - 1}`], level: level(bad), morale: bad.season?.morale ?? 70, keep: young ? [young] : null });
       }
     }
@@ -494,7 +496,7 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
       }
       // Veterans it's shopping (the contracts it took on included) are on the market too.
       // Only names that would make headlines.
-      for (const p of roster) if (p.season?.onTradeBlock === 1 && p.age >= 28 && level(p) >= 75 && (p.pot || 0) >= 8 && !out.some(x => x.p === p)) out.push({ kind: 'block', p, team, heat: 1, why: [], level: level(p), morale: p.season?.morale ?? 70 });
+      for (const p of roster) if (p.season?.onTradeBlock === 1 && p.age >= 28 && level(p) >= 75 && (p.pot || 0) >= 8 && (p.contract?.sal || 0) >= 5 && !out.some(x => x.p === p)) out.push({ kind: 'block', p, team, heat: 1, why: [], level: level(p), morale: p.season?.morale ?? 70 });
     }
   }
   // One rumor per team: its hottest.
