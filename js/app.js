@@ -12,7 +12,7 @@ import {
   SKILL_ATTRS, DRAFT_DROP, DRAFT_FLOOR, floorVector, rookieLine, ceilingVector, buildCompPool, prospectComps, prospectValue,
   lotterySetup, lotteryOdds, runLottery, drawLottery, hasOwnFirst, draftOrder, teamRecord, cpuPick, tradePicks, pickValue, lotteryDone, actualDraftOrder, rookieComps,
   recoveryFor, projectedRookie, originalRatings, setRecoveryBonus, setReadiness, applySummerLeague, tierFor, scoutingReport, projectedCeiling, scoutedPot, compDistance,
-  assignClassComps, rookieFloorVector, collegeLine, rosterSlot,
+  assignClassComps, rookieFloorVector, collegeLine, rosterSlot, fitIncoming,
   needBaseline, teamNeeds, needsFilled, isWinNow, teamStatus, STATUS_NAMES, classScales, draftScore, LOTTERY_FORMATS,
 } from './draft.js';
 import { mentorPairs, runMentorship } from './mentorship.js';
@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.331.1';
+const APP_VERSION = '0.332.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -164,7 +164,7 @@ setRecoveryBonus(p => {
   if (!g && !vecsBuilding) { try { if (league().season.phase === PHASE_PRE_DRAFT) g = gradeOf(p)[0]; } catch { /* no class to grade against */ } }
   return g === '#1 Pick' || g === 'Top 5' ? 1 : 0;
 });
-// Readiness: how much of the game's −4 draft drop (every rating) a rookie wins back right away, from his production
+// Readiness: how close to his ceiling a prospect comes in (fitClassIncoming; there's no draft drop), from his production
 // and his body, each against the rest of his class at his position group (guards, wings, bigs):
 // - production: his last college season (per-36 game score), the way pros are judged against their peers. Older
 //   prospects tend to out-produce the kids, so juniors and seniors come in readier;
@@ -266,6 +266,22 @@ function readinessOf(p) {
 // Only the ends get a chip: green for ready now, orange for a project.
 const readyChip = p => { const r = readinessOf(p); return r === READINESS.base ? '' : `<span class="badge ${r.cls === 'up' ? 'new' : 'lvl'}">${r.icon} ${r.tag}</span>`; };
 setReadiness(p => (state.params.readiness === 'age' ? null : readinessOf(p).back));
+// No draft dip: a class shows its incoming level from the day it comes in (draft.js fitIncoming), each prospect once.
+const incKey = () => `hlc:incoming:${saveTag()}`;
+function fitClassIncoming(L = league()) {
+  if (!state.data || isCollege() || !L.draftClass?.length || L.season.phase >= PHASE_POST_DRAFT) return 0;
+  let done; try { done = new Set(JSON.parse(localStorage.getItem(incKey())) || []); } catch { done = new Set(); }
+  const todo = L.draftClass.filter(p => !done.has(p.id) && p.attributes);
+  if (!todo.length) return 0;
+  const ready = new Map(todo.map(p => [p.id, readyScore(p)]));   // read against the class before any rating moves
+  let n = 0;
+  for (const p of todo) { if (fitIncoming(p, ready.get(p.id))) n++; done.add(p.id); }
+  try { localStorage.setItem(incKey(), JSON.stringify([...done])); } catch { /* ignore */ }
+  resetCollegeZ();
+  state.compCache = {};
+  state.dirty = true;
+  return n;
+}
 function saveParams() {
   try { localStorage.setItem('hlc:params', JSON.stringify({ ...state.params, version: 13 })); } catch { /* ignore */ }
 }
@@ -633,7 +649,7 @@ let lastView = '';
 function render() {
   loadFaces();
   document.documentElement.dataset.px = state.params.pixelIcons === false ? 'off' : 'on';
-  if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) realClassCheck(); }
+  if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) { fitClassIncoming(); realClassCheck(); } }
   if (state.data && isCollege() && state.cal) { try { localStorage.setItem(collegeCalKey(), JSON.stringify(state.cal)); } catch { /* ignore */ } }
   if (state.data && !isCollege()) { seasonDrift(); cpuComebacks(); cpuNumbers(); cpuJerseys(); if (state.retFixed !== saveTag()) { state.retFixed = saveTag(); fixRetiredNumbers(); } glSettle(); taxSettle(); cpuShifts(); }   // once an offseason each (the G League once a season)
   if (state.data && !isCollege()) { careerSync(); syncScarcity(); poSettle(); campAuto(); }
@@ -2476,7 +2492,7 @@ actions.calDone = d => { if (d.k === 'media') applyPresser(); calFlags()[d.k] = 
 actions.calCamp = async () => {
   if (SUMMER_OFF) return actions.calCampBack();
   if (summerEligible().length && !state.summer[state.leagueIdx] && !summerDone() &&
-    !(await confirmBox('Summer league hasn\'t run. Wrap up anyway? Rookies keep the full draft drop.', 'Wrap Up'))) return;
+    !(await confirmBox('Summer league hasn\'t run. Wrap up anyway?', 'Wrap Up'))) return;
   calFlags().camp = true;
   state.undo = null;
   render();
@@ -5895,16 +5911,7 @@ function ageSection() {
   } else if (L.season.phase !== PHASE_POST_DRAFT) {
     body = `<p class="note muted">The age adjustment runs right after the draft (Post-Draft phase). This file is at ${esc(phaseName(L.season))}.</p>`;
   } else {
-    const eligible = summerEligible();
-    const total = leagueRookies(L).filter(r => r.round > 0 || state.params.rookieIncludeUndrafted).length;
-    body = eligible.length
-      ? `${state.params.readiness === 'age' ? `<p class="note">Hoop Land knocks ${DRAFT_DROP} points off every rating at the draft. Older rookies have less time to grow, so they get part of it back right away, the same on every skill:</p>
-        <ul class="age-bands">${bandText}</ul>` : `<p class="note">Hoop Land knocks ${DRAFT_DROP} points off every rating at the draft. How much comes back depends on how ready he is (his college production, frame and pedigree against his class), then on the skill: some carry over to the pros faster than others.</p>
-        <ul class="age-bands"><li><b>🎯 Ready now</b>: −2 per skill <span class="up">(+2 back)</span></li><li><b>⏳ 1–2 years</b>: −3 per skill <span class="up">(+1 back)</span></li><li><b>🛠️ Project</b>: −4 per skill</li></ul>
-        <p class="note small">By skill: dunking, steals, dribbling and shooting come back a point more; free throws about half a point more; passing about half a point less; layups, inside scoring, blocks and rebounds a point less (the physicality and the timing take longer). No rookie comes in above Lv 86, even a generational one: there's always room to grow.</p>`}
-        <button class="btn big focus" data-act="runSummer">▶ Run ${state.params.readiness === 'age' ? 'Age' : 'Readiness'} Adjustment</button>`
-      : `<p class="note">The age adjustment needs the rookies' pre-draft ratings. Load a save of this season from before the draft (it's only read, not changed).</p>`;
-    if (eligible.length < total) body += `<label class="btn small">📂 Load Pre-Draft Save<input type="file" id="origInput"></label>`;
+    body = `<p class="note">No draft drop: rookies keep the ratings they showed as prospects. Each class is set to its incoming level when it comes in (the readier he is, the closer to his ceiling), so there's nothing to win back.</p>`;
   }
   return `<fieldset class="frame"><legend>Age Adjustment</legend><div class="stack">${body}</div></fieldset>`;
 }
@@ -6115,7 +6122,7 @@ actions.runTour = () => {
 };
 // Sim Summer League from the calendar: the age adjustment, the numbers as they stand, the tournament, wrap up.
 actions.homeSimCamp = () => {
-  if (!(state.summer[state.leagueIdx] || summerDone())) { const { players, points } = ageAdjust(); state.compCache = {}; if (!SUMMER_OFF) toast(`Age adjustment: +${points} points back across ${players} rookies`); }
+  if (!(state.summer[state.leagueIdx] || summerDone())) { const { players, points } = ageAdjust(); state.compCache = {}; if (!SUMMER_OFF && points) toast(`Age adjustment: +${points} points back across ${players} rookies`); }
   if (!SUMMER_OFF) simTour();
   calFlags().camp = true;
   state.undo = null;
@@ -9618,6 +9625,7 @@ function setDraftClass(cls) {
   state.compCache = {};
   fillTraits(L);
   logClass(L);
+  fitClassIncoming(L);
   state.dirty = true;
 }
 actions.labApply = async () => {
@@ -10964,8 +10972,7 @@ screens.settings = (args) => {
       options('Private workouts', 'workoutSlots', [[2, '2'], [4, '4'], [6, '6'], [8, '8']], 'Workouts per team you run (scouting trips are this plus two).'),
       options('Edit prospects', 'editProspects', [[false, 'Off'], [true, 'On']], 'Lets you change a prospect\'s traits and tendencies by hand. Off keeps each class as it came in.'),
       ...(pro && league().draftClass?.length && phaseRank(league().season) < 3 ? ['<button class="btn" data-act="nav" data-to="classLab">🧪 Draft Class Lab</button>'] : []),
-    ]) + setGroup('Rookies', [options('Draft drop', 'readiness', [['motor', 'By readiness'], ['age', 'By age']], 'The game takes 4 off every rating at the draft. By readiness, his production and body (frame and pedigree) against his class at his position decide how much comes back: Ready now −2, 1–2 years −3, a Project −4. By age: older rookies get more back (the bands under Age Adjustment).'),
-      options('Undrafted rookies', 'rookieIncludeUndrafted', [[false, 'Skip'], [true, 'Include']], 'Whether undrafted rookies get the rookie bump and the drop adjustment.')]) +
+    ]) + setGroup('Rookies', [options('Undrafted rookies', 'rookieIncludeUndrafted', [[false, 'Skip'], [true, 'Include']], 'Whether undrafted rookies get the rookie bump and the drop adjustment.')]) +
       advGroup('Rookie Bump', ['rookieBands'], [
         '<div class="band-head three"><span>Ages</span><span>Min</span><span>Max</span></div>',
         ...P.rookieBands.map((b, i) => {
@@ -11418,7 +11425,7 @@ screens.draft = (args) => {
       title: 'Draft Room',
       body: rookies.length ? `
         <div class="tabs"><button class="btn on focus">Rookie Class</button></div>
-        <p class="note muted small">The draft is done. Floor = ratings after the −${DRAFT_DROP} drop${SUMMER_OFF ? '' : state.summer[state.leagueIdx] || summerDone() ? ' and summer league' : ' plus projected summer league recovery (when pre-draft ratings are known)'}; ceiling = top ratings.</p>
+        <p class="note muted small">The draft is done. Floor = the ratings he came in with plus a little development; ceiling = top ratings.</p>
         <div class="list">${rookies.map(r => {
           const c = rookieCompsFor(r.p);
           return `<button class="prow ${isUserTeam(r.team) ? 'sel' : ''}" data-act="openPlayer" data-id="${r.p.id}">

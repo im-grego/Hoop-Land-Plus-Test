@@ -6,7 +6,7 @@
 // - drafted prospects join their team's roster (status 2, `tid`, draft
 //   history { yr, rd, pk: overall 1-based, tid: drafting team, otid: 0 }),
 //   undrafted prospects become free agents (status 5);
-// - the −4 draft drop on the 12 skill ratings (current value only, never
+// - the −4 draft drop on the 12 skill ratings (the app skips it: its classes come in at their incoming level; never
 //   below 2);
 // - college career stats move to history.collegeStats, career, game and
 //   season stats reset, years in college move to history.yrs;
@@ -14,7 +14,6 @@
 // - every team's picks for this draft (and older) are removed;
 // - one news item per pick; the phase goes 4 → 5.
 
-import { draftDrop, SKILL_ATTRS } from './draft.js';
 import { PHASE_PRE_DRAFT, PHASE_POST_DRAFT, jerseyNumber, rookieNumber, draftYear, cloneData } from './savefile.js';
 
 const KEEP = new Set(['tid', 'num']);
@@ -66,7 +65,7 @@ function resetProspect(p, leagueIdx, year, tid) {
   p.history.yrs = (p.history.yrs || 0) + (p.yrs || 0);
   p.yrs = 0;
   Object.assign(p.contract, { tid: 0, pid: 0, yrs: 0, sal: 0 });
-  for (const k of SKILL_ATTRS) p.attributes[k][0] = draftDrop(p.attributes[k][0]);
+  // No draft drop: the app's draft keeps his ratings (the class came in at its incoming level).
   const template = zeroed(p.careerStats.season);
   p.stats.push({ league: leagueIdx, yr: year, sal: 0, season: [{ ...template, tid, num: p.num }], playoffs: [], finals: [] });
 }
