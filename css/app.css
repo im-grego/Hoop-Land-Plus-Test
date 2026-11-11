@@ -2015,3 +2015,6 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .ld-row .ld-v { font-family: var(--game); font-size: 18px; }
 .ld-groups { display: flex; gap: 6px; margin: 10px 0 2px; }
 .ld-groups .btn { flex: 1; min-height: 36px; }
+.bio-box.tap { cursor: pointer; }
+.bio-box.tap b { text-decoration: underline dotted; text-underline-offset: 3px; }
+.bio-box.tap:active { filter: brightness(1.15); }
