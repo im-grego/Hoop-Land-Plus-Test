@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.334.0';
+const APP_VERSION = '0.335.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -2587,7 +2587,7 @@ const STEP_SCREENS = {
   dev: ['staff', 'meeting', 'offseason', 'report', 'mentor', 'rookies', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'teamBooks', 'coaches', 'coach'], media: ['storylines', 'survey', 'mediaRumors'], cuts: ['cuts', 'latefa', 'liveTrade'], rotation: ['lineup', 'player'], export: ['export'],
   review: ['review', 'teamStats', 'player'], waters: ['waters', 'player'], nil: ['nil', 'player'], retention: ['retention', 'player'], carousel: ['carousel'], camps: ['camps', 'recruitee'], legacy: ['legacy', 'player'], schedule: ['schedule'], tour: ['tour', 'player'], walkons: ['walkons', 'player'], redshirt: ['redshirt', 'player'], madness: ['madness'], mediaday: ['mediaday', 'player'], departures: ['departures'], seniors: ['seniors'], portal: ['portal'], showcase: ['showcase', 'recruitee'], rw1: ['recruit', 'recruitee', 'recruitweek'], rw2: ['recruit', 'recruitee', 'recruitweek'], rw3: ['recruit', 'recruitee', 'recruitweek'], rw4: ['recruit', 'recruitee', 'recruitweek'], signing: ['signing'], preseason: ['preseason'], rosterlock: ['rosterlock'], practice: ['practice'], summer: ['offseason', 'report', 'mentor', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook'],
 };
-const ALWAYS = ['cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks'];
+const ALWAYS = ['records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks'];
 function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
@@ -9333,6 +9333,7 @@ screens.roster = (args) => {
         <h2 class="team-title">${esc(teamFull(t))}</h2>
         ${many ? `<button class="nav-btn" data-act="nav" data-replace="1" data-to="roster" data-arg="${nextT.id}" aria-label="Next team">▶</button>` : '<span></span>'}
       </div>
+      ${teamHeader(t)}
       ${rosterCoachLine(t)}
       ${!isCollege() ? `<div class="grid2 team-links"><button class="btn small" data-act="nav" data-to="history" data-arg="${t.id}">📜 History</button><button class="btn small" data-act="nav" data-to="payroll" data-arg="${t.id}">🤝 Contracts</button></div>` : ''}
       ${isUserTeam(t) && t.frontOffice && isComplete() && !isCollege() ? (() => { const ch = chemOf(t); return `<div class="grid2 team-mini">
@@ -10240,7 +10241,7 @@ screens.leaders = (args) => {
   const fmt = v => (mode === 'stats' ? v.toFixed(1) : v);
   layout({
     title: 'League',
-    body: `<div class="tabs"><button class="btn ${mode === 'stats' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="stats" data-k="${mode === 'stats' ? k : 'PTS'}" data-r="1">Stats</button><button class="btn ${mode === 'ratings' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="ratings" data-k="${mode === 'ratings' ? k : 'LAY'}" data-r="1">Ratings</button>${isCollege() ? '' : '<button class="btn off" data-act="openLeaders" data-m="rafters" data-r="1">🏟️ Rafters</button>'}</div>
+    body: `<div class="tabs"><button class="btn ${mode === 'stats' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="stats" data-k="${mode === 'stats' ? k : 'PTS'}" data-r="1">Stats</button><button class="btn ${mode === 'ratings' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="ratings" data-k="${mode === 'ratings' ? k : 'LAY'}" data-r="1">Ratings</button>${isCollege() ? '' : '<button class="btn off" data-act="openLeaders" data-m="rafters" data-r="1">🏟️ Rafters</button><button class="btn off" data-act="nav" data-to="records">📖 Records</button>'}</div>
       <div class="opts wrap ld-keys">${head}</div>
       <p class="note muted small" style="margin:6px 0">${esc(note)}</p>
       <div class="stack">${shown.map((x, i) => `<button class="ld-row ${x.e.team && isUserTeam(x.e.team) ? 'mine' : ''}" data-act="openPlayer" data-id="${x.e.p.id}">
@@ -10668,6 +10669,116 @@ function skillsChips(p) {
   return s.length ? `<div class="g-skills"><span class="muted small">Skills</span>${s.map(x => `<span class="sk-chip sk-${SKILL_GROUP[skillCategory(x.id)] || ''}">${esc(skillName(x.id))}${isLeveled(x.id) ? ` <b>${x.level}</b>` : ''}</span>`).join('')}</div>` : '';
 }
 actions.plEdit = () => { const a = state.stack[state.stack.length - 1].args; replace('player', { ...a, edit: !a.edit, ceil: false }); };
+// ---- From the game's own screens: the bio boxes (hometown, country, draft, years pro) and his rank at his position
+// and in the league, by shown level among signed players.
+function playerRanks(p) {
+  const cache = (state.compCache[state.leagueIdx] ||= new Map());
+  if (!cache.has('plRanks')) {
+    const all = leaguePlayers(league(), false).map(e => e.p).sort((a, b) => shownLevel(b) - shownLevel(a));
+    const byPos = new Map(), m = new Map();
+    all.forEach((q, i) => { const n = (byPos.get(q.pos) || 0) + 1; byPos.set(q.pos, n); m.set(q.id, { all: i + 1, pos: n }); });
+    cache.set('plRanks', m);
+  }
+  return cache.get('plRanks').get(p.id) || null;
+}
+function bioBoxes(p, team) {
+  const dr = p.history?.draft, c = OLY.countryOf(p), rk = team ? playerRanks(p) : null;
+  const box = (l, v) => `<div class="bio-box"><span class="glbl">${esc(l)}</span><b>${v}</b></div>`;
+  return `<div class="bio-grid">
+    ${box('Hometown', esc(p.home || '—'))}
+    ${box('Country', OLY.flagHtml(c, 1.6) || esc(c || '—'))}
+    ${box('Drafted', dr?.rd > 0 && dr.yr ? `${dr.yr} R${dr.rd} #${dr.pk}` : 'Undrafted')}
+    ${box('Years Pro', p.yrs ? `${p.yrs}` : 'Rookie')}
+    ${rk ? box(`${POSITIONS[p.pos]} Rank`, `#${rk.pos}`) : ''}
+    ${rk ? box('Overall Rank', `#${rk.all}`) : ''}
+  </div>`;
+}
+
+// ---- The roster's team header, like the game's: roster size, payroll against the cap, cap space, and offense,
+// defense and overall in stars with the league rank (each team's top eight by level).
+const OFF_KEYS = ['LAY', 'DNK', 'INS', 'MID', 'TPT', 'FTS', 'DRB', 'PAS', 'ORE'], DEF_KEYS = ['DRE', 'STL', 'BLK'];
+function teamRatings() {
+  const cache = (state.compCache[state.leagueIdx] ||= new Map());
+  if (!cache.has('teamRatings')) {
+    const L = league(), rows = L.teams.map(t => {
+      const top = FA.signedRoster(t).sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 8);
+      const avg = keys => top.length ? top.reduce((s, q) => s + keys.reduce((a, k) => a + regressed(q, k), 0) / keys.length, 0) / top.length : 0;
+      return { id: t.id, off: 16 + 6 * avg(OFF_KEYS), def: 16 + 6 * avg(DEF_KEYS), all: top.length ? top.reduce((s, q) => s + shownLevel(q), 0) / top.length : 0 };
+    });
+    const rank = k => new Map([...rows].sort((a, b) => b[k] - a[k]).map((r, i) => [r.id, i + 1]));
+    const rk = { off: rank('off'), def: rank('def'), all: rank('all') };
+    cache.set('teamRatings', new Map(rows.map(r => [r.id, { ...r, offRk: rk.off.get(r.id), defRk: rk.def.get(r.id), allRk: rk.all.get(r.id) }])));
+  }
+  return cache.get('teamRatings');
+}
+function teamHeader(t) {
+  if (isCollege()) return '';
+  const L = league(), r = teamRatings().get(t.id), n = FA.signedRoster(t).length, pay = FA.payroll(t), cap = FA.capLines(L).cap || 1;
+  const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+  const st = (lv, rk) => `${stars(levelStarsOf(Math.round(lv)))}<span class="th-rk">${ord(rk)}</span>`;
+  const pct = Math.min(100, pay / cap * 100), over = pay > cap;
+  return `<div class="team-head">
+    <div class="bio-box th-pay"><span class="glbl">Total Salary</span><span class="th-bar"><i style="width:${pct.toFixed(1)}%" class="${over ? 'over' : ''}"></i><b>$${Math.round(pay)}M / $${Math.round(cap)}M cap</b></span></div>
+    <div class="bio-box"><span class="glbl">Roster</span><b>${n}/${FA.FA_DEFAULTS.seasonMax}</b></div>
+    <div class="bio-box"><span class="glbl">Cap Space</span><b class="${over ? 'down' : ''}">${over ? '−' : ''}$${Math.abs(Math.round(cap - pay))}M</b></div>
+    ${r ? `<div class="bio-box"><span class="glbl">Offense</span>${st(r.off, r.offRk)}</div><div class="bio-box"><span class="glbl">Defense</span>${st(r.def, r.defRk)}</div><div class="bio-box"><span class="glbl">Overall</span>${st(r.all, r.allRk)}</div>` : ''}
+  </div>`;
+}
+
+// ---- The record book: the league's single-game records (regular season, playoffs, Finals), from the save.
+const REC_STATS = [['PTS', 'Points'], ['REB', 'Rebounds'], ['AST', 'Assists'], ['STL', 'Steals'], ['BLK', 'Blocks'], ['TPM', '3-Pointers'], ['FGM', 'Field Goals'], ['FTM', 'Free Throws'], ['TO', 'Turnovers']];
+function anyPlayer(pid) {
+  const L = league();
+  return leaguePlayers(L, true).find(e => e.p.id === pid)?.p || (L.retirees || []).find(p => p.id === pid) || (L.hallOfFame || []).find(p => p.id === pid) || null;
+}
+const recTeam = id => league().teams.find(t => t.id === id);
+function recordsHeld(p) {
+  const R = league().records || {}, out = [];
+  for (const [kind, lbl] of [['season', ''], ['playoffs', 'Playoff '], ['finals', 'Finals ']])
+    for (const [k, name] of REC_STATS) { const top = (R[kind]?.[k] || [])[0]; if (top && top.pid === p.id && k !== 'TO') out.push(`${lbl}${name.toLowerCase()}: <b>${top.value}</b> (${top.yr})`); }
+  return out;
+}
+screens.records = (args = {}) => {
+  const L = league(), R = L.records || {}, kind = ['season', 'playoffs', 'finals'].includes(args.arg) ? args.arg : 'season';
+  const tabs = `<div class="tabs fa-tabs">${[['season', 'Regular Season'], ['playoffs', 'Playoffs'], ['finals', 'Finals']].map(([k, l]) => `<button class="btn small ${k === kind ? 'on focus' : 'off'}" data-act="nav" data-replace="1" data-to="records" data-arg="${k}">${l}</button>`).join('')}</div>`;
+  const list = REC_STATS.map(([k, name]) => {
+    const rows = [...(R[kind]?.[k] || [])].sort((a, b) => b.value - a.value).slice(0, 5);
+    if (!rows.length) return '';
+    return `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.map((r, i) => {
+      const p = anyPlayer(r.pid), g = r.gameResults || {}, opp = g.homeTeam === r.tid ? g.awayTeam : g.homeTeam, home = g.homeTeam === r.tid;
+      const won = g.winner === r.tid, sc = g.homeScore != null ? (home ? `${g.homeScore}-${g.awayScore}` : `${g.awayScore}-${g.homeScore}`) : '';
+      return `<div class="rec-row ${i ? '' : 'top'}"><span class="rank-no">${i + 1}</span><span class="grow">${p ? `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b>` : '<b>Unknown</b>'} <span class="muted small">${esc(recTeam(r.tid)?.shortName || '')} ${home ? 'vs' : '@'} ${esc(recTeam(opp)?.shortName || '?')} · ${r.yr}${sc ? ` · <span class="${won ? 'up' : 'down'}">${won ? 'W' : 'L'} ${sc}</span>` : ''}</span></span><b class="rec-v">${r.value}</b></div>`;
+    }).join('')}</div></fieldset>`;
+  }).join('');
+  layout({ title: 'Record Book', body: `${tabs}${list || `<p class="note muted">No ${kind === 'season' ? '' : kind === 'playoffs' ? 'playoff ' : 'Finals '}records in this save yet.</p>`}` });
+};
+
+// ---- Career milestones: his career totals, where they rank all-time in this league (active, free agents, retired and
+// the Hall of Fame), the next round number, and any league record he holds.
+const MILE_STATS = [['PTS', 'Points'], ['REB', 'Rebounds'], ['AST', 'Assists'], ['STL', 'Steals'], ['BLK', 'Blocks'], ['TPM', '3-Pointers']];
+const careerTotals = p => { const t = { GP: 0 }; for (const s of (p.stats || []).filter(x => x.league === state.leagueIdx)) for (const r of s.season || []) { t.GP += r.GP || 0; for (const [k] of MILE_STATS) t[k] = (t[k] || 0) + (r[k] || 0); } return t; };
+function allTimeTable() {
+  const cache = (state.compCache[state.leagueIdx] ||= new Map());
+  if (!cache.has('allTime')) {
+    const L = league(), seen = new Set(), rows = [];
+    for (const p of [...leaguePlayers(L, true).map(e => e.p), ...(L.retirees || []), ...(L.hallOfFame || [])]) { if (seen.has(p.id)) continue; seen.add(p.id); const c = careerTotals(p); if (c.GP) rows.push({ id: p.id, c }); }
+    cache.set('allTime', Object.fromEntries(MILE_STATS.map(([k]) => [k, new Map([...rows].sort((a, b) => (b.c[k] || 0) - (a.c[k] || 0)).map((r, i) => [r.id, i + 1]))])));
+  }
+  return cache.get('allTime');
+}
+function milestonesBox(p, active) {
+  const c = careerTotals(p);
+  if (!c.GP) return '';
+  const T = allTimeTable(), ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+  const next = v => { const s = v < 1000 ? 250 : v < 5000 ? 1000 : v < 20000 ? 2500 : 5000; return Math.ceil((v + 1) / s) * s; };
+  const rows = MILE_STATS.filter(([k]) => (c[k] || 0) > 0).map(([k, name]) => {
+    const v = c[k] || 0, rk = T[k].get(p.id), n = next(v);
+    return `<div class="ms-row"><span class="ms-l">${esc(name)}</span><b>${v.toLocaleString()}</b><span class="${rk <= 10 ? 'gold' : rk <= 50 ? 'up' : 'muted'} small">${ord(rk)} all-time</span>${active ? `<span class="muted small ms-n">${(n - v).toLocaleString()} to ${n.toLocaleString()}</span>` : ''}</div>`;
+  }).join('');
+  const recs = recordsHeld(p);
+  return `<fieldset class="frame"><legend>Career Milestones</legend><p class="note small muted" style="margin:0 0 6px">${c.GP.toLocaleString()} games · regular season</p><div class="stack">${rows}</div>
+    ${recs.length ? `<div class="ms-recs"><span class="gold">🏅 League record</span> ${recs.join(' · ')}</div>` : ''}<button class="btn tiny off" data-act="nav" data-to="records" style="margin-top:8px">📖 Record Book</button></fieldset>`;
+}
 screens.player = (args) => {
   const e = findPlayer(args.id);
   if (!e) { back(); return; }
@@ -10761,7 +10872,7 @@ screens.player = (args) => {
       <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">${ceilMode ? '⇡ Raising ceilings' : 'Edit Ceilings'}</button></div>
     </fieldset>`;
   const content = edit ? `${detailsEdit(p)}${ratingsEdit}${trainer}${apCard}${skills}`
-    : `${newsBox(p)}${rankBox(p, mpg)}${ratingsView}${plOutlookBox(p, team)}${arcBox(p)}
+    : `${newsBox(p)}${rankBox(p, mpg)}${ratingsView}${plOutlookBox(p, team)}${milestonesBox(p, true)}${arcBox(p)}
       <fieldset class="frame"><legend>Scouting Report</legend>${shortReport(profileReport(p, team))}${playerTags(p) ? `<div class="pl-tags">${playerTags(p)}</div>` : ''}</fieldset>
       ${personality}${playStyleBox(p)}
       ${awardsBox(p)}${cupHonorsBox(p)}${olyBox(p)}
@@ -10775,6 +10886,7 @@ screens.player = (args) => {
         <p class="note">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'} · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
         <p class="note small pl-meta"><span class="stars">${potStars(p)}</span>${[archName(p) && `<b class="arch">${esc(archName(p))}</b>`, isAllAmerican(p) && '<span class="gold">⭐ All-American</span>'].filter(Boolean).map(x => ` ${x}`).join(' ·')}</p>
         ${profileFacts(p, team, mpg)}
+        ${edit ? '' : bioBoxes(p, team)}
         ${identityChips(p) ? `<div class="style-chips pl-chips">${identityChips(p)}</div>` : ''}
         ${quickActions(p, team)}
       </div>
