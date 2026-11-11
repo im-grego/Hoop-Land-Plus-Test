@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.352.5';
+const APP_VERSION = '0.352.6';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -80,35 +80,33 @@ const SHOWN_VERSION = 'Beta 0.2.0';
 const DEVLOG = [
   { v: 'Beta 0.2.0', sections: [
     ['Features', [
-      'Start a Franchise right in the app: pick a real team, make your moves, then load it in Hoop Land',
-      'Start Today: begin from today\'s date in the real 2026-27 season',
+      'Start a Franchise right in the app: take control of a team, make your moves, then export and load into Hoop Land',
+      'Start Today: begin from today\'s date in the real 2026/27 NBA season',
       'Start from an earlier date, back to Opening Night',
-      'Team picker with each team\'s top players and rankings',
-      'Trade machine and minimum free agents before you begin',
-      'In-season Trade Market',
-      'Team needs',
+      'Team picker with each team\'s top players and team rankings',
+      'Trade machine and minimum free agents accessible at any time',
+      'In-season Trade Market (opens about 30 games in)',
+      'Team needs added to the trade machine',
       'New Hoop Gram rumors: salary, aprons, sell-high, retool and paydays',
-      'Nicknames on Hoop Gram',
-      'Career Arc on the player profile',
-      'Game icons, award trophies and notification dots',
-      'Summer League back on its own step',
+      'Nicknames and naming logic improved for Hoop Gram rumors',
+      'Career Arc (shows a player\'s peak) added to the player profile',
+      'Summer League added back after Contracts',
     ]],
     ['CPU Logic', [
-      'Rotations built from real minutes',
-      'Smarter CPU draft boards',
-      'Draft-day trades with a reason behind them',
-      'CPU teams manage the tax and aprons',
-      'Aging superstars ask for 1+1 and 2+1 deals',
-      'Draft classes reworked: prospect levels, comps and schools',
+      'Rotations built from real NBA minutes',
+      'Smarter CPU draft boards (positional need)',
+      'Improved draft-day trade logic',
+      'CPU teams manage the tax and aprons more realistically',
+      'Aging superstars ask for 1+1 and 2+1 deals to keep control',
+      ['Draft classes reworked: prospect levels increased', ['Less dated player comparisons', 'Future draft class prospects are assigned schools']],
     ]],
     ['Bug Fixes', [
       'Season files with stray characters now load',
       'Awards and play-in phase shows the right screen',
       'Saving on iPhone and iPad',
-      'Free throws top out at 15',
+      'Free throws top out at 15 (based on the roster file)',
       'Rookie of the Year only counts true rookies',
-      'Gear colors on dark jerseys and sleeves',
-      'Draft history setting no longer carries across saves',
+      'Gear on dark jerseys and sleeves stays white unless the jersey is black',
     ]],
   ] },
 ];
@@ -3025,7 +3023,7 @@ actions.devlog = () => {
   try { localStorage.setItem(devlogKey, DEVLOG[0].v); } catch { /* ignore */ }
   const box = overlay(`<h2 class="devlog-h">What's New</h2>
     <div class="devlog">${DEVLOG.map((r, i) => `<details class="devlog-rel" ${i === 0 ? 'open' : ''}><summary><b>${esc(r.v)}</b></summary>
-      ${r.sections.map(([h, list]) => `<p class="devlog-sub">${esc(h)}</p><ul class="devlog-list">${list.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`).join('')}
+      ${r.sections.map(([h, list]) => `<p class="devlog-sub">${esc(h)}</p><ul class="devlog-list">${list.map(x => (Array.isArray(x) ? `<li>${esc(x[0])}<ul class="devlog-list sub">${x[1].map(y => `<li>${esc(y)}</li>`).join('')}</ul></li>` : `<li>${esc(x)}</li>`)).join('')}</ul>`).join('')}
     </details>`).join('')}</div>
     <button class="btn focus" data-close>Close</button>`);
   box.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === box) { box.remove(); render(); } });
