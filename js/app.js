@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.345.2';
+const APP_VERSION = '0.345.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -11165,7 +11165,7 @@ function recordsHeld(p) {
 // regular season or playoffs, top 10 for each stat.
 const BOOK_STATS = [['PTS', 'Points'], ['REB', 'Rebounds'], ['AST', 'Assists'], ['STL', 'Steals'], ['BLK', 'Blocks'], ['TPM', '3-Pointers Made'],
   ['TPA', '3-Point Attempts'], ['FGM', 'Field Goals Made'], ['FGA', 'Field Goal Attempts'], ['FTM', 'Free Throws Made'], ['FTA', 'Free Throw Attempts'],
-  ['ORB', 'Offensive Rebounds'], ['MIN', 'Minutes'], ['PM', 'Plus/Minus'], ['TO', 'Turnovers'], ['PF', 'Fouls']];
+  ['ORB', 'Offensive Rebounds'], ['MIN', 'Minutes'], ['TO', 'Turnovers']];
 const bookVal = (h, k) => (k === 'MIN' ? Math.round((h?.MIN?.[0] || 0) / 60) : h?.[k] || 0);
 screens.records = (args = {}) => {
   const L = league(), kind = args.arg === 'playoffs' ? 'playoffs' : 'season', key = kind === 'playoffs' ? 'playoffHighs' : 'seasonHighs';
@@ -11179,8 +11179,10 @@ screens.records = (args = {}) => {
     cache.set(ck, BOOK_STATS.map(([k, name]) => [name, all.map(p => ({ p, v: bookVal(p.careerStats[key], k) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 10)]));
   }
   const tabs = `<div class="tabs fa-tabs">${[['season', 'Regular Season'], ['playoffs', 'Playoffs']].map(([k, l]) => `<button class="btn small ${k === kind ? 'on focus' : 'off'}" data-act="nav" data-to="records" data-arg="${k}">${l}</button>`).join('')}</div>`;
-  const list = cache.get(ck).filter(([, rows]) => rows.length).map(([name, rows]) => `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.map((r, i) =>
-    `<div class="rec-row ${i ? '' : 'top'}"><span class="rank-no">${i + 1}</span><span class="grow"><b class="tap" data-act="openPlayer" data-id="${r.p.id}">${esc(playerName(r.p))}</b></span><b class="rec-v">${r.v}</b></div>`).join('')}</div></fieldset>`).join('');
+  // The top three, the rest of the top 10 a tap away.
+  const recRow = (r, i) => `<div class="rec-row ${i ? '' : 'top'}"><span class="rank-no">${i + 1}</span><span class="grow"><b class="tap" data-act="openPlayer" data-id="${r.p.id}">${esc(playerName(r.p))}</b></span><b class="rec-v">${r.v}</b></div>`;
+  const list = cache.get(ck).filter(([, rows]) => rows.length).map(([name, rows]) => `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.slice(0, 3).map(recRow).join('')}
+    ${rows.length > 3 ? `<details class="rec-more" data-keep="rec-${kind}-${name}" ${state.keepOpen?.[`rec-${kind}-${name}`] ? 'open' : ''}><summary class="small link">4-${rows.length}</summary><div class="stack">${rows.slice(3).map((r, i) => recRow(r, i + 3)).join('')}</div></details>` : ''}</div></fieldset>`).join('');
   layout({ title: 'Record Book', body: `${tabs}<p class="note small muted">Single-game bests, all time: every player's career high${kind === 'playoffs' ? ' in the playoffs' : ''}.</p>${list || `<p class="note muted">No ${kind === 'playoffs' ? 'playoff ' : ''}games on record yet.</p>`}` });
 };
 

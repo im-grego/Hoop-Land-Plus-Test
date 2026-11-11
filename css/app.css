@@ -2041,3 +2041,8 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 
 .start-team { gap: 10px; }
 .start-team .grow { display: flex; flex-direction: column; text-align: left; }
+
+.rec-more summary { list-style: none; cursor: pointer; padding: 2px 0 0 30px; }
+.rec-more summary::before { content: '▸ '; }
+.rec-more[open] summary::before { content: '▾ '; }
+.rec-more > .stack { margin-top: 2px; }
