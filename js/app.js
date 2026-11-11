@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.342.4';
+const APP_VERSION = '0.343.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -2738,7 +2738,7 @@ function seasonAwardsCard() {
   }
   const rows = [...won.entries()].sort((x, y) => x[1].length - y[1].length);
   return `<fieldset class="frame"><legend>🏆 ${dispYr(yr)} Season Awards</legend>
-    ${rows.length ? `<div class="stack">${rows.map(([n, ps]) => `<div class="small mv-row aw-row"><span class="mv-l"><b>${esc(n)}</b></span><span class="mv-r">${ps.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</span>`).join(', ')}</span></div>`).join('')}</div>` : '<p class="note small muted">The awards aren\'t in this save yet.</p>'}
+    ${rows.length ? `<div class="stack">${rows.map(([n, ps]) => `<div class="small mv-row aw-row"><span class="mv-l">${awardSprite(n)}<b>${esc(n)}</b></span><span class="mv-r">${ps.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</span>`).join(', ')}</span></div>`).join('')}</div>` : '<p class="note small muted">The awards aren\'t in this save yet.</p>'}
     <p class="note small" style="margin-top:8px">The regular season is over. Keep going in Hoop Land: the play-in and the playoffs are played there. Load the save again at the start of the playoffs for the playoff preview, or once the season ends (Pre-Lottery) to run the offseason.</p></fieldset>`;
 }
 function calendarCard() {
@@ -2759,7 +2759,7 @@ function calendarCard() {
     return `<li class="cal ${state_}">
         <span class="cal-date">${esc(st.date)}</span>
         <div class="cal-body">
-          <b>${state_ === 'done' ? '✓ ' : state_ === 'locked' ? '🔒 ' : ''}${esc(st.title)}</b>
+          <b>${state_ === 'done' ? '✓ ' : state_ === 'locked' ? '🔒 ' : ''}${esc(st.title)}${state_ === 'now' ? ndot(true) : ''}</b>
           <p class="note small">${esc(state_ === 'done' ? stepSummary(st.key) : st.blurb).replace(/\n/g, '<br>')}</p>
           ${state_ === 'now' ? stepActions(st.key) : ''}
         </div>
@@ -3065,6 +3065,19 @@ actions.installHide = () => { try { localStorage.setItem(INSTALL_HIDE, '1'); } c
 // ---------------------------------------------------------------------------
 // Main menu
 
+// The game's red notification dot, on a button's icon (with a count when there is one).
+const ndot = n => (n ? `<span class="ndot">${n === true ? '' : n > 9 ? '9+' : n}</span>` : '');
+// Hoop Gram posts not seen yet: the top of the feed against what was showing the last time it was opened.
+const rumorKey = r => `${r.kind}:${r.p.id}`;
+function rumorTop() {
+  const L = league(), k = `${state.leagueIdx}|${L.season.phase}|${L.season.day ?? ''}|${L.season.currentYear}`;
+  if (state.rumorTopK !== k) { state.rumorTopK = k; try { state.rumorTop = rumorMill(L, { level: shownLevel, li: state.leagueIdx, skip: isUserTeam }).slice(0, 30).map(rumorKey); } catch { state.rumorTop = []; } }
+  return state.rumorTop;
+}
+const rumorSeen = () => new Set(offGet('hgSeen').ids || []);
+const rumorUnread = () => { const s = rumorSeen(); return rumorTop().filter(k => !s.has(k)).length; };
+// A facility upgrade the coins already cover.
+const facReady = t => !!t && isComplete() && !isCollege() && FX.FACILITIES.some(f => { const cur = FX.tierIn(t, f.k); return cur < f.tiers.length && coinsOf(t) >= FX.upgradeCost(cur); });
 screens.main = () => {
   if (!state.data) {
     layout({
@@ -3107,7 +3120,7 @@ screens.main = () => {
         ${L.teams.some(isUserTeam) ? '<button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button>' : ''}
         ${!isCollege() && myTeam() ? '<button class="btn left" data-act="nav" data-to="coaching"><span class="ico">🧑‍🏫</span> My Coach</button>' : ''}
         <button class="btn left" data-act="nav" data-to="editor"><span class="ico">🏀</span> My League</button>
-        ${isCollege() ? '' : '<button class="btn left" data-act="nav" data-to="rumors"><span class="ico">📸</span> Hoop Gram</button>'}
+        ${isCollege() ? '' : `<button class="btn left" data-act="nav" data-to="rumors"><span class="ico">📸${ndot(rumorUnread())}</span> Hoop Gram</button>`}
       </div>
       ${!isCollege() && !isFranchise() && !CAR.isCareer(L) && state.userTeams.size ? `<div class="grid2"><button class="btn left" data-act="nav" data-to="myteams"><span class="ico">🗂️</span> My Teams <span class="note small">${state.userTeams.size}${state.autoTeams.size ? ` · ${state.autoTeams.size} on autopilot` : ''}</span></button></div>` : ''}
       <input type="search" class="sel-team" placeholder="🔎 Find any player" data-change="pSearch" style="margin-top:8px">
@@ -5143,7 +5156,7 @@ function coachCard() {
   </div></fieldset>
   ${isComplete() && !isCollege() ? `<fieldset class="frame"><legend>Arena</legend><div class="stack">
     <p class="note small">Coins buy facility upgrades here. Each one keeps its effect in the game, and the app adds much more on top.</p>
-    <button class="btn" data-act="nav" data-to="facilities">🏟️ Facilities Upgrades · ${coinTag(coinsOf(t))}</button>
+    <button class="btn" data-act="nav" data-to="facilities">📶 Facilities Upgrades · ${coinTag(coinsOf(t))}${ndot(facReady(t))}</button>
   </div></fieldset>` : ''}`;
 }
 
@@ -5967,7 +5980,7 @@ screens.offseason = (args = {}) => {
         ['players', isCollege() ? 'Players' : 'Strength Program', `      ${strengthCard()}
       ${isCollege() ? '' : `<fieldset class="frame"><legend>Trainer</legend><div class="stack">
         <p class="note small">Health, potential and size changes for your players.</p>
-        <button class="btn" data-act="nav" data-to="trainer" ${auto && strengthStore().results ? '' : 'disabled'}>🩺 Meet with the Trainer</button></div></fieldset>`}`],
+        <button class="btn" data-act="nav" data-to="trainer" ${auto && strengthStore().results ? '' : 'disabled'}>🩺 Meet with the Trainer${ndot(auto && strengthStore().results && !strengthStore().seen)}</button></div></fieldset>`}`],
       ])}`,
     // Step through: progression first, then the players; wrap up only from the last tab.
     action: !auto ? null : (state.uiTab?.camp || 'prog') === 'prog' ? { act: 'campNext', label: isCollege() ? 'Advance to Players' : 'Advance to Strength Program' }
@@ -6126,6 +6139,7 @@ screens.trainer = () => {
   const L = league();
   const yr = lastSeasonYear();
   const size = new Map((strengthStore().results || []).map(r => [r.pid, r]));
+  if (strengthStore().results && !strengthStore().seen) { strengthStore().seen = true; saveStrength(); }
   const body = L.teams.filter(isUserTeam).map(t => {
     const rows = [...t.roster].sort((a, b) => shownLevel(b) - shownLevel(a)).map(p => {
       const snap = snapOf(p);
@@ -10364,6 +10378,7 @@ screens.rumors = () => {
     if (p.season?.onTradeBlock === 1 && !seen.has(p.id) && shownLevel(p) >= 68) list.push({ kind: 'block', p, team: t, heat: 1, why: [], level: shownLevel(p), morale: p.season?.morale ?? 70 });
   }
   list.sort((x, y) => y.heat - x.heat || y.level - x.level);
+  offSet('hgSeen', { ids: [...rumorSeen(), ...rumorTop()].slice(-300) });
   layout({
     title: 'Hoop Gram',
     body: `${newsTabs('rumors')}${(() => { const cpu = Object.entries(shiftStore()).filter(([, r]) => r.cpu).map(([pid, r]) => ({ pid: +pid, ...r })); return cpu.length ? `<fieldset class="frame"><legend>🏀 From Camp</legend><div class="stack">${cpu.map(shiftRumor).join('')}</div></fieldset>` : ''; })()}<p class="note small muted">Whispers about who could be on the move. Some of it comes true, some doesn't.</p>
@@ -10640,6 +10655,12 @@ function yearRuns(yrs) {
   }
   return out.join(', ');
 }
+// The game's own trophy for an award (League Awards screen), as a small pixel image.
+const AWARD_SPRITES = [[/All-Star MVP/i, 'asmvp'], [/Finals MVP/i, 'fmvp'], [/^Champion/i, 'champ'], [/MVP|Most Valuable/i, 'mvp'], [/Defensive Player/i, 'dpoy'],
+  [/Rookie of the Year/i, 'roty'], [/Sixth Man/i, '6moy'], [/Most Improved/i, 'mip'], [/Clutch/i, 'clutch'], [/Coach of the Year/i, 'coty'], [/All-Defens/i, 'alldef'],
+  [/All-Rookie/i, 'allrook'], [/All-(NBA|League)/i, 'allnba'], [/All-Star/i, 'allstar'], [/3-Point|Three/i, '3pt'], [/Scoring|Points/i, 'ptslead'], [/Rebound/i, 'trblead'],
+  [/Assist/i, 'astlead'], [/Steal/i, 'stllead'], [/Block/i, 'blklead']];
+const awardSprite = name => { const k = AWARD_SPRITES.find(([re]) => re.test(name || ''))?.[1]; return k ? `<img class="aw-ic" src="img/awards/${k}.png" alt="" aria-hidden="true">` : ''; };
 function awardsBox(p) {
   const L = league(), table = L.awards || [];
   // Team honors by the team he made (All-NBA 1st/2nd/3rd; All-Defense and All-Rookie 1st and 2nd only).
@@ -10652,7 +10673,7 @@ function awardsBox(p) {
     [/All-Star MVP/, '✨', 7], [/All-Star/, '🌟', 6], [/All-Defensive/, '🧱', 8], [/Sixth Man/, '6️⃣', 9], [/Most Improved/, '📈', 9], [/Leader/, '📊', 10], [/All-Rookie/, '🌱', 11]];
   const meta = r => RANK.find(([re]) => re.test(r.name)) || [null, '🎖️', 12];
   const shelf = [...rows].sort((x, y) => meta(x)[2] - meta(y)[2] || y.yrs.length - x.yrs.length);
-  return `<fieldset class="frame"><legend>Awards</legend><div class="aw-shelf">${shelf.map(r => `<span class="aw-chip ${meta(r)[2] <= 3 ? 'big' : ''}" title="${esc(yearRuns(r.yrs))}">${meta(r)[1]} ${esc(r.name)}${r.yrs.length > 1 ? ` <b>×${r.yrs.length}</b>` : ''}</span>`).join('')}</div>
+  return `<fieldset class="frame"><legend>Awards</legend><div class="aw-shelf">${shelf.map(r => `<span class="aw-chip ${meta(r)[2] <= 3 ? 'big' : ''}" title="${esc(yearRuns(r.yrs))}">${awardSprite(r.name) || meta(r)[1]} ${esc(r.name)}${r.yrs.length > 1 ? ` <b>×${r.yrs.length}</b>` : ''}</span>`).join('')}</div>
     <details class="aw-years" data-keep="aw-years" ${state.keepOpen?.['aw-years'] ? 'open' : ''}><summary class="small link">Years</summary><div class="stack" style="margin-top:8px">${shelf.map(r => `<div class="small mv-row aw-row"><span class="mv-l"><b>${esc(r.name)}</b>${r.yrs.length > 1 ? ` <span class="gold">×${r.yrs.length}</span>` : ''}</span><span class="muted mv-r">${yearRuns(r.yrs)}</span></div>`).join('')}</div></details></fieldset>`;
 }
 // What just happened to him: a trade (with the deal), a free agent signing, or an extension.
