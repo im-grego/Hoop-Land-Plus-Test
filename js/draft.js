@@ -270,6 +270,13 @@ export function styleDistance(v, body, entry, tend = null) {
   }
   return Math.sqrt(d);
 }
+// Who a player plays like now: the closest established players by size, position and playstyle within a potential step.
+export function playsLike(p, pool, vec, n = 2) {
+  return pool.filter(e => e.p.id !== p.id && e.established && Math.abs((e.p.pot || 0) - (p.pot || 0)) <= 1)
+    .map(e => ({ e, d: styleDistance(vec, bodyOf(p), e, p.tendencies) + POT_STEP * Math.abs((e.p.pot || 0) - (p.pot || 0)) }))
+    .sort((a, b) => a.d - b.d).slice(0, n)
+    .map(({ e, d }) => ({ id: e.p.id, name: playerName(e.p), group: e.group, tier: tierFor(e.p.pot), sim: Math.max(0, Math.round(100 - d * 3)) }));
+}
 export const potQualifier = (pot, compPot) => (compPot < pot ? '+' : compPot > pot ? ' lite' : '');
 // The closest established players within a potential step of his ceiling (the same tier preferred).
 function ceilingComps(p, v, pool, pot, n = 3) {

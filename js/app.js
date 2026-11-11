@@ -12,7 +12,7 @@ import {
   SKILL_ATTRS, DRAFT_DROP, DRAFT_FLOOR, floorVector, rookieLine, ceilingVector, buildCompPool, prospectComps, prospectValue,
   lotterySetup, lotteryOdds, runLottery, drawLottery, hasOwnFirst, draftOrder, teamRecord, cpuPick, tradePicks, pickValue, lotteryDone, actualDraftOrder, rookieComps,
   recoveryFor, projectedRookie, originalRatings, setRecoveryBonus, setReadiness, applySummerLeague, tierFor, scoutingReport, projectedCeiling, scoutedPot, compDistance,
-  assignClassComps, rookieFloorVector, collegeLine, rosterSlot, fitIncoming,
+  assignClassComps, rookieFloorVector, collegeLine, rosterSlot, fitIncoming, playsLike,
   needBaseline, teamNeeds, needsFilled, isWinNow, teamStatus, STATUS_NAMES, classScales, draftScore, LOTTERY_FORMATS,
 } from './draft.js';
 import { mentorPairs, runMentorship } from './mentorship.js';
@@ -27,7 +27,7 @@ import { buildPack, savePack, readPack, isPack, packMatch, applyPackTraits, pack
 import { runSummerLeague, summerReward, undoSummerReward, mvpName, youngCore } from './summer.js';
 import { applyLottery, preLotteryOrder, startFreeAgency, nextFreeAgencyDay, rookieScale, signRookie } from './phases.js';
 import { runSurvey, consensus } from './survey.js';
-import { regressed } from './regression.js';
+import { regressed, declineYear } from './regression.js';
 import { refitCeilings, potBumpCeilings, autoTendencies, normalizeTendencies } from './autoplay.js';
 import { saveToLeague } from './leagueexport.js';
 import * as RP from './realpicks.js';
@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.332.4';
+const APP_VERSION = '0.333.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10507,6 +10507,122 @@ function hofProfile(p, args) {
     action: { act: 'back', label: 'Done' },
   });
 }
+// ---- The profile in the game's look: segmented bars in its category colors (blue finishing, green shooting, orange
+// creating, red defense, purple physicals), a segment a rating point (20 to a bar, read on the game's 10-point scale),
+// navy segments for the room to his ceiling, and its square pixel buttons.
+const G_NAMES = { LAY: 'Layup', DNK: 'Dunking', INS: 'Inside', MID: 'Mid Range', TPT: 'Three Point', FTS: 'Free Throw', DRB: 'Dribbling', PAS: 'Passing',
+  ORE: 'Off Rebounding', DRE: 'Def Rebounding', STL: 'Stealing', BLK: 'Blocking', SPD: 'Speed', STR: 'Strength', STM: 'Stamina' };
+const G_CLS = { FIN: 'fin', SHO: 'sho', CRE: 'cre', DEF: 'def', PHY: 'phy' };
+const gCat = k => CATEGORIES.find(c => c.attrs.includes(k)) || CATEGORIES[4];
+const gVal = v => (Math.round(v) / 2).toFixed(Math.round(v) % 2 ? 1 : 0);   // 17 → 8.5, like the game
+const G_MINUS = '<svg viewBox="0 0 10 10" shape-rendering="crispEdges"><rect x="2" y="4" width="6" height="2"/></svg>';
+const G_PLUS = '<svg viewBox="0 0 10 10" shape-rendering="crispEdges"><rect x="2" y="4" width="6" height="2"/><rect x="4" y="2" width="2" height="6"/></svg>';
+const G_UP = '<svg viewBox="0 0 10 10" shape-rendering="crispEdges"><rect x="4" y="3" width="2" height="5"/><rect x="3" y="4" width="4" height="1"/><rect x="2" y="5" width="6" height="1"/></svg>';
+const gBtn = (act, data, glyph, label) => `<button class="gbtn" data-act="${act}" ${data} aria-label="${esc(label)}">${glyph}</button>`;
+const gBar = (cls, kinds) => `<span class="gbar g-${cls}">${kinds.map(k => `<i class="s-${k}"></i>`).join('')}</span>`;
+// Each segment: f filled, g gained this offseason, t a temporary boost, l lost (to age, or this offseason), e room to
+// his ceiling. A declining player's bar stops at his peak: no room past it.
+function gKinds(p, snap, k) {
+  const tmp = tempDelta(p), rawT = tmp?.add?.[k] || 0, t = rawT > 0 && p.attributes[k][0] >= ATTR_MAX ? 0 : rawT;
+  const phys = PHYSICAL.includes(k), cur = Math.min(ATTR_MAX, p.attributes[k][0]), ceil = Math.min(ATTR_MAX, phys ? cur : Math.max(cur, p.attributes[k][1]));
+  const orig0 = snap ? snap.attributes[k][0] : cur, orig = rawT && orig0 === cur - rawT ? orig0 + rawT : orig0;
+  const reg = regressed(p, k), down = reg < cur, out = [];
+  const end = down ? cur : Math.max(ceil, Math.min(ATTR_MAX, orig));
+  for (let i = 1; i <= end; i++) {
+    if (down) out.push(i <= reg ? 'f' : 'l');
+    else if (t > 0 && i > cur - t && i <= cur) out.push('t');
+    else if (i <= Math.min(cur, orig)) out.push('f');
+    else if (i <= cur) out.push('g');
+    else if (i <= orig) out.push('l');
+    else out.push('e');
+  }
+  return { kinds: out, shown: down ? reg : cur, cur, ceil, delta: cur - orig, down, t, src: tmp?.src };
+}
+function gRow(p, snap, k, edit = false, ceilMode = false) {
+  const g = gKinds(p, snap, k), cls = G_CLS[gCat(k).key];
+  const sign = n => `${n > 0 ? '+' : '−'}${gVal(Math.abs(n))}`;
+  return `<div class="gcell ${edit ? 'edit' : ''}"><span class="glbl">${esc(G_NAMES[k])}</span>
+    ${edit ? gBtn('attr', `data-k="${k}" data-dir="-1"`, G_MINUS, `Lower ${ATTR_NAMES[k]}`) : ''}
+    <span class="gmid">${gBar(cls, g.kinds)}</span>
+    <span class="gnum"><b class="${g.down ? 'down' : ''}">${gVal(g.shown)}</b>${g.delta ? `<i class="${g.delta > 0 ? 'up' : 'down'}">${sign(g.delta)}</i>` : ''}${g.t ? `<i class="${g.t > 0 ? 'up' : 'down'}" title="${esc(g.src || '')}: temporary">${sign(g.t)}*</i>` : ''}</span>
+    ${edit ? gBtn('attr', `data-k="${k}" data-dir="1"`, ceilMode && !PHYSICAL.includes(k) ? G_UP : G_PLUS, `Raise ${ATTR_NAMES[k]}`) : ''}
+  </div>`;
+}
+// A category at a glance: its average bar (gold to red past his peak when declining), opening to its three ratings.
+function gGroup(p, snap, c) {
+  const rows = c.attrs.map(k => gKinds(p, snap, k)), avg = f => rows.reduce((a, r) => a + f(r), 0) / rows.length;
+  const shown = avg(r => r.shown), top = avg(r => r.down ? r.cur : r.ceil), down = rows.some(r => r.down);
+  const kinds = Array.from({ length: Math.round(top) }, (_, i) => (i < Math.round(shown) ? 'f' : down ? 'l' : 'e'));
+  const key = `gg-${c.key}`;
+  return `<details class="ggroup" data-keep="${key}" ${state.keepOpen?.[key] ? 'open' : ''}><summary class="gcell gsum"><span class="glbl">${esc(c.name)}</span>
+      <span class="gmid">${gBar(G_CLS[c.key], kinds)}</span><span class="gnum"><b>${(shown / 2).toFixed(1)}</b></span><span class="gchev">▾</span></summary>
+    <div class="gsub">${c.attrs.map(k => gRow(p, snap, k)).join('')}</div></details>`;
+}
+// Facts at a glance under his name: contract, minutes, health, where he is in his career.
+function profileFacts(p, team, mpg) {
+  const hurt = p.season?.injury?.gamesOut > 0 ? p.season.injury : null, ct = contractText(p, true);
+  const yd = declineYear(p);
+  const f = [
+    team ? (ct ? `💵 ${esc(ct)}` : '') : '<span class="muted">Free agent</span>',
+    mpg?.mpg ? `⏱️ ${Math.round(mpg.mpg)} MPG` : '',
+    hurt ? `<span class="down">🩹 Out ${hurt.gamesOut}g</span>` : '<span class="up">✚ Healthy</span>',
+    declining(p) ? `<span class="down">📉 ${yd > 0 ? `Decline yr ${yd}` : 'Decline starts'}</span>` : p.regressionAge ? `<span class="muted">Prime to ${p.regressionAge}</span>` : '',
+  ].filter(Boolean);
+  return `<div class="pl-facts">${f.map(x => `<span>${x}</span>`).join('')}</div>`;
+}
+// His level over the next three seasons (an estimate): growth closes part of the gap to his ceilings each year (more
+// the younger he is), then the game's regression takes over past his regression age.
+function outlookLevels(p) {
+  const ceilLv = levelOf({ attributes: Object.fromEntries(ATTRS.map(k => [k, [PHYSICAL.includes(k) ? p.attributes[k][0] : Math.max(p.attributes[k][0], p.attributes[k][1])]])) });
+  const out = [];
+  let lv = levelOf(p);
+  for (let n = 1; n <= 3; n++) {
+    const age = p.age + n;
+    if (age <= (p.regressionAge || 30)) { const f = age <= 21 ? 0.3 : age <= 24 ? 0.25 : age <= 27 ? 0.15 : 0.05; lv = Math.min(ceilLv, lv + Math.max(0, Math.round((ceilLv - lv) * f))); out.push(lv); }
+    else out.push(shownLevel({ ...p, age }));
+  }
+  return out;
+}
+function plOutlookBox(p, team) {
+  const now = shownLevel(p), next = outlookLevels(p), yr = league().season.currentYear;
+  const rk = team ? levelRanks(p, team) : null, ct = p.contract || {}, fair = fairSalary(now), pay = ct.sal || 0;
+  const like = (() => { try { return playsLike(p, compPool(), ATTRS.filter(k => !PHYSICAL.includes(k)).map(k => regressed(p, k)), 2); } catch { return []; } })();
+  const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+  const verdict = !pay || !team ? '' : pay - fair >= 4 ? `<span class="down">overpaid by about $${Math.round(pay - fair)}M</span>` : fair - pay >= 4 ? `<span class="up">a bargain, about $${Math.round(fair - pay)}M under his worth</span>` : '<span class="muted">paid about right</span>';
+  return `<fieldset class="frame"><legend>Outlook</legend><div class="stack small">
+    <div class="ol-line"><span class="muted">Next 3 years</span><span class="ol-path"><b>Lv ${now}</b>${next.map((v, i) => ` → <b class="${v > now ? 'up' : v < now ? 'down' : ''}">${v}</b><span class="muted"> '${String(yr + i + 1).slice(2)}</span>`).join('')} <span class="muted">est.</span></span></div>
+    ${like.length ? `<div class="ol-line"><span class="muted">Plays like</span><span>${like.map(c => `<b class="tap" data-act="openPlayer" data-id="${c.id}">${esc(c.name)}</b> <span class="muted">${c.sim}%</span>`).join(' · ')}</span></div>` : ''}
+    ${rk ? `<div class="ol-line"><span class="muted">Value</span><span>${ord(rk.league)} in the league · ${ord(rk.team)} on the ${esc(team.name)}${verdict ? ` · ${verdict}` : ''}</span></div>` : ''}
+  </div></fieldset>`;
+}
+// Career arc: his scoring by season, the peak in gold and the seasons the game has been taking off in red.
+function arcBox(p) {
+  const yrs = (p.stats || []).filter(s => s.league === state.leagueIdx).map(s => {
+    const rows = (s.season || []).filter(r => r.GP > 0), gp = rows.reduce((a, r) => a + r.GP, 0);
+    return { yr: s.yr, gp, ppg: gp ? rows.reduce((a, r) => a + (r.PTS || 0), 0) / gp : 0 };
+  }).filter(x => x.gp > 0).sort((a, b) => a.yr - b.yr);
+  if (yrs.length < 2) return '';
+  const max = Math.max(...yrs.map(x => x.ppg)) || 1, peak = yrs.find(x => x.ppg === max);
+  const last = yrs[yrs.length - 1].yr, ageAt = yr => p.age - (last - yr), declineAge = (p.regressionAge || 99) + 2;
+  const fell = yrs.find(x => ageAt(x.yr) >= declineAge);
+  return `<fieldset class="frame"><legend>Career Arc</legend>
+    <div class="arc">${yrs.map(x => `<span class="arc-b ${x === peak ? 'pk' : ageAt(x.yr) >= declineAge ? 'dn' : ''}" style="height:${Math.max(6, Math.round(x.ppg / max * 100))}%" title="${x.yr}: ${x.ppg.toFixed(1)} PPG"></span>`).join('')}</div>
+    <div class="arc-x small muted"><span>${yrs[0].yr}</span><span>${yrs[yrs.length - 1].yr}</span></div>
+    <p class="note small">Peak <b class="gold">${peak.ppg.toFixed(1)} PPG</b> in ${peak.yr} (age ${ageAt(peak.yr)})${declining(p) ? ` · <span class="down">Lv ${levelOf(p)} at his peak, ${shownLevel(p)} now${fell ? `, declining since ${fell.yr}` : ''}</span>` : ''}</p>
+  </fieldset>`;
+}
+// The scouting report: the first two sentences, the rest a tap away.
+function shortReport(html) {
+  const parts = html.split(/(?<=[.!?])\s+(?=[A-Z<])/);
+  if (parts.length <= 2) return `<p class="note small scout-p">${html}</p>`;
+  return `<details class="rep-more" data-keep="rep-more" ${state.keepOpen?.['rep-more'] ? 'open' : ''}><summary><span class="note small scout-p">${parts.slice(0, 2).join(' ')}</span> <span class="small link">Read more</span></summary><p class="note small scout-p">${parts.slice(2).join(' ')}</p></details>`;
+}
+// His skills as a line of chips under the ratings (editing them is in Edit).
+function skillsChips(p) {
+  const s = activeSkills(p);
+  return s.length ? `<div class="g-skills"><span class="muted small">Skills</span>${s.map(x => `<span class="sk-chip sk-${SKILL_GROUP[skillCategory(x.id)] || ''}">${esc(skillName(x.id))}${isLeveled(x.id) ? ` <b>${x.level}</b>` : ''}</span>`).join('')}</div>` : '';
+}
+actions.plEdit = () => { const a = state.stack[state.stack.length - 1].args; replace('player', { ...a, edit: !a.edit, ceil: false }); };
 screens.player = (args) => {
   const e = findPlayer(args.id);
   if (!e) { back(); return; }
@@ -10584,16 +10700,27 @@ screens.player = (args) => {
           <button class="btn" data-act="addSkill">＋ Add Skill</button>
         </div></details>
       </fieldset>`;
-  const tabsRow = `<div class="tabs pl-tabs">${[['scout', 'Overview'], ['traits', 'Traits'], ['attributes', 'Attributes'], ['stats', 'Stats']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="plTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+  const edit = !!args.edit;
   const personality = traitsBox(p) || '<p class="note muted">Personality isn\'t set for this player yet. Reload the file and it fills in.</p>';
-  const content = tab === 'attributes' ? `${ratings}${trainer}${apCard}`
-    : tab === 'traits' ? `${personality}${playStyleBox(p)}${skills}`
-    : tab === 'stats' ? statsTab(p, args)
-    : `${newsBox(p)}${rankBox(p, mpg)}<fieldset class="frame"><legend>Scouting Report</legend>
-        <p class="note small scout-p">${profileReport(p, team)}</p>
-        ${playerTags(p) ? `<div class="pl-tags">${playerTags(p)}</div>` : ''}
-      </fieldset>
-      ${awardsBox(p)}${cupHonorsBox(p)}${olyBox(p)}`;
+  // Ratings in the game's look: the five categories at a glance (tap one for its ratings); Edit shows every rating with
+  // the game's − and + buttons, his potential, the ceilings switch, the trainer, upgrade points and skills.
+  const ratingsView = `<fieldset class="frame g-frame"><legend>Ratings</legend><button class="btn tiny g-edit ${edit ? 'on focus' : 'off'}" data-act="plEdit">${edit ? '✓ Done' : '✎ Edit'}</button>
+      <div class="g-pot"><span>Potential</span>${potStars(p)}${declining(p) ? ' <span class="small down">Declining</span>' : ''}</div>
+      <div class="gstack">${CATEGORIES.map(c => gGroup(p, snap, c)).join('')}</div>
+      ${skillsChips(p)}</fieldset>`;
+  const ratingsEdit = `<fieldset class="frame g-frame"><legend>Ratings</legend><button class="btn tiny g-edit on focus" data-act="plEdit">✓ Done</button>${infoBtn('ratings', RATINGS_HELP)}
+      <div class="gcell edit g-potrow"><span class="glbl">Potential</span>${gBtn('potAdj', 'data-dir="-1"', G_MINUS, 'Lower potential')}
+        <span class="gmid">${potStars(p)}<span class="muted small"> ${capLeft > 0 ? `${capLeft} pts of room` : capLeft === 0 ? 'ceilings at potential' : `${-capLeft} pts over`}</span></span>
+        <span class="gnum"><b class="${d.potDelta ? 'gold' : ''}">${p.pot}</b>${d.potDelta ? `<i class="up">${d.potDelta > 0 ? '+' : ''}${d.potDelta}</i>` : ''}</span>${gBtn('potAdj', 'data-dir="1"', G_PLUS, 'Raise potential')}</div>
+      ${CATEGORIES.map(c => `<div class="gsub open">${c.attrs.map(k => gRow(p, snap, k, true, ceilMode)).join('')}</div>`).join('')}
+      <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">${ceilMode ? '⇡ Raising ceilings' : 'Edit Ceilings'}</button></div>
+    </fieldset>`;
+  const content = edit ? `${ratingsEdit}${trainer}${apCard}${skills}`
+    : `${newsBox(p)}${rankBox(p, mpg)}${ratingsView}${plOutlookBox(p, team)}${arcBox(p)}
+      <fieldset class="frame"><legend>Scouting Report</legend>${shortReport(profileReport(p, team))}${playerTags(p) ? `<div class="pl-tags">${playerTags(p)}</div>` : ''}</fieldset>
+      ${personality}${playStyleBox(p)}
+      ${awardsBox(p)}${cupHonorsBox(p)}${olyBox(p)}
+      <div class="pl-stats">${statsTab(p, args)}</div>`;
   layout({
     title: 'Player Profile',
     body: `
@@ -10601,10 +10728,10 @@ screens.player = (args) => {
         <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
         <p class="note"><button class="linkish num-chip" data-act="numPick" data-id="${p.id}" title="Change his number">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</button> · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
         <p class="note small pl-meta"><span class="stars">${potStars(p)}</span>${[archName(p) && `<b class="arch">${esc(archName(p))}</b>`, isAllAmerican(p) && '<span class="gold">⭐ All-American</span>'].filter(Boolean).map(x => ` ${x}`).join(' ·')}</p>
+        ${profileFacts(p, team, mpg)}
         ${identityChips(p) ? `<div class="style-chips pl-chips">${identityChips(p)}</div>` : ''}
         ${quickActions(p, team)}
       </div>
-      ${tabsRow}
       ${content}`,
     action: { act: 'back', label: 'Done' },
     actionLeft: team && !isUserTeam(team) && ctrlTeams().size && isComplete() && !isCollege() ? { act: 'tradeFor', id: p.id, label: 'Trade For' } : null,
