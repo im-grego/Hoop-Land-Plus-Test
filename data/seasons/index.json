@@ -5,6 +5,15 @@
       "label": "2026-27 NBA",
       "starts": [
         {
+          "date": "2026-10-20",
+          "file": "data/seasons/2026-27/2026-10-20.txt.gz",
+          "through": null,
+          "opening": true,
+          "injuries": true,
+          "days": 99,
+          "snap": null
+        },
+        {
           "date": "2026-11-11",
           "file": "data/seasons/2026-27/2026-11-11.txt.gz",
           "through": "2026-11-10",
