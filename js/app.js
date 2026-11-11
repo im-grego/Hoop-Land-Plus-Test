@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.349.11';
+const APP_VERSION = '0.349.12';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -18085,6 +18085,8 @@ const NICKNAMES = {
   'Kawhi Leonard': 'Kawhi', 'Kyrie Irving': 'Kyrie', 'Luka Doncic': 'Luka', 'Zion Williamson': 'Zion', 'Ja Morant': 'Ja', 'Trae Young': 'Trae',
   'Bam Adebayo': 'Bam', 'OG Anunoby': 'OG', 'RJ Barrett': 'RJ', 'CJ McCollum': 'CJ', 'Jaylen Brown': 'JB', 'Jalen Williams': 'J-Dub',
   'Tyrese Haliburton': 'Hali', 'Jimmy Butler III': 'Jimmy', 'Draymond Green': 'Draymond', 'Scottie Barnes': 'Scottie', 'Cade Cunningham': 'Cade',
+  'Franz Wagner': 'Franz', 'Paolo Banchero': 'Paolo', 'LaMelo Ball': 'LaMelo', 'Lonzo Ball': 'Lonzo', 'Devin Booker': 'Book', 'Damian Lillard': 'Dame',
+  'Chet Holmgren': 'Chet', 'Klay Thompson': 'Klay', 'Carmelo Anthony': 'Melo',
 };
 const plain = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
 const shortNames = new WeakMap();
