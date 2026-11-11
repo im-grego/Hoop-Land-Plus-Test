@@ -364,7 +364,7 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
         if (big) out.push({ kind: 'blowup', p: big, team, heat: seller || pay >= C.apron2 ? 2 : 1, why, level: level(big), morale: big.season?.morale ?? 70, bill, keep, seller });
       }
     }
-    // Same duo, same result: two of its best three (84+, within 8 levels of each other) have gone out in the playoffs together three years running
+    // Same duo, same result: two of its best three (the same potential, 8 or better, and 3 levels or less apart) have gone out in the playoffs together three years running
     // without a title. Before their value slips, the team would move one to build around the other (the higher
     // potential, then the younger, is the one it keeps).
     {
@@ -381,7 +381,7 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
         }
         return n;
       };
-      const pairs = top.flatMap((a, i) => top.slice(i + 1).map(b => [a, b])).filter(([a, b]) => Math.min(level(a), level(b)) >= 84 && Math.abs(level(a) - level(b)) <= 8);   // a real duo, not a star and his sidekick
+      const pairs = top.flatMap((a, i) => top.slice(i + 1).map(b => [a, b])).filter(([a, b]) => a.pot === b.pot && a.pot >= 8 && Math.abs(level(a) - level(b)) <= 3);   // a real duo: same potential (8+), 3 levels or less apart
       const hit = runs[0] && runs[0].yr >= L.season.currentYear - 1 && pairs.map(([a, b]) => ({ a, b, n: streak(a, b) })).find(x => x.n >= 3);
       if (hit) {
         const [keep, move] = [hit.a, hit.b].sort((x, y) => (y.pot || 0) - (x.pot || 0) || x.age - y.age || level(y) - level(x));
