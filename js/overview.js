@@ -354,11 +354,14 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
         const why = [where, ...(bill ? [`a $${bill}M tax bill`] : []), ...(seller ? [`a ${tier} team`] : [])];
         // The one they build around: a good player (80+) under 33 who hasn't reached his decline age, the highest potential
         // first; on a tie a player 27 or younger, then the better one (Maxey over Brown and Edgecombe, Amen over Durant).
-        const core = roster.filter(p => level(p) >= 80 && p.age <= 32 && p.age < (p.regressionAge || 31))
-          .sort((a, b) => (b.pot || 0) - (a.pot || 0) || (b.age <= 27) - (a.age <= 27) || level(b) - level(a))[0] || null;
+        // Two tied that way (same potential, both 27 or younger or both older) are a duo they build around together.
+        const cands = roster.filter(p => level(p) >= 80 && p.age <= 32 && p.age < (p.regressionAge || 31))
+          .sort((a, b) => (b.pot || 0) - (a.pot || 0) || (b.age <= 27) - (a.age <= 27) || level(b) - level(a));
+        const core = cands[0] || null, duo = cands[1] && cands[1].pot === core.pot && (cands[1].age <= 27) === (core.age <= 27) ? cands[1] : null;
+        const keep = core ? [core, ...(duo ? [duo] : [])] : null;
         // The one shopped: a real contract (15M+), never a young cornerstone.
-        const big = [...roster].filter(p => p !== core && level(p) >= 74 && level(p) < 90 && (p.contract?.sal || 0) >= 15 && !(p.age <= 24 && (p.pot || 0) >= 9)).sort((a, b) => (b.contract?.sal || 0) - (a.contract?.sal || 0))[0];
-        if (big) out.push({ kind: 'blowup', p: big, team, heat: seller || pay >= C.apron2 ? 2 : 1, why, level: level(big), morale: big.season?.morale ?? 70, bill, keep: core });
+        const big = [...roster].filter(p => !keep?.includes(p) && level(p) >= 74 && level(p) < 90 && (p.contract?.sal || 0) >= 15 && !(p.age <= 24 && (p.pot || 0) >= 9)).sort((a, b) => (b.contract?.sal || 0) - (a.contract?.sal || 0))[0];
+        if (big) out.push({ kind: 'blowup', p: big, team, heat: seller || pay >= C.apron2 ? 2 : 1, why, level: level(big), morale: big.season?.morale ?? 70, bill, keep });
       }
     }
     // Sell high: a team that isn't contending, a good player (78-89) a year or two from the age his game starts to
