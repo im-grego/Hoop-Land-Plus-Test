@@ -48,6 +48,7 @@ import { isForeign, lookFor, groupFor, makeNamer } from './names.js';
 import * as CG from './classgen.js';
 import { egoRead, egoVal, isAlpha, isHumble, EGO_KEY } from './ego.js';
 import * as OLY from './olympics.js';
+import * as CUP from './cup.js';
 import * as GEAR from './gear.js';
 import * as CAR from './career.js';
 import * as CL from './careerlife.js';
@@ -71,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.330.7';
+const APP_VERSION = '0.331.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -869,6 +870,7 @@ async function loadFile(file) {
     if (!isCollege() && playoffRotations()) state.dirty = true;
     if (!isCollege() && applyStreaks()) state.dirty = true;
     if (!isCollege() && applyFatigue()) state.dirty = true;
+    if (!isCollege()) cupKnockout();
     if (!isCollege() && (applyRisers() + settleRisers())) state.dirty = true;
     if (!isCollege() && stashReturn()) state.dirty = true;
     if (!isCollege() && capFreeThrows()) state.dirty = true;
@@ -1386,6 +1388,7 @@ function capFreeThrows() {
   return n;
 }
 function buildExport() {
+  cupSchedule();
   capFreeThrows();
   markStreaksOut();
   markFatigueOut();
@@ -2442,8 +2445,8 @@ function calendarCard() {
     if (seasonUnplayed()) return setupCard();
     if (CL3.atAllStarBreak(league())) return deadlineCard() + glCard();
     if (PO.atPlayoffStart(league())) return playoffCard();
-    if (ciWindow()) return checkinCard() + glCard();
-    if (glCard()) return glCard();
+    if (ciWindow()) return cupCard() + checkinCard() + glCard();
+    if (cupCard() || glCard()) return cupCard() + glCard();
     return `<fieldset class="frame"><legend>Offseason</legend><p class="note">This save is at ${esc(phaseName(s))}. Advance once in Hoop Land after the season ends (to the Pre-Lottery phase), export that save and load it here to run the offseason.</p></fieldset>`;
   }
   const cur = currentStep();
@@ -2490,7 +2493,7 @@ const STEP_SCREENS = {
   dev: ['staff', 'meeting', 'offseason', 'report', 'mentor', 'rookies', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'teamBooks', 'coaches', 'coach'], media: ['storylines', 'survey', 'mediaRumors'], cuts: ['cuts', 'latefa', 'liveTrade'], rotation: ['lineup', 'player'], export: ['export'],
   review: ['review', 'teamStats', 'player'], waters: ['waters', 'player'], nil: ['nil', 'player'], retention: ['retention', 'player'], carousel: ['carousel'], camps: ['camps', 'recruitee'], legacy: ['legacy', 'player'], schedule: ['schedule'], tour: ['tour', 'player'], walkons: ['walkons', 'player'], redshirt: ['redshirt', 'player'], madness: ['madness'], mediaday: ['mediaday', 'player'], departures: ['departures'], seniors: ['seniors'], portal: ['portal'], showcase: ['showcase', 'recruitee'], rw1: ['recruit', 'recruitee', 'recruitweek'], rw2: ['recruit', 'recruitee', 'recruitweek'], rw3: ['recruit', 'recruitee', 'recruitweek'], rw4: ['recruit', 'recruitee', 'recruitweek'], signing: ['signing'], preseason: ['preseason'], rosterlock: ['rosterlock'], practice: ['practice'], summer: ['offseason', 'report', 'mentor', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook'],
 };
-const ALWAYS = ['olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks'];
+const ALWAYS = ['cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks'];
 function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
@@ -10406,7 +10409,7 @@ function hofProfile(p, args) {
   const content = tab === 'attributes' ? ratings
     : tab === 'traits' ? ((traitsBox(p) || '') + playStyleBox(p) || '<p class="note muted">No traits on file for this player.</p>')
     : tab === 'stats' ? statsTab(p, args)
-    : `${career}${report}${awardsBox(p)}${olyBox(p)}`;
+    : `${career}${report}${awardsBox(p)}${cupHonorsBox(p)}${olyBox(p)}`;
   layout({
     title: 'Hall of Fame',
     body: `<div>
@@ -10504,7 +10507,7 @@ screens.player = (args) => {
         <p class="note small scout-p">${profileReport(p, team)}</p>
         ${playerTags(p) ? `<div class="pl-tags">${playerTags(p)}</div>` : ''}
       </fieldset>
-      ${awardsBox(p)}${olyBox(p)}`;
+      ${awardsBox(p)}${cupHonorsBox(p)}${olyBox(p)}`;
   layout({
     title: 'Player Profile',
     body: `
@@ -16827,7 +16830,7 @@ actions.presserAnswer = d => {
 };
 
 function leagueGramCard() {
-  const posts = [...(isCollege() ? [] : [...olyPosts(), ...comebackPosts(), ...numberPosts(), ...jerseyPosts(), ...dramaPosts(), ...traitPosts()]), ...leagueGram(league(), isUserTeam, state.leagueIdx)].slice(0, 12);
+  const posts = [...(isCollege() ? [] : [...cupPosts(), ...olyPosts(), ...comebackPosts(), ...numberPosts(), ...jerseyPosts(), ...dramaPosts(), ...traitPosts()]), ...leagueGram(league(), isUserTeam, state.leagueIdx)].slice(0, 12);
   if (!posts.length) return '';
   return `<h2 class="team-title">Trending on Hoop Gram</h2>
     <div class="stack">${posts.map(x => `<${x.pid ? `button data-act="openPlayer" data-id="${x.pid}"` : 'div'} class="hg-post ${x.pid ? 'tap' : ''}">
@@ -19781,6 +19784,128 @@ function markFatigueOut() {
   if (Object.keys(st.list || {}).length) { st.out = true; fxSave(st); }
 }
 const fxOf = id => fxStore().list?.[id] || null;
+// ---- The NBA Cup (behind the testing switch for now). Drawn at Opening Night: groups of five, the group games moved
+// onto Cup nights in November (real games the game plays), the tables read from the results, then the knockout
+// (quarterfinals, semifinals, the final in Las Vegas) played by the app once every group game is in. The champions get
+// prize coins (your team), morale, and a line on their player pages; the Cup MVP gets Ego.
+const cupKey = (y = league().season.currentYear) => `hlc:cup:${saveTag()}:${y}`;
+function cupGet(y) { try { return JSON.parse(localStorage.getItem(cupKey(y))) || null; } catch { return null; } }
+function cupSet(v, y) { try { localStorage.setItem(cupKey(y), JSON.stringify(v)); } catch { /* ignore */ } }
+const cupOn = () => labOn() && !isCollege() && league().leagueType === 0 && league().teams.length >= 20;
+const cupSeed = () => { let h = league().season.currentYear * 3301; for (const ch of saveTag()) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0; return h >>> 0; };
+const cupTeam = id => league().teams.find(t => t.id === id);
+const cupName = id => cupTeam(id)?.shortName || '?';
+// Last season's win share, for the pots.
+const cupRec = t => { const r = (t.season || []).find(x => x.yr === league().season.currentYear - 1)?.seasonStats; return r?.GP ? r.W / r.GP : 0.5; };
+// The draw (before the season): the same one every time this save looks at it, until it's locked in at Opening Night.
+function cupDraw() { const c = cupGet(); return c?.draw || CUP.drawGroups(league(), cupRec, cupSeed()); }
+// At the Opening Night export: lock in the draw and put the group games on Cup nights.
+function cupSchedule() {
+  if (!cupOn() || league().season.phase >= 9 || !isStep('export')) return;
+  const c = cupGet();
+  if (c?.games) return;
+  const draw = cupDraw(), r = CUP.placeCupGames(league(), draw, cupSeed());
+  if (r?.games?.length) { cupSet({ draw, games: r.games }); state.dirty = true; }
+}
+// A team for the knockout box scores: its best ten (level, passing, rebounding, steals, blocks) and its strength.
+function cupSide(id) {
+  const t = cupTeam(id), roster = FA.signedRoster(t).filter(p => !((p.season?.injury?.gamesOut || 0) > 0)).map(p => ({ pid: p.id, fn: p.fn, ln: p.ln, pos: p.pos, age: p.age, lv: shownLevel(p),
+    pas: p.attributes?.PAS?.[0], rb: Math.max(p.attributes?.DRE?.[0] || 0, p.attributes?.ORE?.[0] || 0), st: p.attributes?.STL?.[0], bk: p.attributes?.BLK?.[0] })).sort((a, b) => b.lv - a.lv).slice(0, 10);
+  const lv = roster.map(x => x.lv), W = [1, 0.95, 0.9, 0.8, 0.7, 0.55, 0.45, 0.35];
+  return { c: id, roster, str: W.reduce((a, w, i) => a + w * (lv[i] ?? 60), 0) / W.reduce((a, w) => a + w, 0) + (cupRec(t) - 0.5) * 6 };
+}
+// On load: once every group game is in, the knockout is played (once) and the rewards go out.
+function cupKnockout() {
+  if (!cupOn() || league().season.phase !== 9) return false;
+  const c = cupGet();
+  if (!c?.games || c.ko) return false;
+  if (!CUP.tables(league(), c).every(g => g.done)) return false;
+  const sd = CUP.seeds(league(), c), ko = CUP.runKnockout(c, sd, cupSide, cupSeed());
+  c.seeds = sd; c.ko = ko;
+  const P = id => findPlayer(id)?.p;
+  // The champions' roster (for their player pages), morale, the MVP's Ego, and prize money for your team.
+  c.champRoster = FA.signedRoster(cupTeam(ko.champion)).map(p => p.id);
+  for (const id of c.champRoster) if (P(id)) moraleEvent(P(id), 'cup', 4, 'won the NBA Cup');
+  for (const p of FA.signedRoster(cupTeam(ko.runnerUp))) moraleEvent(p, 'cup', 1, 'reached the NBA Cup final');
+  if (typeof ko.mvp?.k === 'number' && P(ko.mvp.k)) drift(P(ko.mvp.k), 'cup', EGO_KEY, 1, 'NBA Cup MVP');
+  const prize = { [ko.champion]: 60, [ko.runnerUp]: 30, ...Object.fromEntries((ko.semis || []).map(id => [id, 15])) };
+  c.prize = {};
+  for (const [id, n] of Object.entries(prize)) { const t = cupTeam(+id); if (t && isUserTeam(t) && isComplete() && t.frontOffice) { t.frontOffice.coins = coinsOf(t) + n; c.prize[id] = n; } }
+  cupSet(c);
+  state.dirty = true;
+  setTimeout(() => toast('🏆 NBA Cup', `${teamFull(cupTeam(ko.champion))} win the Cup in Las Vegas.`, 5000), 1800);
+  return true;
+}
+// Every Cup this player won (for his page).
+function cupHonors(p) {
+  const out = [], pre = `hlc:cup:${saveTag()}:`;
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k?.startsWith(pre)) continue; const c = JSON.parse(localStorage.getItem(k)); if (c?.ko && (c.champRoster || []).includes(p.id)) out.push({ yr: +k.slice(pre.length), mvp: c.ko.mvp?.k === p.id }); } } catch { /* ignore */ }
+  return out.sort((a, b) => a.yr - b.yr);
+}
+function cupHonorsBox(p) {
+  const h = cupHonors(p);
+  return h.length ? `<fieldset class="frame"><legend>🏆 NBA Cup</legend><div class="stack">${h.map(x => `<div class="small mv-row aw-row"><span class="mv-l"><b>Cup champion</b>${x.mvp ? ' · <span class="gold">MVP</span>' : ''}</span><span class="muted mv-r">${x.yr}</span></div>`).join('')}</div></fieldset>` : '';
+}
+// The card in season: your group (or the champion), and the way in.
+function cupCard() {
+  if (!cupOn()) return '';
+  const c = cupGet();
+  if (!c?.games) return '';
+  const L = league(), mine = L.teams.filter(isUserTeam).map(t => t.id);
+  if (c.ko) return `<fieldset class="frame"><legend>🏆 NBA Cup</legend><p class="note small"><b>${esc(teamFull(cupTeam(c.ko.champion)))}</b> won the Cup, beating the ${esc(cupTeam(c.ko.runnerUp)?.name || '')} in Las Vegas.</p><button class="btn small" data-act="nav" data-to="cup">🏆 The Cup</button></fieldset>`;
+  const T = CUP.tables(L, c), g = T.find(x => x.teams.some(id => mine.includes(id))) || T[0];
+  const left = c.games.filter(cg => !CUP.resultOf(L, cg)).length;
+  return `<fieldset class="frame"><legend>🏆 NBA Cup · ${esc(g.name)}</legend>${cupTable(g, true)}<p class="note small muted">${left ? `${left} group game${left === 1 ? '' : 's'} left on Cup nights.` : 'Group stage done: the knockout is next.'}</p><button class="btn small" data-act="nav" data-to="cup">🏆 The Cup</button></fieldset>`;
+}
+function cupTable(g, compact) {
+  const mine = id => isUserTeam(cupTeam(id) || {});
+  return `<div class="stack">${g.rows.map((r, i) => `<div class="oly-prow ${mine(r.tid) ? 'gold' : ''}"><span class="grow"><span class="muted small">${i + 1}.</span> ${logoImg(cupTeam(r.tid))} <b>${esc(cupName(r.tid))}</b>${compact ? '' : ` <span class="muted small">${esc(cupTeam(r.tid)?.name || '')}</span>`}</span><span>${r.w}-${r.l} <span class="muted small">${r.pf - r.pa > 0 ? '+' : ''}${r.pf - r.pa}</span></span></div>`).join('')}</div>`;
+}
+screens.cup = (args = {}) => {
+  if (!cupOn()) { back(); return; }
+  const L = league(), c = cupGet() || { draw: cupDraw() }, played = !!c.games, ko = c.ko;
+  const T = played ? CUP.tables(L, c) : c.draw.groups.map(g => ({ ...g, rows: g.teams.map(tid => ({ tid, w: 0, l: 0, pf: 0, pa: 0 })) }));
+  const groupsTab = `<div class="oly-groups">${T.map(g => `<div class="oly-group"><div class="oly-group-h">${esc(g.name)}${g.done ? ' <span class="muted small">· final</span>' : ''}</div>${cupTable(g)}</div>`).join('')}</div>
+    <p class="note small muted">Each team plays its four group opponents once on Cup nights in November: real games, and they count in the standings. The six group winners and the best second-place team in each conference go on.</p>`;
+  const nightsTab = played ? (() => {
+    const by = new Map(); for (const cg of c.games) (by.get(cg.day) || by.set(cg.day, []).get(cg.day)).push(cg);
+    return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([d, gs], i) => `<fieldset class="frame"><legend>Cup Night ${i + 1} · day ${d + 1}</legend><div class="stack">${gs.map(cg => { const r = CUP.resultOf(L, cg); return `<div class="oly-prow"><span class="grow">${logoImg(cupTeam(cg.away))} ${esc(cupName(cg.away))} <span class="muted">at</span> ${logoImg(cupTeam(cg.home))} ${esc(cupName(cg.home))}</span>${r ? `<span><span class="${r.winner === cg.away ? 'gold' : ''}">${r.as}</span> - <span class="${r.winner === cg.home ? 'gold' : ''}">${r.hs}</span></span>` : '<span class="muted small">to play</span>'}</div>`; }).join('')}</div></fieldset>`).join('');
+  })() : '<p class="note">The group games go on Cup nights when you export the Opening Night file.</p>';
+  const lineScore = G => { const n = Math.max(4, (G.qa || []).length), hd = Array.from({ length: n }, (_, i) => (i < 4 ? i + 1 : n > 5 ? `OT${i - 3}` : 'OT'));
+    const row = (id, q, sc, won) => `<tr class="${won ? 'won' : ''}"><th>${logoImg(cupTeam(id))} ${esc(cupName(id))}${G.stage === 'Championship' && won ? ' 🏆' : ''}</th>${hd.map((_, i) => `<td>${q?.[i] ?? '–'}</td>`).join('')}<td class="tot">${sc}</td></tr>`;
+    const rows = [row(G.a, G.qa, G.sa, G.sa > G.sb), row(G.b, G.qb, G.sb, G.sb > G.sa)];
+    if (G.stage === 'Championship' && G.sb > G.sa) rows.reverse();
+    return `<table class="oly-ls"><thead><tr><th></th>${hd.map(h => `<th>${h}</th>`).join('')}<th>T</th></tr></thead><tbody>${rows.join('')}</tbody></table>`; };
+  const gi = args.g != null && args.g !== '' ? +args.g : null, G = ko && gi != null ? ko.games[gi] : null;
+  const who = k => { const p = typeof k === 'number' ? findPlayer(k)?.p : null; return p ? `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b>` : esc(String(k)); };
+  const boxView = G ? `<fieldset class="frame"><legend>${esc(G.stage)}</legend>${lineScore(G)}${[0, 1].map(s => { const id = s ? G.b : G.a, rows = G.box[s].filter(r => r.min > 0).sort((a, b) => b.min - a.min), tot = k => rows.reduce((a, r) => a + r[k], 0);
+    return `<h4 class="ov-h">${logoImg(cupTeam(id))} ${esc(teamFull(cupTeam(id)))}</h4><table class="oly-box"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>${rows.map(r => `<tr><td>${who(r.k)}</td><td>${r.min}</td><td><b>${r.pts}</b></td><td>${r.reb}</td><td>${r.ast}</td></tr>`).join('')}<tr class="tot"><td>Team</td><td>${tot('min')}</td><td>${tot('pts')}</td><td>${tot('reb')}</td><td>${tot('ast')}</td></tr></tbody></table>`; }).join('')}<button class="btn small off" data-act="cupGame" data-g="">← All games</button></fieldset>` : '';
+  const koTab = ko ? (boxView || `<fieldset class="frame oly-final"><legend>🏆 ${L.season.currentYear} NBA Cup · Las Vegas</legend>
+      <p class="note">${logoImg(cupTeam(ko.champion))} <b>${esc(teamFull(cupTeam(ko.champion)))}</b> win the NBA Cup.${ko.mvp ? ` ${who(ko.mvp.k)} is the Cup MVP (${(ko.mvp.pts / Math.max(1, ko.mvp.gp)).toFixed(1)} points a game).` : ''}</p>
+      ${Object.keys(c.prize || {}).length ? `<p class="note small up">Prize money: ${Object.entries(c.prize).map(([id, n]) => `${esc(cupName(+id))} +${n} coins`).join(' · ')}</p>` : ''}</fieldset>
+    ${['Championship', 'Semifinal', 'Quarterfinal'].map(st => { const gs = ko.games.map((G, i) => [G, i]).filter(([G]) => G.stage.endsWith(st)); return gs.length ? `<fieldset class="frame"><legend>${st === 'Championship' ? '🏆 ' : ''}${st === 'Semifinal' ? 'Conference Finals' : st === 'Quarterfinal' ? 'Quarterfinals' : 'Championship'}</legend><div class="stack">${gs.reverse().map(([G, i]) => `<div class="tap" data-act="cupGame" data-g="${i}">${st !== 'Championship' ? `<span class="muted small">${esc(G.stage)}</span>` : ''}${lineScore(G)}</div>`).join('')}</div></fieldset>` : ''; }).join('')}`)
+    : `<p class="note">${played ? 'The quarterfinals, conference finals and the championship in Las Vegas are played once every group game is in.' : 'The knockout comes after the group stage.'}</p>`;
+  layout({
+    title: 'NBA Cup',
+    body: `<div class="oly-head"><div class="cup-badge">🏆</div><div class="oly-title">${L.season.currentYear} NBA CUP</div><div class="oly-host">${ko ? `Champion: ${esc(teamFull(cupTeam(ko.champion)))}` : played ? 'Group stage · Cup nights in November' : 'The draw'}</div></div>
+      ${uiTabs('cup', ko ? [['ko', 'Knockout', koTab], ['groups', 'Groups', groupsTab], ['nights', 'Cup Nights', nightsTab]] : [['groups', 'Groups', groupsTab], ['nights', 'Cup Nights', played ? nightsTab : ''], ['ko', 'Knockout', koTab]], ko ? 'ko' : 'groups')}`,
+  });
+};
+actions.cupGame = d => { (state.uiTab ||= {}).cup = 'ko'; replace('cup', { g: d.g === '' ? null : d.g }); };
+// Opening Night: the draw, your group.
+function cupDrawBox() {
+  if (!cupOn() || !isStep('export') || league().season.phase >= 9) return '';
+  const d = cupDraw(), mine = league().teams.filter(isUserTeam).map(t => t.id), g = d.groups.find(x => x.teams.some(id => mine.includes(id)));
+  return `<fieldset class="frame"><legend>🏆 NBA Cup Draw</legend><p class="note small">Six groups of five. ${g ? `You're in <b>${esc(g.name)}</b>: ${g.teams.map(id => esc(cupName(id))).join(', ')}.` : ''} Your group games go on Cup nights in November when this file goes out (the rest of the schedule is laid out around them; every team still plays the same 82).</p><button class="btn small" data-act="nav" data-to="cup">🏆 The Draw</button></fieldset>`;
+}
+// Hoop Gram: the champions.
+function cupPosts() {
+  const c = cupOn() && cupGet();
+  if (!c?.ko) return [];
+  const t = cupTeam(c.ko.champion), mvp = typeof c.ko.mvp?.k === 'number' ? findPlayer(c.ko.mvp.k)?.p : null;
+  return t ? [{ team: t, score: 97, tag: '🏆 NBA Cup', pid: mvp?.id || null, handle: '@HoopGramNBA', likes: 30000 + (t.id * 977) % 9000, text: `The ${teamFull(t)} are NBA Cup champions after beating the ${cupTeam(c.ko.runnerUp)?.name || ''} in Las Vegas.${mvp ? ` ${playerName(mvp)} takes Cup MVP.` : ''}` }] : [];
+}
+
 // This summer's tournament XP for a player (development points at camp).
 const olyXpFor = pid => { if (!labOn() || isCollege()) return 0; const a = olyStore()[olyYr()]?.after; return a?.xp?.find(x => x.pid === pid)?.pts || 0; };
 // ---- Player faces: from screenshots of the game's roster screen (js/faceimport.js cuts and matches them).
@@ -20337,7 +20462,7 @@ screens.export = () => {
   layout({
     title: isStep('export') ? 'Opening Night' : 'Export',
     body: `
-      ${jerseyCard()}${gearCard()}
+      ${jerseyCard()}${gearCard()}${cupDrawBox()}
       <fieldset class="frame"><legend>Season File</legend>
         <p class="note file-name">${esc(state.leagueFile ? state.fileName : dbxOn() ? seasonFileName() : gameFileName(state.fileName))}</p>
         ${(() => { const L = league(); if (isCollege() || L.season.phase !== BUMP_PHASES[0] || calFlags().cuts) return ''; const over = overFifteen(L), mineOver = over.filter(isUserTeam); return over.length ? `<p class="note small ${mineOver.length ? 'down' : 'gold'}">✂️ Roster Finalization isn't done: ${over.length} team${over.length === 1 ? ' is' : 's are'} over 15. ${mineOver.length ? `<b>${mineOver.map(t => esc(t.shortName)).join(', ')}</b> ${mineOver.length === 1 ? 'is yours' : 'are yours'}: make your cuts first, or the game cuts for you without looking at ratings. ` : ''}The CPU teams make their cuts when you export.</p>` : ''; })()}

@@ -316,7 +316,7 @@ function playGame(rng, A, B, stage) {
   return { stage, a: A.c, b: B.c, sa, sb, ot, qa, qb, box: [box(rng, A, sa, ot), box(rng, B, sb, ot)] };
 }
 const MIN = [30, 28, 27, 25, 24, 21, 18, 15, 12, 10, 6, 4];
-function box(rng, T, pts, ot = 0) {
+export function box(rng, T, pts, ot = 0, base = 200) {
   // How far each player stands above his own team (the 3rd to 8th men): a Giannis on a thin Greece is far above, a
   // Tatum on Team USA barely. The further above, the more he plays and the more of the offense runs through him.
   const lvs = T.roster.map(x => x.lv), mid = lvs.slice(2, 8).reduce((a, b) => a + b, 0) / Math.max(1, lvs.slice(2, 8).length);
@@ -326,7 +326,7 @@ function box(rng, T, pts, ot = 0) {
   const modest = x => x.pro && !(thin && (x.pot || 0) >= 9);
   const rows = T.roster.map((x, i) => ({ x, d: modest(x) ? 0 : dom(x), min: Math.max(1, Math.round(MIN[i] + (i < 3 && !modest(x) ? Math.min(6, dom(x) * 3) : 0) - (modest(x) ? 5 : 0) + (rng() - 0.5) * 6)) }));
   // Five on the floor for 40 minutes (plus five an overtime): 200 minutes. The bench gives back what the stars take.
-  const want = 200 + 25 * ot;
+  const want = base + 25 * ot;
   for (let guard = 0, d = want - rows.reduce((a, r) => a + r.min, 0); d !== 0 && guard < 500; guard++) {
     const st = Math.sign(d), order = st < 0 ? [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4];
     const i = order[guard % order.length];
@@ -335,7 +335,7 @@ function box(rng, T, pts, ot = 0) {
   // Scoring shares: minutes, level and how far above his team he is. Deep teams spread it (no one much past a
   // quarter); a lone star can take well over a third. A hero on a heater takes even more.
   const isHero = r => T.hero != null && (r.x.pid ?? `${r.x.fn} ${r.x.ln}`) === T.hero;
-  const cap = r => (isHero(r) ? 0.42 : 0.2 + Math.min(0.15, r.d * 0.075));
+  const cap = r => (isHero(r) ? 0.42 : (T.cap ?? 0.2) + Math.min(T.capD ?? 0.15, r.d * 0.075));   // the NBA Cup passes a flatter cap
   let w = rows.map(r => r.min * Math.pow(Math.max(40, r.x.lv) / 80, 4) * (1 + r.d * 0.6) * (0.75 + rng() * 0.5) * (isHero(r) ? 1.6 : 1) * (modest(r.x) ? 0.65 : 1));
   for (let k = 0; k < 4; k++) { const sw = w.reduce((a, b) => a + b, 0) || 1; w = w.map((v, i) => Math.min(v, sw * cap(rows[i]))); }
   const sw = w.reduce((a, b) => a + b, 0) || 1;

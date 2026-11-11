@@ -1893,3 +1893,4 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 
 .oly-host { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px; font-size: 0.9em; opacity: 0.85; margin: 6px 0 0; }
 .oly-head + .ui-tabs { margin-top: 2px; margin-bottom: -2px; }
+.cup-badge { font-size: 54px; line-height: 1; }
