@@ -304,6 +304,15 @@ export function draftPosition(L, team, format = 'auto') {
 export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {}) {
   const yr = lastYr(L);
   const out = [];
+  // Full seasons a player has spent with a team, back to back up to now, from his real season stats (a player in his
+  // first season there has 0: nobody talks about trading him or breaking up his pairing yet).
+  const cur = L.season.currentYear, seasonDone = L.season.phase > 9;
+  const fullYrs = (p, team) => {
+    let n = 0;
+    for (let y = seasonDone ? cur : cur - 1; (p.stats || []).some(x => x.league === li && x.yr === y && (x.season || []).some(r => r.tid === team.id)); y--) n++;
+    return n;
+  };
+  const asb = L.season.allStarWeekend ? L.season.currentDay >= L.season.allStarWeekend : false;
   for (const team of L.teams) {
     if (skip(team)) continue;
     const st = teamStanding(L, team);
@@ -360,7 +369,7 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
         const core = cands[0] || null, duo = cands[1] && cands[1].pot === core.pot && (cands[1].age <= 27) === (core.age <= 27) ? cands[1] : null;
         const keep = core ? [core, ...(duo ? [duo] : [])] : null;
         // The one shopped: a real contract (15M+), never a young cornerstone.
-        const big = [...roster].filter(p => !keep?.includes(p) && level(p) >= 74 && level(p) < 90 && (p.contract?.sal || 0) >= 15 && !(p.age <= 24 && (p.pot || 0) >= 9)).sort((a, b) => (b.contract?.sal || 0) - (a.contract?.sal || 0))[0];
+        const big = [...roster].filter(p => !keep?.includes(p) && fullYrs(p, team) >= 1 && level(p) >= 74 && level(p) < 90 && (p.contract?.sal || 0) >= 15 && !(p.age <= 24 && (p.pot || 0) >= 9)).sort((a, b) => (b.contract?.sal || 0) - (a.contract?.sal || 0))[0];
         if (big) out.push({ kind: 'blowup', p: big, team, heat: seller || pay >= C.apron2 ? 2 : 1, why, level: level(big), morale: big.season?.morale ?? 70, bill, keep, seller });
       }
     }
@@ -382,16 +391,38 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
         return n;
       };
       const pairs = top.flatMap((a, i) => top.slice(i + 1).map(b => [a, b])).filter(([a, b]) => a.pot === b.pot && a.pot >= 8 && Math.abs(level(a) - level(b)) <= 3);   // a real duo: same potential (8+), 3 levels or less apart
-      const hit = runs[0] && runs[0].yr >= L.season.currentYear - 1 && pairs.map(([a, b]) => ({ a, b, n: streak(a, b) })).find(x => x.n >= 3);
+      // How the pairing is going. Three straight playoff exits together: split them. Otherwise, only once they've had
+      // a full season together: after one, is the experiment already over; after two or more, is it time to blow it up
+      // (when the team is under .500 this season, or went out in the first round or missed the playoffs last season).
+      // A brand-new pairing is never broken up, but past the All-Star break a losing team's new duo can look shaky.
+      const rec = teamRecord(team), now = rec.yr === cur && rec.W + rec.L >= 10 ? rec : null;
+      const last = (team.season || []).find(s => s.yr === (seasonDone ? cur : cur - 1));
+      const losing = now ? now.pct < 0.5 : false, struggling = losing || (last ? (last.round || 0) < 2 : false);
+      const recTxt = now ? `${now.W}-${now.L}` : '';
+      const pick = (a, b) => [a, b].sort((x, y) => (y.pot || 0) - (x.pot || 0) || x.age - y.age || level(y) - level(x));
+      let hit = runs[0] && runs[0].yr >= cur - 1 && pairs.map(([a, b]) => ({ a, b, n: streak(a, b) })).find(x => x.n >= 3);
       if (hit) {
-        const [keep, move] = [hit.a, hit.b].sort((x, y) => (y.pot || 0) - (x.pot || 0) || x.age - y.age || level(y) - level(x));
-        out.push({ kind: 'split', p: move, team, heat: 2, why: [], level: level(move), morale: move.season?.morale ?? 70, keep: [keep], pair: [hit.a, hit.b], years: hit.n });
+        const [keep, move] = pick(hit.a, hit.b);
+        out.push({ kind: 'split', mode: 'exits', p: move, team, heat: 2, why: [], level: level(move), morale: move.season?.morale ?? 70, keep: [keep], pair: [hit.a, hit.b], years: hit.n });
+      } else if (struggling) {
+        hit = pairs.map(([a, b]) => ({ a, b, n: Math.min(fullYrs(a, team), fullYrs(b, team)) })).find(x => x.n >= 1);
+        if (hit) {
+          const [keep, move] = pick(hit.a, hit.b);
+          out.push({ kind: 'split', mode: hit.n >= 2 ? 'blowup' : 'experiment', p: move, team, heat: hit.n >= 2 ? 2 : 1, why: [], level: level(move), morale: move.season?.morale ?? 70, keep: [keep], pair: [hit.a, hit.b], years: hit.n, rec: recTxt });
+        }
+      }
+      if (!hit && asb && losing) {
+        const pr = top.flatMap((a, i) => top.slice(i + 1).map(b => [a, b])).find(([a, b]) => fullYrs(a, team) === 0 || fullYrs(b, team) === 0);
+        if (pr) {
+          const nu = fullYrs(pr[0], team) === 0 ? pr[0] : pr[1];
+          out.push({ kind: 'shaky', p: nu, team, heat: 1, why: [], level: level(nu), morale: nu.season?.morale ?? 70, pair: pr, rec: recTxt });
+        }
       }
     }
     // Sell high: a team that isn't contending, a good player (78-89) a year or two from the age his game starts to
     // slip. His value won't be higher than it is now (more so when he's playing better than last season).
     if (st.tier !== 'favorites' && st.tier !== 'contending') {
-      const sh = roster.filter(p => level(p) >= 78 && level(p) < 90 && !out.some(x => x.p === p) && p.age >= (p.regressionAge || 31) - 2 && p.age <= (p.regressionAge || 31))
+      const sh = roster.filter(p => level(p) >= 78 && level(p) < 90 && fullYrs(p, team) >= 1 && !out.some(x => x.p === p) && p.age >= (p.regressionAge || 31) - 2 && p.age <= (p.regressionAge || 31))
         .sort((a, b) => level(b) - level(a))[0];
       if (sh) {
         const now = seasonLine(sh, li, L.season.currentYear), before = seasonLine(sh, li, L.season.currentYear - 1);
@@ -403,7 +434,7 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
     if (st.status === 'rebuilding') {
       for (const p of roster.slice(0, 6)) {
         if (p === star && out.some(x => x.p === p)) continue;
-        if (level(p) >= 79 && p.age >= (p.regressionAge || 32) - 4) out.push({ kind: 'vet', p, team, heat: level(p) >= 82 ? 2 : 1, why: [`${p.age} years old on a ${st.tier} team`], level: level(p), morale: p.season?.morale ?? 70 });
+        if (level(p) >= 79 && p.age >= (p.regressionAge || 32) - 4 && fullYrs(p, team) >= 1) out.push({ kind: 'vet', p, team, heat: level(p) >= 82 ? 2 : 1, why: [`${p.age} years old on a ${st.tier} team`], level: level(p), morale: p.season?.morale ?? 70 });
       }
       // Veterans it's shopping (the contracts it took on included) are on the market too.
       // Only names that would make headlines.

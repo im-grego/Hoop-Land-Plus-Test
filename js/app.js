@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.349.13';
+const APP_VERSION = '0.349.14';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -18167,7 +18167,28 @@ function rumorPost(r) {
     `${city} has a decision on ${nm}: build around a ${p.age}-year-old, or move him while he still brings back a haul.`,
   ];
   if (r.kind === 'sellhigh') star.splice(0, star.length, ...sellhigh);
-  if (r.kind === 'split') {
+  if (r.kind === 'shaky') {
+    const [a, b] = r.pair.map(x => shortName(x));
+    star.splice(0, star.length,
+      `The ${a} and ${b} pairing is looking shaky in ${city}${r.rec ? ` at ${r.rec}` : ''}.`,
+      `${r.rec ? `${r.rec} at the break. ` : ''}There could be some tension building between ${a} and ${b} in ${city}.`,
+      `${city} expected more from ${a} and ${b}. Nobody's talking trade yet, but the fit is a question.`);
+  }
+  if (r.kind === 'split' && r.mode === 'experiment') {
+    const [a, b] = r.pair.map(x => shortName(x)), k = shortName(r.keep[0]);
+    star.splice(0, star.length,
+      `Is the ${a}-${b} experiment already over in ${city}?`,
+      `One full season of ${a} and ${b}${r.rec ? `, and ${city} is ${r.rec}` : ` in ${city}`}. Teams are wondering if ${first} could be had.`,
+      `Early, but rival executives are watching ${city}: if this doesn't turn around, ${first} could be available and ${k} becomes the centerpiece.`);
+  }
+  if (r.kind === 'split' && r.mode === 'blowup') {
+    const [a, b] = r.pair.map(x => shortName(x)), k = shortName(r.keep[0]), yrs = ['', 'one', 'two', 'three', 'four', 'five'][r.years] || `${r.years}`;
+    star.splice(0, star.length,
+      `Time to blow it up in ${city}? ${yrs[0].toUpperCase()}${yrs.slice(1)} full seasons of ${a} and ${b}, and this is where it's landed.`,
+      `${a} and ${b} haven't worked in ${city}. Sources say ${first} is the one teams are calling about.`,
+      `Sources: ${city} would consider moving ${nm} and building around ${k}.`);
+  }
+  if (r.kind === 'split' && (r.mode || 'exits') === 'exits') {
     const [a, b] = r.pair, k = shortName(r.keep[0]), yrs = r.years === 3 ? 'three' : r.years === 4 ? 'four' : `${r.years}`;
     star.splice(0, star.length,
       `${yrs[0].toUpperCase()}${yrs.slice(1)} straight playoff exits with ${shortName(a)} and ${shortName(b)}. ${city} is listening on ${first} to build around ${k}.`,
