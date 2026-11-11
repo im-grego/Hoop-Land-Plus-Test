@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.335.0';
+const APP_VERSION = '0.336.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -796,6 +796,7 @@ $app.addEventListener('pointerup', e => {
   if (!s || e.pointerType === 'mouse') return;
   const el = e.target.closest('[data-act]');
   if (el !== s.el || el.disabled || Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10 || Date.now() - s.t > 800) return;
+  if (Date.now() < holdUntil) return;
   tapDone = { el, t: Date.now() };
   runAct(el, e);
 });
@@ -803,8 +804,33 @@ $app.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
   if (tapDone && Date.now() - tapDone.t < 800) { tapDone = null; return; }
+  if (Date.now() < holdUntil) return;
   runAct(el, e);
 });
+// Hold a − or + to keep going: after a short pause it repeats, then speeds up (morale, salary, ratings, anything with a
+// stepper). The click that ends a hold doesn't count again.
+let holdT = null, holdUntil = 0;
+const HOLD_SEL = '.gbtn[data-act], .btn.square[data-act], [data-repeat][data-act]';
+function holdStop() { if (holdT) { clearTimeout(holdT); holdT = null; } }
+$app.addEventListener('pointerdown', e => {
+  const el = e.target.closest(HOLD_SEL);
+  if (!el || el.disabled) return;
+  const act = el.dataset.act, data = { ...el.dataset }, fn = actions[act];
+  if (!fn) return;
+  holdStop();
+  let n = 0;
+  const tick = () => {
+    n++;
+    tapStart = null;   // a hold is not a tap
+    holdUntil = Date.now() + 500;
+    fn(data, null, null);
+    holdT = setTimeout(tick, n < 6 ? 140 : n < 20 ? 70 : 35);
+  };
+  holdT = setTimeout(tick, 420);
+});
+for (const ev of ['pointerup', 'pointercancel']) document.addEventListener(ev, holdStop, true);
+window.addEventListener('blur', holdStop);
+$app.addEventListener('contextmenu', e => { if (e.target.closest(HOLD_SEL)) e.preventDefault(); });
 // No zooming of any kind (pinch included).
 for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
 
@@ -2723,7 +2749,7 @@ const countEvent = name => countHit(name, name, true);
 // Franchise-only gate: on the public site (the custom domain or the github.io address), not in local testing.
 // The league editor is paused on the public site (league files, the league-file export, and the editing controls in
 // League): EDITOR_OFF. Viewing stays. Local testing keeps everything.
-const EDITOR_OFF = () => FRANCHISE_ONLY();
+const EDITOR_OFF = () => !labOn();   // the league editor: the test site (and local) only, for now
 const FRANCHISE_ONLY = () => counting() || (/\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus/i.test(location.pathname));
 countHit(runningInstalled() ? '/app' : '/', runningInstalled() ? 'Opened (installed app)' : 'Opened (browser)');
 
@@ -10637,10 +10663,13 @@ const PL_EDIT = {
   esal: { label: 'Extension salary', get: p => p.contract?.ext?.sal || 0, set: (p, v) => { (p.contract.ext ||= { sal: 0, yrs: 0, opt: 0 }).sal = v; }, step: 1, min: 0, max: 150, show: p => `$${p.contract?.ext?.sal || 0}M`, when: p => !!p.contract },
   eyrs: { label: 'Extension years', get: p => p.contract?.ext?.yrs || 0, set: (p, v) => { const x = (p.contract.ext ||= { sal: 0, yrs: 0, opt: 0 }); if (v > 0 && !x.sal) x.sal = p.contract.sal || 1; x.yrs = v; }, step: 1, min: 0, max: 5, show: p => (p.contract?.ext?.yrs ? `${p.contract.ext.yrs}` : 'None'), when: p => !!p.contract },
 };
-function detailsEdit(p) {
+function detailsEdit(p, team) {
   const row = k => { const f = PL_EDIT[k]; if (f.when && !f.when(p)) return ''; return `<div class="gcell edit"><span class="glbl">${esc(f.label)}</span>${gBtn('plSet', `data-k="${k}" data-dir="-1"`, G_MINUS, `Lower ${f.label}`)}<span class="gmid gtxt"></span><span class="gnum">${k === 'morale' ? moraleTag(p) : `<b>${esc(String(f.show ? f.show(p) : f.get(p)))}</b>`}</span>${gBtn('plSet', `data-k="${k}" data-dir="1"`, G_PLUS, `Raise ${f.label}`)}</div>`; };
   const opt = (k, cur) => `<div class="seg">${[[0, 'None'], [1, 'Team'], [2, 'Player']].map(([v, l]) => `<button class="btn small ${cur === v ? 'on focus' : 'off'}" data-act="plOpt" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
   return `<fieldset class="frame g-frame"><legend>Player</legend><div class="gstack">
+      <div class="g-names"><label class="field"><span>First name</span><input class="sel-team" value="${esc(p.fn)}" data-change="edText" data-kind="player" data-id="${p.id}" data-f="fn"></label><label class="field"><span>Last name</span><input class="sel-team" value="${esc(p.ln)}" data-change="edText" data-kind="player" data-id="${p.id}" data-f="ln"></label></div>
+      <label class="field"><span>Hometown</span><input class="sel-team" value="${esc(p.home || '')}" data-change="edText" data-kind="player" data-id="${p.id}" data-f="home"></label>
+      ${isCollege() ? '' : `<label class="field"><span>Team</span><select class="sel-team" data-change="plTeam" data-id="${p.id}"><option value="fa" ${team ? '' : 'selected'}>Free agent</option>${[...league().teams].sort((a, b) => a.city.localeCompare(b.city)).map(t => `<option value="${t.id}" ${team === t ? 'selected' : ''}>${esc(t.city)} ${esc(t.name)}</option>`).join('')}</select></label>`}
       <div class="gcell edit"><span class="glbl">Jersey</span><span class="gmid gtxt"><b>#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</b></span><button class="btn small" data-act="numPick" data-id="${p.id}">Change</button></div>
       ${['pos', 'age', 'ht', 'wt', 'morale'].map(row).join('')}
       ${p.contract ? `${['sal', 'yrs'].map(row).join('')}<div class="g-optrow"><span class="small muted">Option (final year)</span>${opt('opt', p.contract.opt || 0)}</div>
@@ -10871,7 +10900,7 @@ screens.player = (args) => {
       ${CATEGORIES.map(c => `<div class="gsub open">${c.attrs.map(k => gRow(p, snap, k, true, ceilMode)).join('')}</div>`).join('')}
       <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">${ceilMode ? '⇡ Raising ceilings' : 'Edit Ceilings'}</button></div>
     </fieldset>`;
-  const content = edit ? `${detailsEdit(p)}${ratingsEdit}${trainer}${apCard}${skills}`
+  const content = edit ? `${detailsEdit(p, team)}${ratingsEdit}${trainer}${apCard}${skills}`
     : `${newsBox(p)}${rankBox(p, mpg)}${ratingsView}${plOutlookBox(p, team)}${milestonesBox(p, true)}${arcBox(p)}
       <fieldset class="frame"><legend>Scouting Report</legend>${shortReport(profileReport(p, team))}${playerTags(p) ? `<div class="pl-tags">${playerTags(p)}</div>` : ''}</fieldset>
       ${personality}${playStyleBox(p)}
@@ -21063,7 +21092,11 @@ screens.editor = (args = {}) => {
     } else {
       const ro = [...t.roster].sort((a, b) => levelOf(b) - levelOf(a));
       body = `<button class="btn small off" data-act="edTeam" data-id="">◀ All teams</button>
-        ${view ? '' : `<fieldset class="frame"><legend>${esc(t.city)} ${esc(t.name)}</legend>
+        ${view ? '' : `<fieldset class="frame"><legend>Identity</legend><div class="g-names">
+          ${[['city', 'City'], ['name', 'Name'], ['shortName', 'Abbreviation'], ['arenaName', 'Arena']].map(([f, l]) => `<label class="field"><span>${l}</span><input class="sel-team" value="${esc(t[f] || '')}" data-change="edText" data-kind="team" data-id="${t.id}" data-f="${f}"></label>`).join('')}</div>
+          ${(L.divisions || []).length ? `<label class="field"><span>Division</span><select class="sel-team" data-change="edText" data-kind="team" data-id="${t.id}" data-f="division">${L.divisions.map((n, i) => `<option value="${i}" ${t.division === i ? 'selected' : ''}>${esc(typeof n === 'string' ? n : n?.name || `Division ${i + 1}`)}</option>`).join('')}</select></label>` : ''}
+        </fieldset>
+        <fieldset class="frame"><legend>${esc(t.city)} ${esc(t.name)}</legend>
           ${edStep('Fans', t.frontOffice?.fans ?? 0, 'edFans', `data-id="${t.id}"`, '0–100')}
           ${t.frontOffice ? edStep('Coins', t.frontOffice.coins ?? 0, 'edCoins', `data-id="${t.id}"`, '±50') : ''}
           ${FX.FACILITIES.map(f => edStep(`${f.icon} ${esc(f.label)}`, FX.tierIn(t, f.k), 'edFac', `data-id="${t.id}" data-k="${f.k}"`, 'tier 1–4')).join('')}
@@ -21072,7 +21105,7 @@ screens.editor = (args = {}) => {
           <p class="note small muted">The app reads it as ${esc(appTier(t))}.</p>
         </fieldset>`}
         <fieldset class="frame"><legend>Roster · trade block</legend><div class="stack">${ro.map(p => `<div class="drill-row wrap">
-          <span class="grow"><button class="linkish" data-act="${view ? 'openPlayer' : 'edPlayer'}" data-id="${p.id}">${esc(playerName(p))}</button> ${lvTag(p)} <span class="small muted">${esc(posName(p))} · ${p.age}y</span></span>
+          <span class="grow"><button class="linkish" data-act="${view ? 'openPlayer' : 'edOpen'}" data-id="${p.id}">${esc(playerName(p))}</button>${view ? '' : ` <button class="btn tiny off" data-act="edPlayer" data-id="${p.id}">Traits</button>`} ${lvTag(p)} <span class="small muted">${esc(posName(p))} · ${p.age}y</span></span>
           <span class="full">${edSeg([[0, 'No'], [1, 'On the block'], [2, 'Untouchable']], p.season?.onTradeBlock ?? 0, 'edBlock', `data-id="${p.id}"`)}</span></div>`).join('')}</div></fieldset>`;
     }
   } else if (tab === 'picks') {
@@ -21122,6 +21155,37 @@ function appTier(t) {
   try { return TIER_NAMES[teamStanding(league(), t).tier] || '—'; } catch { return ED_TAGS[t.status ?? 0] || '—'; }
 }
 actions.edTab = d => replace('editor', { tab: d.t });
+// A player from the editor opens straight into his profile's Edit mode: everything about him in one place.
+actions.edOpen = d => go('player', { id: +d.id, edit: true });
+// ---- League editor: a team's identity (typed straight into the file), and any player's name, hometown and team.
+$app.addEventListener('change', e => {
+  const d = e.target.dataset;
+  if (d.change === 'edText') {
+    const L = league(), v = e.target.value.trim();
+    if (d.kind === 'team') { const t = L.teams.find(x => x.id === +d.id); if (!t) return; if (d.f === 'division') t.division = +v; else if (v) t[d.f] = d.f === 'shortName' ? v.toUpperCase().slice(0, 4) : v; }
+    else { const p = findPlayer(+d.id)?.p || (L.freeAgents || []).find(x => x.id === +d.id); if (!p) return; if (d.f === 'home') p.home = v; else if (v) p[d.f] = v; }
+    state.compCache = {}; state.dirty = true; render();
+  }
+  if (d.change === 'plTeam') {
+    const L = league(), e2 = findPlayer(+d.id);
+    if (!e2) return;
+    const { p, team } = e2, to = e.target.value === 'fa' ? null : L.teams.find(t => t.id === +e.target.value);
+    if (to === team) return;
+    if (team) team.roster.splice(team.roster.indexOf(p), 1); else L.freeAgents.splice(L.freeAgents.indexOf(p), 1);
+    if (to) {
+      p.tid = to.id; p.status = FA.STATUS_SIGNED; p.linePos = to.roster.length; to.roster.push(p);
+      if (p.num == null || to.roster.some(x => x !== p && x.num === p.num)) p.num = jerseyNumber(to, p);
+      if (p.contract && !(p.contract.yrs > 0)) { p.contract.yrs = 1; p.contract.sal ||= 1; }
+    } else {
+      p.tid = 0; p.status = FA.STATUS_FREE; (L.freeAgents ||= []).push(p);
+      if (p.contract) Object.assign(p.contract, { yrs: 0, sal: 0, opt: 0 });
+    }
+    state.compCache = {}; state.dirty = true;
+    toast(to ? `${playerName(p)} → ${to.shortName}` : `${playerName(p)} → free agency`, '', 2200);
+    render();
+  }
+});
+
 actions.hofSort = d => { (state.hof ||= { q: '', sort: 'name' }).sort = d.k; replace('editor', { tab: 'hof' }); };
 $app.addEventListener('change', e => {
   if (e.target.dataset.change !== 'hofQ') return;

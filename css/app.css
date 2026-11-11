@@ -1985,3 +1985,7 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .ms-row .ms-n { grid-column: 2 / -1; margin-top: -2px; }
 .ms-recs { margin-top: 10px; font-size: 13px; }
 .ms-row .ms-l { white-space: nowrap; font-size: 14px; }
+
+.g-names { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+.g-frame .field, .g-names .field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.gbtn, .btn.square { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
