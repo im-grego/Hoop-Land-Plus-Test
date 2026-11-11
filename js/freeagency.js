@@ -377,6 +377,24 @@ export function roleFit(league, team, p) {
 }
 
 // Score of an offer { tid, sal, yrs, opt } for player p.
+// An aging star (31+, still a superstar on the floor (90+), or a Hall of Fame résumé: 6 All-Stars, 3 All-NBA or an MVP) asks for a 1+1: two years, the second
+// his own option. A one-year deal with a way to stay: he keeps the control and the leverage.
+export function wantsOnePlusOne(league, p) {
+  if ((p.age || 0) < 31 || levelOf(p) < 78) return false;   // past it: he takes what he can get
+  if (levelOf(p) >= 90) return true;
+  const names = new Map((league.awards || []).map(a => [a.id, a.name || a.shortName || '']));
+  let allStar = 0, big = 0;
+  for (const a of p.awards || []) {
+    const n = names.get(a.id) || '', c = (a.yearsWon || []).length;
+    if (/^All-Stars?$/i.test(n)) allStar += c;
+    if (/All-NBA|All-League/i.test(n)) big += c;
+    if (/Most Valuable|^MVP$|Finals MVP/i.test(n)) big += 3;
+  }
+  return allStar >= 6 || big >= 3;
+}
+// How a 1+1 man rates the shape of a deal: the 1+1 itself is what he's after; a plain one-year is close but loses the
+// second year; a longer deal without his option ties him down.
+export const onePlusOneTaste = offer => (offer.yrs === 2 && offer.opt === OPT_PLAYER ? 0.22 : offer.yrs === 1 ? -0.06 : offer.opt === OPT_PLAYER ? 0 : -0.15);
 export function offerScore(league, p, offer, ask, motive, oldTid = null, discounted = false) {
   const team = league.teams.find(t => t.id === offer.tid);
   const w = { greed: 1, security: 0.15, control: 0.12, contender: 0.25, role: 0.25 };
@@ -398,7 +416,8 @@ export function offerScore(league, p, offer, ask, motive, oldTid = null, discoun
   return w.greed * money + w.security * years + w.control * option +
     w.contender * teamStrength(league, team) + w.role * roleFit(league, team, p) + (offer.tid === oldTid ? 0.05 + Math.max(0, tr(p, 'loyalty') - 10) * 0.04 : 0) +
     (offer.ntc ? 0.08 : 0) + (COMPLETE ? facilityFx(team).fa : 0) + loadTaste(p, offer, motive) + (offer.tid === oldTid ? liferPull(league, p, oldTid) : 0) +
-    (COMPLETE ? destinationValue(league, team, p) : 0) + (offer.pitch || 0);   // a pitch meeting that landed (or fell flat)
+    (COMPLETE ? destinationValue(league, team, p) : 0) + (offer.pitch || 0) +   // a pitch meeting that landed (or fell flat)
+    (wantsOnePlusOne(league, p) ? onePlusOneTaste(offer) : 0);
 }
 // A franchise lifer is set on finishing at home: anyone else needs about double his team's money (half again more for
 // a money chaser) to pry him loose. Loyalty moves it: a Committed (16+) one is close to immovable, a Mercenary one
@@ -580,6 +599,8 @@ export function cpuBids(league, market, bids, day, userTeams, rng, used = {}, o 
         else if (minOk(m.p) && m.ask <= minFor(m.p, o) * 1.5) offer = { ...offer, sal: minFor(m.p, o), yrs: 1, opt: OPT_NONE };
         else continue;
       }
+      // An aging star gets the 1+1 he asks for (whichever way it's paid for, short of the minimum).
+      if (wantsOnePlusOne(league, m.p) && offer.sal > minFor(m.p, o)) offer = { ...offer, yrs: 2, opt: OPT_PLAYER };
       if (!bird && isRestricted(league, m.p)) offer.yrs = Math.max(2, offer.yrs);
       // Five years only for a team's own player, as 4 + an option.
       if (offer.yrs >= 5) { if (!bird) offer.yrs = o.maxYears; else if (!offer.opt) offer.opt = rng() < 0.6 ? OPT_PLAYER : OPT_TEAM; }
@@ -617,7 +638,8 @@ export function raiseRound(league, market, bids, day, rng, used = {}, o = FA_DEF
       const team = league.teams.find(t => t.id === b.tid);
       const cap = Math.round(m.ask * o.cpuMaxOverAsk);
       const sal = Math.min(cap, maxSalary(league, m.p, b.tid === m.from?.id), Math.round(b.sal * (1 + o.cpuRaise * (0.5 + rng() / 2))) + 1);
-      const next = { ...b, sal, yrs: m.motive === 'security' ? Math.min(b.tid === m.from?.id ? o.birdMaxYears : o.maxYears, b.yrs + 1) : b.yrs, opt: m.motive === 'control' ? OPT_PLAYER : b.opt };
+      const opo = wantsOnePlusOne(league, m.p);
+      const next = { ...b, sal, yrs: opo ? 2 : m.motive === 'security' ? Math.min(b.tid === m.from?.id ? o.birdMaxYears : o.maxYears, b.yrs + 1) : b.yrs, opt: opo || m.motive === 'control' ? OPT_PLAYER : b.opt };
       if (next.yrs >= 5 && !next.opt) next.opt = OPT_PLAYER;
       if (sal <= b.sal || checkOffer(league, team, m.p, next, day, used, o)) continue;
       // Nobody raises their way into the tax for someone else's free agent, and a rebuilder doesn't get into bidding wars.

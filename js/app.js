@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.343.0';
+const APP_VERSION = '0.343.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -15449,7 +15449,9 @@ const faBest = (s, m) => {
 };
 
 // Years a player is looking for (shown with the ask).
-const askYears = m => m.motive === 'security' ? 4 : m.p.age >= 33 ? 1 : m.p.age >= 30 ? 2 : m.motive === 'control' ? 2 : 3;
+const askYears = m => FA.wantsOnePlusOne(league(), m.p) ? 2 : m.motive === 'security' ? 4 : m.p.age >= 33 ? 1 : m.p.age >= 30 ? 2 : m.motive === 'control' ? 2 : 3;
+// The ask as shown: "× 3", or "1+1" for an aging star (two years, the second his option).
+const askLen = m => (FA.wantsOnePlusOne(league(), m.p) ? '1+1' : `× ${askYears(m)}`);
 // Past their regression age: ratings are already slipping.
 const declining = p => p.age > p.regressionAge;
 const posGroup = p => (p.pos <= 2 ? 'guards' : p.pos <= 5 ? 'wings' : 'bigs');
@@ -15500,7 +15502,7 @@ screens.fa = (args = {}) => {
     const rfa = FA.isRestricted(L, m.p);
     return `<button class="prow ${mineBid ? 'sel' : ''}" data-act="${ro ? 'openPlayer' : 'faOffer'}" data-id="${m.p.id}" ${!ro && (signedIds.has(m.p.id) || s.stage === 'done') ? 'disabled' : ''}>
       <span class="name">${faceImg(m.p)}${esc(playerName(m.p))}${rfa ? ' <span class="badge new">RFA</span>' : ''}${traitsSet(m.p) && tr(m.p, 'durability') <= 6 ? ' <span title="Injury-prone">🩺</span>' : ''}</span>
-      <span class="right"><span class="small">Asks $${m.ask}M × ${askYears(m)}</span><br><span class="small" title="${esc(M.text)}">${M.icon} ${esc(M.name)}</span></span>
+      <span class="right"><span class="small">Asks $${m.ask}M ${askLen(m)}</span><br><span class="small" title="${esc(M.text)}">${M.icon} ${esc(M.name)}</span></span>
       <span class="meta">${lvRow(m.p)} · ${esc(posName(m.p))} · ${m.p.age}y${l ? ` · ${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : ''} · ${m.from ? esc(m.from.shortName) : 'FA'}${isAlpha(m.p) ? ' · 👑 wants a featured role' : ''}${isComplete() && FA.agentOf(m.p) !== 'fair' ? ` · ${FA.AGENTS[FA.agentOf(m.p)].icon} ${FA.AGENTS[FA.agentOf(m.p)].label.replace(' agent', '')}` : ''}</span>
       ${signed ? `<span class="chg up">Signed: ${esc(signed.team.shortName)} ${offerText(signed.offer)}</span>`
       : list.length ? `<span class="chg">${list.length} team${list.length > 1 ? 's' : ''} interested · best ${esc(teamName(best.tid))} ${offerText(best)}${mineBid ? (best === mineBid ? ' · <span class="up">you lead</span>' : ' · <span class="down">you trail</span>') : ''}</span>` : ''}
@@ -15581,7 +15583,7 @@ function expiringSection(s) {
     return `<div class="prow rrow ${mineBid ? 'sel' : ''}">
       <span class="name">${faceImg(m.p)}${esc(playerName(m.p))} ${lvTag(m.p)}${FA.isRestricted(L, m.p) ? ' <span class="badge new">RFA</span>' : ''}</span>
       <span class="right xbtns"><button class="btn small focus" data-act="faOffer" data-id="${m.p.id}" ${locked ? 'disabled' : ''}>Offer</button><button class="btn small off" data-act="faWalk" data-id="${m.p.id}" ${locked ? 'disabled' : ''}>Renounce</button></span>
-      <span class="meta">${esc(posName(m.p))} · ${m.p.age}y · Asks $${m.ask}M × ${askYears(m)}${FA.capHolds(L, m.from).includes(m.p) ? ` · <span class="gold">cap hold $${FA.capHold(L, m.p)}M</span>` : ''}</span>
+      <span class="meta">${esc(posName(m.p))} · ${m.p.age}y · Asks $${m.ask}M ${askLen(m)}${FA.capHolds(L, m.from).includes(m.p) ? ` · <span class="gold">cap hold $${FA.capHold(L, m.p)}M</span>` : ''}</span>
       ${mineBid || others ? `<span class="meta">${mineBid ? `<span class="up">your offer ${offerText(mineBid)}</span>` : ''}${mineBid && others ? ' · ' : ''}${others ? `<span class="gold">${others} other team${others > 1 ? 's' : ''}</span>` : ''}</span>` : ''}
     </div>`;
   }).join('')}</div>`;
@@ -16357,7 +16359,7 @@ actions.faOffer = d => {
   const existing = list().find(b => isUserTeam({ id: b.tid }));
   // A restricted free agent taken in an expansion draft can't go back to the team he came from.
   if (mine.every(t => FA.noReturn(m.p, t))) { toast('🚫 Can\'t bring him back', `${playerName(m.p)} was taken from you in the expansion draft.`, 3500, true); return; }
-  const draft = existing ? { ...existing } : { tid: (isUserTeam(m.from) ? m.from : mine.find(t => !FA.noReturn(m.p, t))).id, sal: m.ask, yrs: askYears(m), opt: 0 };
+  const draft = existing ? { ...existing } : { tid: (isUserTeam(m.from) ? m.from : mine.find(t => !FA.noReturn(m.p, t))).id, sal: m.ask, yrs: askYears(m), opt: FA.wantsOnePlusOne(L, m.p) ? FA.OPT_PLAYER : 0 };
   const box = overlay('');
   const M = FA.MOTIVES[m.motive];
   const O = FA.FA_DEFAULTS;
@@ -16400,7 +16402,7 @@ actions.faOffer = d => {
     const load = draft.yrs >= 2 ? draft.load || 'flat' : 'flat';
     const termsHtml = `
       <div class="off-grid">${step('sal', 'Salary', `$${draft.avg}M`)}${step('yrs', 'Years', draft.yrs)}</div>
-      <div class="off-row off-gap"><span class="small muted">Option</span>${seg('opt', [[0, 'None'], [2, 'Player'], [1, 'Team']], draft.opt)}</div>
+      <div class="off-row off-gap"><span class="small muted">Option${FA.wantsOnePlusOne(L, m.p) ? ' <span class="gold" title="He wants a 1+1: two years, the second his option">★ 1+1</span>' : ''}</span>${seg('opt', [[0, 'None'], [2, 'Player'], [1, 'Team']], draft.opt)}</div>
       ${hasExtras ? `<div class="off-row"><span class="small muted">Loading</span>${seg('load', [['flat', 'Flat'], ['front', 'Front'], ['back', 'Back']], load).replace(/(data-v="(front|back)")/g, draft.yrs >= 2 ? '$1' : '$1 disabled')}</div>
       <p class="note small muted">${draft.yrs >= 2 ? `${loadSchedule(draft.avg, draft.yrs, load).map(v => `$${v}M`).join(' → ')} · cap hit $${draft.sal}M` : 'One year: paid flat.'}</p>` : ''}
       ${draft.tid === m.from?.id && FA.ntcEligible(L, m.p, m.from) ? `<div class="off-row"><span class="small muted">No-trade${FA.wantsNtc(L, m.p, m.from) ? ' <span class="gold">★</span>' : ''}</span>${seg('ntc', [[0, 'No'], [1, 'Yes']], draft.ntc ? 1 : 0)}</div>` : ''}`;
@@ -16421,7 +16423,7 @@ actions.faOffer = d => {
     const tabs = [hasPitch && ['pitch', `Pitch${pitchedNow ? ' <span class="gold">•</span>' : ''}`], ['terms', 'Terms'], hasExtras && ['extras', `Incentive${draft.inc ? ' <span class="gold">•</span>' : ''}`]].filter(Boolean);
     box.querySelector('.box').innerHTML = `<div class="offer-sheet">
       ${faceImg(m.p, 'face-md')}<p class="note"><b>${esc(playerName(m.p))}</b> <span class="${declining(m.p) ? 'decl-lv' : 'gold'}">Lv ${shownLevel(m.p)}</span>${FA.isRestricted(L, m.p) ? ' <span class="badge new">RFA</span>' : ''}<br>
-        <span class="small muted">${esc(posName(m.p))} · ${m.p.age}y · asks $${m.ask}M × ${askYears(m)} · ${M.icon} ${esc(M.name)}</span></p>
+        <span class="small muted">${esc(posName(m.p))} · ${m.p.age}y · asks $${m.ask}M ${askLen(m)} · ${M.icon} ${esc(M.name)}</span></p>
       ${m.from && isUserTeam(m.from) ? maxLine(L, m.p) : ''}
       ${prodBoxes(m.p)}
       ${m.p.age >= 33 && activeSkills(m.p).length ? `<p class="note small">${activeSkills(m.p).map(x => `<span class="sk-name sk-${SKILL_GROUP[skillCategory(x.id)] || ''}">${esc(skillName(x.id))}</span>`).join(' · ')}</p>` : ''}
@@ -16966,7 +16968,7 @@ actions.optNeg = d => {
   if (!p || st.done) return;
   if (st.deals?.[p.id]) { st.team[p.id] = 'deal'; saveOptStore(); render(); return; }
   const a = extAsk(p, t);
-  const neg = ((st.neg ||= {})[p.id] ||= { sal: a.sal, yrs: a.pref, opt: a.pref >= 5 ? FA.OPT_PLAYER : 0, tries: 0, last: null });
+  const neg = ((st.neg ||= {})[p.id] ||= { sal: a.sal, yrs: a.pref, opt: a.pref >= 5 || a.onePlus ? FA.OPT_PLAYER : 0, tries: 0, last: null });
   if (neg.tries >= 3) { toast('Talks are over: accept or decline the option'); return; }
   const box = overlay('');
   const paint = () => {
@@ -18237,12 +18239,13 @@ function extAsk(p, team) {
     sal = Math.round(Math.min(Math.max(sal * (1.3 + (tr(p, 'money') - 10) * 0.01), reset), base * 1.75));
   }
   sal = Math.max(FA.minFor(p) + 1, Math.min(FA.maxSalary(league(), p, true, p.contract?.yrs || 1), sal));
-  const yrs = holdout ? [2, 3] : p.age <= 25 ? [4, 5] : p.age <= 28 ? [3, 5] : p.age <= 31 ? [2, 4] : [1, 2];
+  const onePlus = !holdout && FA.wantsOnePlusOne(league(), p);
+  const yrs = holdout ? [2, 3] : onePlus ? [1, 2] : p.age <= 25 ? [4, 5] : p.age <= 28 ? [3, 5] : p.age <= 31 ? [2, 4] : [1, 2];
   const loyal = tr(p, 'loyalty') >= 16, mercenary = tr(p, 'loyalty') <= 5;
   const mood = (morale < 40 && !loyal) || (mercenary && tr(p, 'money') >= 15) ? 'market' : morale >= 75 || loyal || teamRecord(team).pct >= 0.55 ? 'eager' : 'open';
   // The one length he asks for (the range is how far he'll bend).
-  const pref = Math.round((yrs[0] + yrs[1]) / 2 + 0.01);
-  return { sal, yrs, pref, mood, holdout, proj, agent: ag, ntc: FA.wantsNtc(league(), p, team), ntcOk: FA.ntcEligible(league(), p, team) };
+  const pref = onePlus ? 2 : Math.round((yrs[0] + yrs[1]) / 2 + 0.01);
+  return { sal, yrs, pref, onePlus, mood, holdout, proj, agent: ag, ntc: FA.wantsNtc(league(), p, team), ntcOk: FA.ntcEligible(league(), p, team) };
 }
 // His answer to an offer: { ok, counter, text }.
 function extAnswer(p, team, offer) {
@@ -18251,7 +18254,9 @@ function extAnswer(p, team, offer) {
   // What he'll actually take: under his ask, more with a team option, less
   // with a player option.
   const mood = a.mood === 'market' ? 1.15 : a.mood === 'eager' ? 0.84 : 0.9;
-  const opt = offer.opt === FA.OPT_TEAM ? 1.06 : offer.opt === FA.OPT_PLAYER ? 0.96 : 1;
+  // A 1+1 man: the second year has to be his (a team option there is a long way off; none at all costs a bit).
+  const opt = a.onePlus && offer.yrs >= 2 ? (offer.opt === FA.OPT_PLAYER ? 0.94 : offer.opt === FA.OPT_TEAM ? 1.15 : 1.06)
+    : offer.opt === FA.OPT_TEAM ? 1.06 : offer.opt === FA.OPT_PLAYER ? 0.96 : 1;
   // A no-trade clause is worth a little to him; one he asked for and didn't get costs.
   const ntc = offer.ntc && a.ntcOk ? 0.95 : a.ntc ? 1.05 : 1;
   const need = Math.max(FA.minFor(p), Math.round(a.sal * (1 + 0.06 * off) * mood * opt * ntc * (1 - (offer.cut || 0))));
@@ -18341,7 +18346,7 @@ actions.extOpen = d => {
   const p = t?.roster.find(x => x.id === +d.id);
   if (!p || st.done) return;
   const a = extAsk(p, t);
-  const talk = (st.talks[p.id] ||= { sal: a.sal, yrs: a.pref, opt: a.pref >= 5 ? FA.OPT_PLAYER : 0, tries: 0, last: null, signed: null });
+  const talk = (st.talks[p.id] ||= { sal: a.sal, yrs: a.pref, opt: a.pref >= 5 || a.onePlus ? FA.OPT_PLAYER : 0, tries: 0, last: null, signed: null });
   talk.opt ||= 0;
   if (talk.signed || talk.tries >= 3) return;
   const box = overlay('');
@@ -18352,7 +18357,7 @@ actions.extOpen = d => {
       <div class="pts-row"><span class="grow">Salary</span><button class="btn square" data-k="sal" data-d="-1">−</button><span class="pts-val">$${talk.sal}M</span><button class="btn square" data-k="sal" data-d="1">+</button></div>
       <div class="pts-row"><span class="grow">Years</span><button class="btn square" data-k="yrs" data-d="-1">−</button><span class="pts-val">${talk.yrs}</span><button class="btn square" data-k="yrs" data-d="1">+</button></div>
       <div class="tabs">${[[0, 'No Option'], [FA.OPT_PLAYER, 'Player'], [FA.OPT_TEAM, 'Team']].map(([v, l]) => `<button class="btn ${talk.opt === v ? 'on focus' : 'off'}" data-k="opt" data-v="${v}">${l}</button>`).join('')}</div>
-      ${a.ntcOk ? `<div class="tabs">${[[0, 'No NTC'], [1, 'No-trade clause']].map(([v, l]) => `<button class="btn ${!!talk.ntc === !!v ? 'on focus' : 'off'}" data-k="ntc" data-v="${v}">${l}</button>`).join('')}</div>${a.ntc ? '<p class="note small">He wants a no-trade clause.</p>' : ''}` : ''}
+      ${a.ntcOk ? `<div class="tabs">${[[0, 'No NTC'], [1, 'No-trade clause']].map(([v, l]) => `<button class="btn ${!!talk.ntc === !!v ? 'on focus' : 'off'}" data-k="ntc" data-v="${v}">${l}</button>`).join('')}</div>${a.ntc ? '<p class="note small">He wants a no-trade clause.</p>' : ''}` : ''}${a.onePlus ? '<p class="note small gold">He wants a 1+1: two years, the second his option. Control stays with him.</p>' : ''}
       <p class="note small">Total <span class="tot">$${talk.sal * talk.yrs}M</span> · ${3 - talk.tries} offer${3 - talk.tries === 1 ? '' : 's'} left${talk.last ? `<br><span class="down">${esc(talk.last.text)}</span>` : ''}</p>
       ${talk.last?.counter && !talk.last.ok && talk.tries < 3 ? `<button class="btn up-btn" data-k="counter">Take his counter: $${talk.last.counter.sal}M × ${talk.last.counter.yrs} <span class="tot">($${talk.last.counter.sal * talk.last.counter.yrs}M)</span></button>` : ''}
       ${a.holdout ? '<p class="note small">He\'s unhappy and wants to reset the market at his position. Pay it, shop him, or sign him high and send him out.</p><div class="grid2"><button class="btn" data-k="shop">🔁 Shop Him</button><button class="btn" data-k="snt">🤝 Sign-and-Trade</button></div>' : ''}
