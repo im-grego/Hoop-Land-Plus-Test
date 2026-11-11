@@ -377,21 +377,9 @@ export function roleFit(league, team, p) {
 }
 
 // Score of an offer { tid, sal, yrs, opt } for player p.
-// An aging star (31+, still a superstar on the floor (90+), or a Hall of Fame résumé: 6 All-Stars, 3 All-NBA or an MVP) asks for a 1+1: two years, the second
-// his own option. A one-year deal with a way to stay: he keeps the control and the leverage.
-export function wantsOnePlusOne(league, p) {
-  if ((p.age || 0) < 31 || levelOf(p) < 78) return false;   // past it: he takes what he can get
-  if (levelOf(p) >= 90) return true;
-  const names = new Map((league.awards || []).map(a => [a.id, a.name || a.shortName || '']));
-  let allStar = 0, big = 0;
-  for (const a of p.awards || []) {
-    const n = names.get(a.id) || '', c = (a.yearsWon || []).length;
-    if (/^All-Stars?$/i.test(n)) allStar += c;
-    if (/All-NBA|All-League/i.test(n)) big += c;
-    if (/Most Valuable|^MVP$|Finals MVP/i.test(n)) big += 3;
-  }
-  return allStar >= 6 || big >= 3;
-}
+// An aging star (31+ and still rated 93 or better) asks for a 1+1: two years, the second his own option. A one-year
+// deal with a way to stay: he keeps the control and the leverage.
+export const wantsOnePlusOne = (league, p) => (p.age || 0) >= 31 && levelOf(p) >= 93;
 // How a 1+1 man rates the shape of a deal: the 1+1 itself is what he's after; a plain one-year is close but loses the
 // second year; a longer deal without his option ties him down.
 export const onePlusOneTaste = offer => (offer.yrs === 2 && offer.opt === OPT_PLAYER ? 0.22 : offer.yrs === 1 ? -0.06 : offer.opt === OPT_PLAYER ? 0 : -0.15);
