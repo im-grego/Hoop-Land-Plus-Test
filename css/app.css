@@ -1954,3 +1954,12 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .aw-chip.big { border-color: var(--gold); background: #2b3f7a; font-weight: 700; }
 .aw-years { margin-top: 10px; }
 .aw-years > summary { cursor: pointer; color: var(--cyan); }
+
+.pl-head { position: relative; }
+.pl-head .pl-name { padding-right: 44px; }
+.pl-pencil { position: absolute; top: 0; right: 0; width: 34px; height: 34px; display: grid; place-items: center; background: #234b9d; border: 2px solid #3a80c8; box-shadow: 0 0 0 2px #162e69; font-size: 17px; cursor: pointer; padding: 0; color: #fff; }
+.pl-pencil.on { border-color: var(--gold); color: var(--gold); font-weight: 800; }
+.gtxt { font-weight: 700; font-size: 15px; }
+.g-optrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.g-optrow .seg .btn { min-height: 32px; font-size: 13px; }
+.g-optrow .seg .btn { white-space: nowrap; padding: 0 10px; min-width: 0; flex: none; }

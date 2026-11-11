@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.333.3';
+const APP_VERSION = '0.334.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10623,6 +10623,45 @@ function shortReport(html) {
   if (parts.length <= 2) return `<p class="note small scout-p">${html}</p>`;
   return `<details class="rep-more" data-keep="rep-more" ${state.keepOpen?.['rep-more'] ? 'open' : ''}><summary><span class="note small scout-p">${parts.slice(0, 2).join(' ')}</span> <span class="small link">Read more</span></summary><p class="note small scout-p">${parts.slice(2).join(' ')}</p></details>`;
 }
+// Edit mode's first card: everything about him that isn't a rating, in the game's rows (− value +). Any player, any
+// time: the start of the league editor.
+const PL_EDIT = {
+  pos: { label: 'Position', get: p => p.pos, set: (p, v) => { p.pos = v; }, step: 1, min: 0, max: POSITIONS.length - 1, show: p => POSITIONS[p.pos] },
+  age: { label: 'Age', get: p => p.age, set: (p, v) => { p.age = v; }, step: 1, min: 16, max: 50 },
+  ht: { label: 'Height', get: p => p.ht, set: (p, v) => { p.ht = v; }, step: 1, min: 60, max: 96, show: p => heightStr(p.ht) },
+  wt: { label: 'Weight', get: p => p.wt, set: (p, v) => { p.wt = v; }, step: 5, min: 140, max: 360, show: p => `${p.wt} lb` },
+  morale: { label: 'Morale', get: p => p.season?.morale ?? 60, set: (p, v) => { if (p.season) p.season.morale = v; }, step: 5, min: 0, max: 100, when: p => !!p.season },
+  sal: { label: 'Salary', get: p => p.contract?.sal || 0, set: (p, v) => { p.contract.sal = v; }, step: 1, min: 0, max: 150, show: p => `$${p.contract?.sal || 0}M`, when: p => !!p.contract },
+  yrs: { label: 'Years left', get: p => p.contract?.yrs || 0, set: (p, v) => { p.contract.yrs = v; }, step: 1, min: 0, max: 6, when: p => !!p.contract },
+  esal: { label: 'Extension salary', get: p => p.contract?.ext?.sal || 0, set: (p, v) => { (p.contract.ext ||= { sal: 0, yrs: 0, opt: 0 }).sal = v; }, step: 1, min: 0, max: 150, show: p => `$${p.contract?.ext?.sal || 0}M`, when: p => !!p.contract },
+  eyrs: { label: 'Extension years', get: p => p.contract?.ext?.yrs || 0, set: (p, v) => { const x = (p.contract.ext ||= { sal: 0, yrs: 0, opt: 0 }); if (v > 0 && !x.sal) x.sal = p.contract.sal || 1; x.yrs = v; }, step: 1, min: 0, max: 5, show: p => (p.contract?.ext?.yrs ? `${p.contract.ext.yrs}` : 'None'), when: p => !!p.contract },
+};
+function detailsEdit(p) {
+  const row = k => { const f = PL_EDIT[k]; if (f.when && !f.when(p)) return ''; return `<div class="gcell edit"><span class="glbl">${esc(f.label)}</span>${gBtn('plSet', `data-k="${k}" data-dir="-1"`, G_MINUS, `Lower ${f.label}`)}<span class="gmid gtxt"></span><span class="gnum">${k === 'morale' ? moraleTag(p) : `<b>${esc(String(f.show ? f.show(p) : f.get(p)))}</b>`}</span>${gBtn('plSet', `data-k="${k}" data-dir="1"`, G_PLUS, `Raise ${f.label}`)}</div>`; };
+  const opt = (k, cur) => `<div class="seg">${[[0, 'None'], [1, 'Team'], [2, 'Player']].map(([v, l]) => `<button class="btn small ${cur === v ? 'on focus' : 'off'}" data-act="plOpt" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+  return `<fieldset class="frame g-frame"><legend>Player</legend><div class="gstack">
+      <div class="gcell edit"><span class="glbl">Jersey</span><span class="gmid gtxt"><b>#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</b></span><button class="btn small" data-act="numPick" data-id="${p.id}">Change</button></div>
+      ${['pos', 'age', 'ht', 'wt', 'morale'].map(row).join('')}
+      ${p.contract ? `${['sal', 'yrs'].map(row).join('')}<div class="g-optrow"><span class="small muted">Option (final year)</span>${opt('opt', p.contract.opt || 0)}</div>
+      ${['esal', 'eyrs'].map(row).join('')}${extPending(p) ? `<div class="g-optrow"><span class="small muted">Extension option</span>${opt('eopt', p.contract.ext.opt || 0)}</div>` : ''}` : ''}
+    </div></fieldset>`;
+}
+actions.plSet = d => {
+  const p = currentPlayer(), f = PL_EDIT[d.k];
+  if (!p || !f) return;
+  const v = Math.max(f.min, Math.min(f.max, Math.round((f.get(p) + +d.dir * f.step) * 10) / 10));
+  f.set(p, v);
+  state.compCache = {};
+  state.dirty = true;
+  render();
+};
+actions.plOpt = d => {
+  const p = currentPlayer();
+  if (!p?.contract) return;
+  if (d.k === 'eopt') { if (p.contract.ext) p.contract.ext.opt = +d.v; } else p.contract.opt = +d.v;
+  state.dirty = true;
+  render();
+};
 // His skills as a line of chips under the ratings (editing them is in Edit).
 function skillsChips(p) {
   const s = activeSkills(p);
@@ -10721,7 +10760,7 @@ screens.player = (args) => {
       ${CATEGORIES.map(c => `<div class="gsub open">${c.attrs.map(k => gRow(p, snap, k, true, ceilMode)).join('')}</div>`).join('')}
       <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">${ceilMode ? '⇡ Raising ceilings' : 'Edit Ceilings'}</button></div>
     </fieldset>`;
-  const content = edit ? `${ratingsEdit}${trainer}${apCard}${skills}`
+  const content = edit ? `${detailsEdit(p)}${ratingsEdit}${trainer}${apCard}${skills}`
     : `${newsBox(p)}${rankBox(p, mpg)}${ratingsView}${plOutlookBox(p, team)}${arcBox(p)}
       <fieldset class="frame"><legend>Scouting Report</legend>${shortReport(profileReport(p, team))}${playerTags(p) ? `<div class="pl-tags">${playerTags(p)}</div>` : ''}</fieldset>
       ${personality}${playStyleBox(p)}
@@ -10730,9 +10769,10 @@ screens.player = (args) => {
   layout({
     title: 'Player Profile',
     body: `
-      <div>
+      <div class="pl-head">
+        <button class="pl-pencil ${edit ? 'on' : ''}" data-act="plEdit" aria-label="${edit ? 'Done editing' : 'Edit this player'}">${edit ? '✓' : '✏️'}</button>
         <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
-        <p class="note"><button class="linkish num-chip" data-act="numPick" data-id="${p.id}" title="Change his number">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</button> · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
+        <p class="note">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'} · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
         <p class="note small pl-meta"><span class="stars">${potStars(p)}</span>${[archName(p) && `<b class="arch">${esc(archName(p))}</b>`, isAllAmerican(p) && '<span class="gold">⭐ All-American</span>'].filter(Boolean).map(x => ` ${x}`).join(' ·')}</p>
         ${profileFacts(p, team, mpg)}
         ${identityChips(p) ? `<div class="style-chips pl-chips">${identityChips(p)}</div>` : ''}
