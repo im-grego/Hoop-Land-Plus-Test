@@ -2122,3 +2122,28 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .th-grades { display: flex; justify-content: space-between; gap: 8px; margin: 6px 0 10px; flex-wrap: wrap; }
 .th-grades > span { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
 .ro-count { font-size: 14px; font-weight: 700; color: var(--dim, #b9c8e8); margin-left: 4px; }
+
+/* Lineup table: Name · Pos · Ovr · Min · Sug */
+.lu-frame { padding-left: 8px; padding-right: 8px; }
+.lu-tr { display: grid; grid-template-columns: 22px minmax(0, 1fr) 26px 26px 72px 32px; align-items: center; gap: 4px; padding: 6px 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.lu-tr:last-child { border-bottom: 0; }
+.lu-th { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim, #b9c8e8); padding-top: 2px; }
+.lu-tr.lu-st { background: rgba(255, 255, 255, 0.04); }
+.lu-tr.out { opacity: 0.55; }
+.lu-c-slot { font-size: 12px; font-weight: 800; color: var(--cyan); text-align: center; }
+.lu-tr:not(.lu-st) .lu-c-slot { color: var(--dim, #b9c8e8); }
+.lu-c-name { min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 14px; line-height: 1.15; }
+.lu-c-name b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lu-c-pos, .lu-c-ovr { font-size: 13px; text-align: center; }
+.lu-c-ovr { font-weight: 700; color: var(--gold); }
+.lu-c-min { display: flex; align-items: center; justify-content: space-between; }
+.lu-c-min b { font-size: 16px; min-width: 1.6em; text-align: center; }
+.lu-step { width: 20px; height: 24px; padding: 0; border: 2px solid var(--btn-edge); background: var(--btn); color: var(--text); font: 700 15px/1 var(--font); cursor: pointer; }
+.lu-step:disabled { opacity: 0.35; }
+.lu-c-sug { font-size: 13px; text-align: right; white-space: nowrap; }
+.lu-c-sug i { font-style: normal; font-size: 10px; margin-left: 2px; }
+.lu-th .lu-c-min { justify-content: center; }
+/* The minutes bar in white segments (a quarter of the game each), like a game's rotation screen */
+.lu-bar2 { position: relative; display: block; height: 5px; background: rgba(0, 0, 0, 0.35); }
+.lu-bar2 i { display: block; height: 100%; background: #fff; }
+.lu-bar2::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 2px), var(--panel, #10469e) calc(25% - 2px) 25%); }

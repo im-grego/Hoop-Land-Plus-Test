@@ -74,7 +74,7 @@ function minutesFor(rot, mode, game, over, share = null, deep = false, promised 
   const W = MODES[mode].w, total = 5 * game, lo = Math.round(game * 0.12), hi = Math.round(game * (MODES[mode].hi || 0.8));
   // A guide, not a rule: a player rated 79 or lower is pointed at 20 minutes or fewer (on a 48-minute game), unless the
   // team has nobody better; the positions can still call for more.
-  const capOf = p => (lowCap && levelOf(p) <= 79 ? Math.max(lo, Math.round(lowCap * game / 48)) : hi);
+  const capOf = p => (lowCap && rot.indexOf(p) >= 5 && levelOf(p) <= 79 ? Math.max(lo, Math.round(lowCap * game / 48)) : hi);   // the bench only: a starter plays a starter's minutes
   const want = new Map(rot.filter(p => over[p.id] != null).map(p => [p, Math.max(0, Math.min(game, over[p.id]))]));
   const wOf = p => W[rot.indexOf(p)] ?? 0.2;
   const k = game / 48, range = new Map();

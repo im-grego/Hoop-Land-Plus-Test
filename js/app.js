@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.354.2';
+const APP_VERSION = '0.354.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -8658,26 +8658,33 @@ screens.lineup = (args = {}) => {
   const plan = luPlan(t, { ...args, mode });
   const step = game >= 40 ? 2 : 1;
   const posN = p => POSITIONS[p.pos] || '';
-  // One thin row a player: his spot, name, position and level, his minutes (large) with − and +, and a slim bar.
+  // A table like a game's rotation screen: spot, name, position, level, minutes (a segmented bar, − and +) and the
+  // suggested minutes (the real NBA rotation) with an arrow when yours differ.
+  const sug = new Map(defaultPlan(t).rows.map(r => [r.p.id, r.minutes[0]]));
   const row = r => {
     const p = r.p, inRot = r.minutes[0] > 0, spots = r.minutes.slice(1).map((v, k) => (v ? [LU.SLOTS[k], v, LU.inPos(p, k)] : null)).filter(Boolean);
     const split = spots.length > 1 ? `<span class="lu-split">${spots.map(([s, v, ok]) => `<span class="${ok ? '' : 'down'}">${s} ${v}</span>`).join(' · ')}</span>` : spots.length && !spots[0][2] ? `<span class="lu-split down">at ${spots[0][0]}</span>` : '';
-    return `<div class="lu-row2 ${r.linePos < 5 ? 'lu-st' : ''} ${inRot ? '' : 'out'}">
-      <span class="lu-slot">${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? r.linePos + 1 : '—'}</span>
-      <span class="lu-name"><b>${esc(playerName(p))}</b> <span class="lu-meta">${esc(posN(p))} ${lvTag(p)}${r.hand ? ' ✋' : ''}</span>${split}
-        ${inRot ? `<span class="lu-bar"><i style="width:${(r.minutes[0] / game * 100).toFixed(1)}%"></i></span>` : ''}</span>
-      <span class="lu-min"><button class="btn tiny" data-act="luMin" data-id="${p.id}" data-d="-${step}" aria-label="Fewer minutes" ${inRot || r.hand ? '' : 'disabled'}>−</button><b>${r.minutes[0]}</b><button class="btn tiny" data-act="luMin" data-id="${p.id}" data-d="${step}" aria-label="More minutes">+</button></span>
+    const sv = sug.get(p.id) ?? 0, diff = sv - r.minutes[0];
+    return `<div class="lu-tr ${r.linePos < 5 ? 'lu-st' : ''} ${inRot ? '' : 'out'}">
+      <span class="lu-c-slot">${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? r.linePos + 1 : '—'}</span>
+      <span class="lu-c-name tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln || playerName(p))}</b>${r.hand ? ' ✋' : ''}${split}
+        <span class="lu-bar2"><i style="width:${(r.minutes[0] / game * 100).toFixed(1)}%"></i></span></span>
+      <span class="lu-c-pos">${esc(posN(p))}</span>
+      <span class="lu-c-ovr">${shownLevel(p)}</span>
+      <span class="lu-c-min"><button class="lu-step" data-act="luMin" data-id="${p.id}" data-d="-${step}" aria-label="Fewer minutes" ${inRot || r.hand ? '' : 'disabled'}>−</button><b>${r.minutes[0]}</b><button class="lu-step" data-act="luMin" data-id="${p.id}" data-d="${step}" aria-label="More minutes">+</button></span>
+      <span class="lu-c-sug">${sv}${diff ? `<i class="${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '▲' : '▼'}</i>` : ''}</span>
     </div>`;
   };
+  const head = '<div class="lu-tr lu-th"><span class="lu-c-slot"></span><span class="lu-c-name">Name</span><span class="lu-c-pos">Pos</span><span class="lu-c-ovr">Ovr</span><span class="lu-c-min">Min</span><span class="lu-c-sug">Sug</span></div>';
   const total = plan.rows.reduce((s, r) => s + r.minutes[0], 0);
   const tabs = Object.keys(LU_TABS).filter(k => (k !== 'real' || real) && (k !== 'playoffs' || PO.atPlayoffStart(L) || mode === 'playoffs'));
   layout({
     title: 'Lineup & Minutes',
     body: `<p class="note small">${logoImg(t)} <b>${esc(teamFull(t))}</b></p>
       <div class="tabs fa-tabs">${tabs.map(k => `<button class="btn small ${k === mode ? 'on focus' : 'off'}" data-act="luSet" data-k="mode" data-v="${k}">${LU_TABS[k]}</button>`).join('')}</div>
-      <div class="grid2 lu-acts"><button class="btn off" data-act="luSet" data-k="over" data-v="">↩ Clear edits</button><button class="btn focus" data-act="luApply">✅ Set the lineup</button></div>
+      <div class="grid2 lu-acts"><button class="btn off" data-act="luSet" data-k="over" data-v="">↩ Clear edits</button><button class="btn focus" data-act="luApply">✅ Set lineup</button></div>
       <div class="drill-row"><span class="grow small">Players in the rotation</span><span class="trait-ctl"><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.max(7, size - 1)}">−</button><b class="small" style="min-width:2em;text-align:center">${plan.rot.length}</b><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.min(12, size + 1)}">+</button></span></div>
-      <fieldset class="frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend><div class="lu-list">${plan.rows.map(row).join('')}</div>
+      <fieldset class="frame lu-frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend><div class="lu-list">${head}${plan.rows.map(row).join('')}</div>
         ${plan.short.length ? `<p class="note small down">Short at ${plan.short.map(x => `${x.slot} (${x.v})`).join(', ')}: add a player or minutes.</p>` : ''}</fieldset>`,
   });
 };
