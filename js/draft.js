@@ -204,12 +204,21 @@ export function scoutedPot(p, salt = 0, chance = 25) {
 // including older ones).
 export const MIN_COMP_SEASONS = 2;
 
+// When a player's career was centered: the middle of his seasons (his draft year plus five without them).
+export const MODERN_ERA = 1980;
+export function eraOf(p) {
+  const yrs = (p.stats || []).flatMap(s => (s.league === 0 && s.yr > 1900 && (s.season || []).some(r => r.GP > 0) ? [s.yr] : []));
+  if (yrs.length) return (Math.min(...yrs) + Math.max(...yrs)) / 2;
+  const d = p.history?.draft?.yr;
+  return d > 1900 ? d + 5 : 9999;   // nothing to go on: keep him
+}
 export function buildCompPool(league) {
   const pool = [];
   const yr = league.season.currentYear;
   const isRookie = p => p.history?.draft?.yr === yr || p.history?.yearDeclared === yr;
   const add = (p, group, vec) => {
     if (!p?.attributes || !p.ht || isRookie(p)) return;
+    if (eraOf(p) < MODERN_ERA) return;   // a scouting report today doesn't reach back to the 60s and 70s
     const v = vec(p);
     if (v.reduce((a, b) => a + b, 0) < 40) return; // empty/placeholder records
     // Established = has played enough to show who they are.

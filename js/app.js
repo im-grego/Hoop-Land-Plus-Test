@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.332.0';
+const APP_VERSION = '0.332.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -208,11 +208,70 @@ function makeClassLines(cls, yr, meta = labMeta()) {
 function madeLineOf(p) {
   if (!state.data || isCollege() || !p) return null;
   const m = madeStore();
-  if (m[p.id]) return m[p.id];
-  const L = league();
-  if (!(L.draftClass || []).includes(p)) return null;
-  makeClassLines(L.draftClass, lastYear());
-  return m[p.id] || null;
+  if (!m[p.id]) {
+    const L = league();
+    if (!(L.draftClass || []).includes(p)) return null;
+    makeClassLines(L.draftClass, lastYear());
+  }
+  return m[p.id] ? withSchool(p, m[p.id]) : null;
+}
+// A school for every prospect without a college season (the classes of kids not on a college roster yet): a team from
+// the save's college league, the better the prospect the likelier a powerhouse or a top mid-major. Overseas prospects
+// keep their pro club. Set once per player, a whole class at a time (so no school is overloaded), and kept.
+const POWERHOUSES = ['Duke', 'Kentucky', 'Kansas', 'North Carolina', 'UCLA', 'Arizona', 'Michigan State', 'UConn', 'Connecticut', 'Houston', 'Baylor',
+  'Auburn', 'Alabama', 'Purdue', 'Tennessee', 'Arkansas', 'Texas', 'Florida', 'Indiana', 'Michigan', 'Louisville', 'Syracuse', 'Iowa State', "St. John's",
+  'Villanova', 'Illinois', 'Texas Tech', 'Marquette', 'Creighton', 'Ohio State', 'Oregon', 'USC', 'Virginia', 'Wisconsin', 'Maryland', 'Texas A&M', 'Miami', 'BYU'];
+const HIGH_MIDS = ['Gonzaga', "Saint Mary's", 'San Diego State', 'Memphis', 'Dayton', 'VCU', 'Drake', 'New Mexico', 'UNLV', 'Wichita State', 'Boise State',
+  'Utah State', 'Nevada', 'Colorado State', 'Davidson', 'Florida Atlantic', 'Grand Canyon', 'Belmont', 'Butler', 'Xavier', 'Cincinnati', 'Saint Louis',
+  'Loyola Chicago', 'Liberty', 'McNeese', 'Seton Hall', 'Providence', 'Georgetown', 'Wake Forest', 'Pittsburgh', 'Clemson', 'Mississippi State', 'Ole Miss', 'Oklahoma State'];
+const schoolKey = () => `hlc:schools:${saveTag()}`;
+function schoolStore() { try { return JSON.parse(localStorage.getItem(schoolKey())) || {}; } catch { return {}; } }
+function collegePrograms() {
+  const out = [];
+  state.data.seasonLeagues.forEach((lg, li) => {
+    if (!li || lg.leagueType === 0) return;
+    for (const t of lg.teams) {
+      const nm = (t.city || t.shortName || '').trim(), top = (t.roster || []).map(levelOf).sort((a, b) => b - a).slice(0, 8);
+      out.push({ li, tid: t.id, name: `${t.city ? `${t.city} ` : ''}${t.name || ''}`.trim() || t.shortName,
+        kind: POWERHOUSES.includes(nm) ? 'power' : HIGH_MIDS.includes(nm) ? 'mid' : 'other', str: top.length ? top.reduce((a, b) => a + b, 0) / top.length : 60 });
+    }
+  });
+  // Without a list match, the strongest programs count as the next tier up.
+  const rest = out.filter(x => x.kind === 'other').sort((a, b) => b.str - a.str);
+  rest.slice(0, Math.round(rest.length / 4)).forEach(x => { x.kind = 'mid'; });
+  return out;
+}
+function assignSchools(cls) {
+  const st = schoolStore(), progs = collegePrograms();
+  if (!progs.length) return st;
+  const need = cls.filter(p => !st[p.id] && !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0))).sort((a, b) => (b.pot || 0) - (a.pot || 0) || levelOf(b) - levelOf(a));
+  if (!need.length) return st;
+  const used = new Map(Object.values(st).map(s => [`${s.li}:${s.tid}`, 0]));
+  const W = pot => (pot >= 9 ? { power: 0.75, mid: 0.25, other: 0 } : pot >= 8 ? { power: 0.5, mid: 0.35, other: 0.15 } : pot >= 7 ? { power: 0.25, mid: 0.3, other: 0.45 } : { power: 0.1, mid: 0.25, other: 0.65 });
+  for (const p of need) {
+    const ped = labMeta()[p.id]?.ped || '';
+    if (/International \(/.test(ped)) continue;   // overseas: his pro club
+    const rng = CG.mulberry((saveSalt() ^ Math.imul(p.id, 2654435761)) >>> 0), w = W(p.pot || 6);
+    let roll = rng(), kind = roll < w.power ? 'power' : roll < w.power + w.mid ? 'mid' : 'other';
+    let pool = progs.filter(x => x.kind === kind);
+    if (!pool.length) pool = progs.filter(x => x.kind !== 'other').length ? progs.filter(x => x.kind !== 'other') : progs;
+    // The fewest from this class first (two at most where it can), then the strongest programs for the best prospects.
+    const load = x => used.get(`${x.li}:${x.tid}`) || 0, min = Math.min(...pool.map(load));
+    const open = pool.filter(x => load(x) === min).sort((a, b) => b.str - a.str);
+    const s = open[Math.floor(rng() * rng() * (p.pot >= 9 ? Math.min(4, open.length) : open.length))] || open[0];
+    st[p.id] = { li: s.li, tid: s.tid };
+    used.set(`${s.li}:${s.tid}`, load(s) + 1);
+  }
+  try { localStorage.setItem(schoolKey(), JSON.stringify(st)); } catch { /* ignore */ }
+  return st;
+}
+function withSchool(p, line) {
+  if (!line || /^Pro club/.test(line.team || '')) return line;
+  let s = schoolStore()[p.id];
+  if (!s) { const L = league(); s = assignSchools((L.draftClass || []).includes(p) ? L.draftClass : [p])[p.id]; }
+  const t = s && state.data.seasonLeagues[s.li]?.teams?.find(x => x.id === s.tid);
+  if (!t) return line;
+  return { ...line, team: `${t.city ? `${t.city} ` : ''}${t.name || ''}`.trim() || t.shortName, cl: (line.team || '').replace(/ season$/, ''), school: { li: s.li, tid: s.tid } };
 }
 setMadeLines(madeLineOf);
 setMadeGameScores(p => madeLineOf(p)?.gs ?? null);
@@ -12871,8 +12930,9 @@ function collegeBox(p) {
   if (!c) return '';
   const f = (v, d = 1) => (v == null ? '—' : v.toFixed(d));
   // His college team's own logo and colors (like the draft's team boxes); the league ball when there's no team.
-  const team = c.li != null && c.tid != null ? state.data.seasonLeagues[c.li]?.teams?.find(x => x.id === c.tid) : null, tint = team ? teamTint(team) : '';
-  return `<div class="outlook col-box" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${team ? logoImg(team) : COLLEGE_LOGO}<b>${esc(c.team)}</b><span class="status">${c.made && /^Pro club/.test(c.team) ? 'Overseas' : 'College'} · ${c.yr}</span></div>
+  const sc = c.li != null && c.tid != null ? { li: c.li, tid: c.tid } : c.school;
+  const team = sc ? state.data.seasonLeagues[sc.li]?.teams?.find(x => x.id === sc.tid) : null, tint = team ? teamTint(team) : '';
+  return `<div class="outlook col-box" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${team ? logoImg(team) : COLLEGE_LOGO}<b>${esc(c.team)}</b><span class="status">${c.made && /^Pro club/.test(c.team) ? 'Overseas' : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div>
     <p class="note small muted" style="margin:0">${c.gp} games · ${f(c.mpg)} MPG</p>
     <div class="statline">
       ${[['PTS', f(c.pts)], ['REB', f(c.reb)], ['AST', f(c.ast)], ['STL', f(c.stl)], ['BLK', f(c.blk)],
@@ -12917,7 +12977,7 @@ screens.prospect = (args) => {
       <div class="pros-head">
         <button class="mvbtn pros-add ${onBoard(p.id) ? 'on' : ''}" data-act="toggleBoard" data-id="${p.id}" aria-label="${onBoard(p.id) ? 'Remove from' : 'Add to'} your board">${onBoard(p.id) ? '✓' : '+'}</button>
         <h2 class="team-title">${esc(playerName(p))}</h2>
-        <p class="note">${esc((c => !c ? 'Prospect' : c.made ? (/^Pro club/.test(c.team) ? c.team : 'College') : c.team)(collegeLine(p, state.data.seasonLeagues)))} · ${esc(posName(p))} · ${heightStr(p.ht)} · ${p.wt} lb</p>
+        <p class="note">${esc((c => !c ? 'Prospect' : c.made ? (/^Pro club/.test(c.team) || c.school ? c.team : 'College') : c.team)(collegeLine(p, state.data.seasonLeagues)))} · ${esc(posName(p))} · ${heightStr(p.ht)} · ${p.wt} lb</p>
         <p class="note small pros-chips"><span class="age-chip">Age ${p.age} · ${classYear(p)}</span> ${valueChip(p)} ${state.params.readiness === 'age' ? '' : readyChip(p)}</p>
         ${(() => { const z = collegeZ(p), w = productionWord(z), b = bodyZ(p); if (!w && !b) return ''; const fw = b ? (b.frame >= 0.5 ? 'pro-ready frame' : b.frame <= -0.5 ? 'slight frame' : 'average frame') : ''; return `<p class="note small">${w ? `College production vs the ${p.pos <= 2 ? 'guards' : p.pos <= 5 ? 'wings' : 'bigs'} in his class: <b class="${z >= 0.5 ? 'up' : z <= -0.5 ? 'down' : ''}">${w}</b>` : ''}${w && fw ? ' · ' : ''}${fw ? `<span class="${b.frame >= 0.5 ? 'up' : b.frame <= -0.5 ? 'down' : 'muted'}">${fw}</span>` : ''}</p>`; })()}
         ${labStoryLine(p)}
