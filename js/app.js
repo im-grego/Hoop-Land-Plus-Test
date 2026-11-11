@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.343.3';
+const APP_VERSION = '0.345.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -2797,7 +2797,7 @@ const STEP_SCREENS = {
   dev: ['staff', 'meeting', 'offseason', 'report', 'mentor', 'rookies', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'teamBooks', 'coaches', 'coach'], media: ['storylines', 'survey', 'mediaRumors'], cuts: ['cuts', 'latefa', 'liveTrade'], rotation: ['lineup', 'player'], export: ['export'],
   review: ['review', 'teamStats', 'player'], waters: ['waters', 'player'], nil: ['nil', 'player'], retention: ['retention', 'player'], carousel: ['carousel'], camps: ['camps', 'recruitee'], legacy: ['legacy', 'player'], schedule: ['schedule'], tour: ['tour', 'player'], walkons: ['walkons', 'player'], redshirt: ['redshirt', 'player'], madness: ['madness'], mediaday: ['mediaday', 'player'], departures: ['departures'], seniors: ['seniors'], portal: ['portal'], showcase: ['showcase', 'recruitee'], rw1: ['recruit', 'recruitee', 'recruitweek'], rw2: ['recruit', 'recruitee', 'recruitweek'], rw3: ['recruit', 'recruitee', 'recruitweek'], rw4: ['recruit', 'recruitee', 'recruitweek'], signing: ['signing'], preseason: ['preseason'], rosterlock: ['rosterlock'], practice: ['practice'], summer: ['offseason', 'report', 'mentor', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook'],
 };
-const ALWAYS = ['drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks'];
+const ALWAYS = ['start', 'startTeam', 'startFA', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks'];
 function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
@@ -3078,6 +3078,134 @@ const rumorSeen = () => new Set(offGet('hgSeen').ids || []);
 const rumorUnread = () => { const s = rumorSeen(); return rumorTop().filter(k => !s.has(k)).length; };
 // A facility upgrade the coins already cover.
 const facReady = t => !!t && isComplete() && !isCollege() && FX.FACILITIES.some(f => { const cur = FX.tierIn(t, f.k); return cur < f.tiers.length && coinsOf(t) >= FX.upgradeCost(cur); });
+// ---------------------------------------------------------------------------
+// Start a Franchise: a real season, today. The app hosts ready-made season files (tools/season/build.mjs): the real
+// schedule in 99 days (Opening Night and Christmas on their own days), the real scores, player stats, rosters,
+// contracts and injuries up to the start date. Pick the date and your team, make your moves (trades, minimum
+// signings), export, and load it in Hoop Land once.
+const START_KEY = () => `hlc:start:${saveTag()}`;
+async function seasonIndex() {
+  if (state.seasonIdx) return state.seasonIdx;
+  const r = await fetch('data/seasons/index.json', { cache: 'no-cache' });
+  if (!r.ok) throw new Error(`index ${r.status}`);
+  return (state.seasonIdx = await r.json());
+}
+const fmtDay = iso => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+screens.start = () => {
+  const idx = state.seasonIdx;
+  if (!idx) {
+    layout({ title: 'Start a Franchise', body: '<div class="spinner"></div><p class="note center">Getting the seasons…</p>' });
+    seasonIndex().then(() => replace('start')).catch(e => layout({ title: 'Start a Franchise', body: `<p class="note">Couldn't reach the seasons (${esc(e.message)}). Check your connection and try again.</p>` }));
+    return;
+  }
+  layout({
+    title: 'Start a Franchise',
+    body: `<p class="note">Start a real season from today: the real schedule, every score, player stats, rosters, contracts and injuries so far. Pick your team, make your moves, then export once and load it in Hoop Land.</p>
+      ${idx.seasons.map(s => `<fieldset class="frame"><legend>${esc(s.label)}</legend><div class="stack">${[...s.starts].reverse().map((x, i) => `
+        <button class="btn left ${i ? '' : 'focus'}" data-act="startPick" data-file="${esc(x.file)}" data-s="${esc(s.id)}" data-date="${esc(x.date)}"><span class="ico">📅</span> ${esc(fmtDay(x.date))}
+          <span class="note small">${x.through ? `Real results through ${esc(fmtDay(x.through))}` : 'Opening Night'}${x.injuries ? ' · injuries as of that day' : ''} · ${x.days}-day season</span></button>`).join('')}</div></fieldset>`).join('')}
+      <p class="note small muted">The season is laid out over ${idx.seasons[0]?.starts.at(-1)?.days || 99} game days so the game's injuries keep their length. Every team plays its real 82 opponents, home and away, in close to the real order.</p>`,
+  });
+};
+// Download, unpack and read a season file; then the team picker.
+actions.startPick = async d => {
+  if (state.data && state.dirty && !(await confirmBox('You have unsaved changes. Start a new franchise anyway?', 'Start'))) return;
+  const o = overlay('<div class="spinner"></div><p class="note">Getting the season…</p>');
+  try {
+    const r = await fetch(d.file);
+    if (!r.ok) throw new Error(`${r.status}`);
+    let text;
+    if (/\.gz$/.test(d.file) && typeof DecompressionStream !== 'undefined' && !(r.headers.get('content-encoding') || '').includes('gzip')) {
+      text = await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text();
+    } else text = await r.text();
+    if (text.charCodeAt(0) === 0x1f) throw new Error('This browser can’t unpack the season file');
+    await nextFrame();
+    state.startPack = { text, season: d.s, date: d.date };
+    o.remove();
+    go('startTeam');
+  } catch (e) { o.remove(); toast('Couldn’t get the season', e.message, 4200, true); }
+};
+screens.startTeam = () => {
+  const P = state.startPack;
+  if (!P) { replace('start'); return; }
+  if (!P.parsed) { P.parsed = parseSave(P.text); preloadLogos(P.parsed); }
+  const L = P.parsed.seasonLeagues[0], yr = L.season.currentYear;
+  const rec = t => t.season?.find(x => x.yr === yr)?.seasonStats || { W: 0, L: 0 };
+  const half = Math.ceil((L.divisions || []).length / 2) || 3;
+  const conf = c => L.teams.filter(t => (t.division < half ? 0 : 1) === c).sort((a, b) => rec(b).W - rec(b).L - (rec(a).W - rec(a).L) || rec(b).W - rec(a).W);
+  const card = t => { const r = rec(t); return `<button class="btn left start-team" data-act="startTeam" data-id="${t.id}">${logoImg(t)} <span class="grow"><b>${esc(teamFull(t))}</b><span class="note small">${r.W}-${r.L}</span></span></button>`; };
+  layout({
+    title: 'Pick Your Team',
+    body: `<p class="note small">${esc(fmtDay(P.date))}: standings as they are today.</p>
+      ${[0, 1].map(c => `<fieldset class="frame"><legend>${esc(L.conferences?.[c] || (c ? 'West' : 'East'))}</legend><div class="stack">${conf(c).map(card).join('')}</div></fieldset>`).join('')}`,
+  });
+};
+actions.startTeam = async d => {
+  const P = state.startPack, L = P.parsed.seasonLeagues[0], t = L.teams.find(x => x.id === +d.id);
+  if (!t || !(await confirmBox(`Take over the ${esc(teamFull(t))}?`, 'Start'))) return;
+  L.season.teamId = t.id;
+  for (const x of L.teams) x.isPlayer = x === t;
+  const name = `${L.leagueName ? L.shortName || 'NBA' : 'NBA'} ${P.season} · ${t.shortName} · ${P.date}.txt`;
+  const file = new File([serializeSave(P.parsed)], name, { type: 'text/plain' });
+  state.startPack = null;
+  state.dirty = false;
+  await loadFile(file);
+  try { localStorage.setItem(START_KEY(), JSON.stringify({ season: P.season, date: P.date, day: league().season.currentDay })); } catch { /* ignore */ }
+  state.dirty = true;
+  goHome();
+};
+// The setup card on the main menu while it's still the start day: your moves before the first game.
+function startCard() {
+  if (!state.data || isCollege()) return '';
+  let s = null; try { s = JSON.parse(localStorage.getItem(START_KEY()) || 'null'); } catch { s = null; }
+  const L = league();
+  if (!s || L.season.phase !== 9 || L.season.currentDay !== s.day) return '';
+  const t = L.teams.find(isUserTeam);
+  if (!t) return '';
+  const r = t.season?.find(x => x.yr === L.season.currentYear)?.seasonStats || { W: 0, L: 0 };
+  const open = 15 - FA.signedRoster(t).length;
+  return `<fieldset class="frame"><legend>🏀 ${esc(fmtDay(s.date))}</legend><div class="stack">
+    <p class="note">${logoImg(t)} <b>${esc(teamFull(t))}</b> · ${r.W}-${r.L} · ${FA.signedRoster(t).length}/15 players${open > 0 ? ` · <span class="gold">${open} open spot${open > 1 ? 's' : ''}</span>` : ''}</p>
+    ${capBar(t)}
+    <div class="grid2"><button class="btn left" data-act="liveTrade"><span class="ico">🔁</span> Trade Machine</button><button class="btn left" data-act="nav" data-to="startFA"><span class="ico">✍️</span> Free Agents</button></div>
+    <div class="grid2"><button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button><button class="btn left focus" data-act="nav" data-to="export"><span class="ico">💾</span> Export</button></div>
+    <p class="note small muted">Make your moves, then export and load the file in Hoop Land: the season picks up from today.</p></div></fieldset>`;
+}
+// Free agents during the season: everyone signs a one-year minimum (what he's owed for his years in the league).
+screens.startFA = (args = {}) => {
+  const L = league(), t = L.teams.find(isUserTeam);
+  if (!t) { back(); return; }
+  const yr = L.season.currentYear, view = args.view || 'all';
+  const pool = (L.freeAgents || []).filter(p => p.status === FA.STATUS_FREE).sort((a, b) => shownLevel(b) - shownLevel(a));
+  const rows = pool.filter(p => view === 'young' ? p.age <= 24 : view === 'vets' ? p.age >= 30 : view === 'g' ? posGroup(p) === 'guards' : view === 'w' ? posGroup(p) === 'wings' : view === 'b' ? posGroup(p) === 'bigs' : true).slice(0, args.all ? 250 : 30);
+  const n = FA.signedRoster(t).length;
+  layout({
+    title: 'Free Agents',
+    body: `<fieldset class="frame"><legend>${esc(t.shortName)} · ${n}/15</legend>${capBar(t)}<p class="note small">Everyone signs a one-year minimum. ${n >= 15 ? '<span class="down">Your roster is full: waive someone in My Team first.</span>' : `${15 - n} open spot${15 - n === 1 ? '' : 's'}.`}</p></fieldset>
+      <div class="tabs fa-tabs">${[['all', 'Best'], ['young', 'Young'], ['vets', 'Vets'], ['g', 'G'], ['w', 'W'], ['b', 'B']].map(([k, l]) => `<button class="btn ${k === view ? 'on focus' : 'off'}" data-act="startFAView" data-v="${k}">${l}</button>`).join('')}</div>
+      <div class="list">${rows.map(p => {
+        const l = seasonLine(p, state.leagueIdx, yr) || seasonLine(p, state.leagueIdx, yr - 1);
+        return `<div class="prow"><span class="name tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))} ${lvTag(p)}</span>
+          <span class="right"><button class="btn small ${n < 15 ? 'focus' : ''}" data-act="startSign" data-id="${p.id}" ${n < 15 ? '' : 'disabled'}>✍️ $${FA.minFor(p)}M</button></span>
+          <span class="meta">${esc(posName(p))} · ${p.age}y${l ? ` · ${l.gp ? `${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : ''}` : ''}${p.season?.injury?.gamesOut > 0 ? ` · <span class="down">out ${p.season.injury.gamesOut}g</span>` : ''}</span></div>`;
+      }).join('') || '<p class="note muted">Nobody here.</p>'}</div>
+      ${!args.all && pool.length > 30 ? `<button class="btn small" data-act="startFAAll">Show all ${pool.length}</button>` : ''}`,
+  });
+};
+actions.startFAView = d => replace('startFA', { view: d.v });
+actions.startFAAll = () => replace('startFA', { ...state.stack[state.stack.length - 1].args, all: true });
+actions.startSign = d => {
+  const L = league(), p = (L.freeAgents || []).find(x => x.id === +d.id), t = L.teams.find(isUserTeam);
+  if (!p || !t) return;
+  if (FA.signedRoster(t).length >= 15) { toast('Roster is full (15)', 'Waive someone in My Team first.', 2600, true); return; }
+  if (FA.capSystemOn() && FA.teamCommitted(t) + FA.minFor(p) > FA.capLines(L).apron2) { toast('That would put you over the 2nd apron', '', 2400, true); return; }
+  checkpoint(`Sign ${playerName(p)}`);
+  FA.signPlayer(L, p, t, { tid: t.id, sal: FA.minFor(p), yrs: 1, opt: 0 }, L.season.currentDay || 0);
+  state.dirty = true;
+  render();
+  toast(`✍️ ${playerName(p)} signs`, `$${FA.minFor(p)}M × 1`);
+};
+
 screens.main = () => {
   if (!state.data) {
     layout({
@@ -3087,7 +3215,8 @@ screens.main = () => {
         <fieldset class="frame"><legend>Hoop Land Plus</legend>
           <div class="stack">
             <p class="note">Load a <b>Franchise</b> save from the end of the playoffs (Pre-Lottery) and run the whole offseason here: the lottery, the draft, free agency and player development. Export once at the end and load it back into Hoop Land. A save from later in the offseason picks up where it left off.</p>
-            <label class="btn big focus"><span class="ico">📂</span> Load Season File
+            <button class="btn big focus" data-act="nav" data-to="start"><span class="ico">🏀</span> Start a Franchise</button>
+            <label class="btn big"><span class="ico">📂</span> Load Season File
               <input type="file" id="fileInput"></label>
             ${dbxOn() ? linkLoadBox() : ''}
           </div>
@@ -3112,6 +3241,7 @@ screens.main = () => {
           <span class="note small">${esc(isCollege() ? collegePhaseName(s) : phaseName(s))} · ${CAR.isCareer(L) ? 'Career mode' : `Your ${isCollege() || isFranchise() ? (isCollege() ? 'school' : 'team') : 'teams'}: ${esc(yourTeams)}`}</span></div>
       </div>
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
+      ${startCard()}
       ${retireeCard()}
       ${careerCard()}
       ${expAskCard()}

@@ -1,0 +1,17 @@
+{
+  "seasons": [
+    {
+      "id": "2026-27",
+      "label": "2026-27 NBA",
+      "starts": [
+        {
+          "date": "2026-11-11",
+          "file": "data/seasons/2026-27/2026-11-11.txt.gz",
+          "through": "2026-11-10",
+          "injuries": true,
+          "days": 99
+        }
+      ]
+    }
+  ]
+}

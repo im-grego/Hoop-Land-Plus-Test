@@ -2038,3 +2038,6 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .ico .ndot { position: absolute; top: -11px; right: -16px; margin: 0; }
 .aw-ic { height: 1.5em; width: auto; image-rendering: pixelated; vertical-align: -0.35em; margin-right: 5px; }
 .aw-chip .aw-ic { height: 1.35em; }
+
+.start-team { gap: 10px; }
+.start-team .grow { display: flex; flex-direction: column; text-align: left; }
