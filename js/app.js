@@ -72,9 +72,9 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.352.1';
+const APP_VERSION = '0.352.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
-const SHOWN_VERSION = 'Test build';
+const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
 // the player hasn't looked at yet.
 const DEVLOG = [
@@ -22045,10 +22045,12 @@ async function dbxSend(blob, name, what) {
 const DBX_FLAG = 'hlc:dbxbeta';
 // Test-site features: on everywhere but the live site (hooplandplus.com, or the live GitHub Pages path). 'hlc:lab' = '1'
 // turns them on in a browser, '0' turns them off (to check what the live site shows).
-const liveSite = () => counting() || (/\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus\//i.test(location.pathname));
+// A build that previews the live site (the test site while a release is being filmed): test features off by default.
+const LIVE_PREVIEW = true;
+const liveSite = () => LIVE_PREVIEW || counting() || (/\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus\//i.test(location.pathname));
 function labOn() { try { const v = localStorage.getItem('hlc:lab'); if (v === '0') return false; if (v === '1' || localStorage.getItem('hlc:dbxbeta') === '1') return true; } catch { /* ignore */ } return !liveSite(); }
 // ?lab=off shows a browser exactly what the live site shows (?lab=on turns the test features back on; it sticks).
-try { const q = new URLSearchParams(location.search).get('lab'); if (q === 'off') localStorage.setItem('hlc:lab', '0'); else if (q === 'on') localStorage.removeItem('hlc:lab'); } catch { /* ignore */ }
+try { const q = new URLSearchParams(location.search).get('lab'); if (q === 'off') localStorage.setItem('hlc:lab', '0'); else if (q === 'on') localStorage.setItem('hlc:lab', '1'); } catch { /* ignore */ }
 setCoachMarketV2(labOn());   // the newer coach market: test site only
 function dbxOn() { return !!BUILT_IN_APP_KEY && !inArtifact() && labOn(); }
 (() => {
