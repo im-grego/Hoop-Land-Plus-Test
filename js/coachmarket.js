@@ -83,11 +83,11 @@ export function coachWillingness(league, team, coach, offer, map = profiles(leag
   const st = teamStatus(league, team), P = map.get(team.id) || rosterProfile(team), f = [];
   const add = (label, val, note) => f.push({ label, val: Math.round(val), note });
   const mkt = marketSalary(coach, league);
-  // A thin roster costs more from a coach who has options: 4 stars and up want paying to take it on (up to about a
-  // quarter over the market at the bottom), 3.5 stars half that, anyone below is glad of the job.
+  // A thin roster costs more from a coach who has options: 4 stars want paying to take it on (up to about a quarter
+  // over the market at the bottom), 3.5 stars half that, anyone below is glad of the job.
   const talent = pctOf(map, 'level', P.level), stars = (coach.pot || 0) / 2;
   const employed = league.teams.some(t => (t.frontOffice?.staff || []).includes(coach));
-  const premium = stars >= 4 ? 1 : stars >= 3.5 ? 0.5 : 0;
+  const premium = stars >= 4.5 ? 0 : stars >= 4 ? 1 : stars >= 3.5 ? 0.5 : 0;   // 4.5 stars and up decide as they always have
   const demand = Math.round(mkt * (talent < 0.4 ? 1 + (0.4 - talent) * 0.75 * premium : 1));
   add('Pay', clamp((offer.sal / demand - 1) * 45, -20, 20), demand > mkt ? `$${offer.sal}M; with this roster he wants about $${demand}M (market $${mkt}M)` : `$${offer.sal}M against about $${mkt}M on the market`);
   const lvl = coachLevel(coach), pref = coach.age >= 58 ? 2 : coach.age >= 50 ? 3 : lvl >= 7 ? 5 : 4;
@@ -110,7 +110,7 @@ export function coachWillingness(league, team, coach, offer, map = profiles(leag
   const fitVal = (fit.fit - 0.5) * 26;
   add('Fit', fitVal < 0 && !employed && stars < 4 ? fitVal / 2 : fitVal, fit.why[0] || 'a neutral fit with his scheme');
   // A bad team with the right players for his system: a good coach (up to four stars) sees what he could build.
-  if (talent < 0.45 && fit.fit >= 0.62 && stars < 4.5) add('His kind of players', stars >= 3.5 ? 8 : 5, 'the pieces his scheme needs are already here');
+  if (talent < 0.45 && fit.fit >= 0.5 && stars < 4.5) add('His kind of players', Math.min(10, (fit.fit - 0.45) * 40), 'the pieces his scheme needs are already here');
   // Out of work: any offer is a job. The less he's in demand, the more it matters (nothing for 4.5 stars and up).
   if (!employed) { const need = stars <= 2.5 ? 20 : stars <= 3 ? 14 : stars <= 3.5 ? 9 : stars <= 4 ? 5 : 0; if (need) add('Needs a job', need, 'he\u2019s out of work and wants back in'); }
   const score = 50 + f.reduce((a, x) => a + x.val, 0);
