@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.341.2';
+const APP_VERSION = '0.342.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -1761,6 +1761,8 @@ const CALENDAR = [
     done: () => !!calFlags().hof || phaseRank(league().season) >= 2 || !hofClass(league()).length },
   { key: 'overview', date: 'May 5', title: 'Offseason Overview', blurb: 'Where you stand: the books, real roster needs, your draft position and the league rumor mill.',
     done: () => !!calFlags().overview || phaseRank(league().season) >= 2 },
+  { key: 'coachCarousel', date: 'May 8', title: 'Coaching Carousel', blurb: 'Who got fired, who got hired, who survived the hot seat, and where your own coach stands.',
+    done: () => !!calFlags().coachCarousel || phaseRank(league().season) >= 2 },
   { key: 'lottery', date: 'May 10', title: 'Draft Lottery', blurb: 'Watch the ping-pong balls decide the fate of your franchise.',
     done: () => phaseRank(league().season) >= 2 },
   { key: 'expansion', date: 'May 11', title: 'Expansion Draft', blurb: 'Protected lists are due, then the new teams pick: at most one player from each roster.',
@@ -1773,10 +1775,14 @@ const CALENDAR = [
     done: () => preDone('combine') },
   { key: 'workouts', date: 'Jun 1', title: 'Private Workouts', blurb: 'Bring prospects in for a workout to reveal their potential and the ceiling on every rating.',
     done: () => preDone('workouts') },
+  { key: 'tradeNight', date: 'Jun 22', title: 'Draft-Night Trade Market', blurb: 'The phones ring the night before the draft: offers to move up, down or out, and calls about your picks.',
+    done: () => !!calFlags().tradeNight || phaseRank(league().season) >= 3 },
   { key: 'draft', date: 'Jun 23', title: 'NBA Draft', blurb: 'Both rounds, live, with draft-day trades.',
     done: () => phaseRank(league().season) >= 3 },
   { key: 'options', date: 'Jun 29', title: 'Contracts', blurb: 'Player options, team options and qualifying offers are due, then the extension window opens.',
     done: () => (!!optStore().done && !!extStore().done) || phaseRank(league().season) >= 4 },
+  { key: 'nego', date: 'Jun 30', title: 'Negotiation Window', blurb: 'Before the market opens: agree early with your own free agents, and hear who is meeting whom.',
+    done: () => !!calFlags().nego || phaseRank(league().season) >= 4 },
   { key: 'camp', date: 'Jul 3', title: SUMMER_OFF ? 'Rookie Numbers' : 'Summer League', blurb: SUMMER_OFF ? 'Your rookies pick their jersey numbers.' : 'Rookies pick their numbers, then the young cores head to Las Vegas.',
     done: () => calFlags().camp || phaseRank(league().season) >= 4 },
   { key: 'fa1', date: 'Jul 6', title: 'Free Agency · Week 1', blurb: 'The market opens and the big deals get done.',
@@ -1790,6 +1796,8 @@ const CALENDAR = [
   { key: 'olympics', get date() { return olyEv() === 'worldcup' ? 'Aug 30' : 'Jul 27'; }, get title() { return olyName0(); },
     get blurb() { return olyEv() === 'worldcup' ? 'Sixteen national teams, a World Cup champion, and seven Olympic spots for next summer.' : 'Twelve national teams for gold: how they qualified, the rosters, the snubs and withdrawals, then the Games themselves.'; },
     done: () => !!calFlags().olympics || !!calFlags().medical || !!calFlags().dev },
+  { key: 'schedRelease', date: 'Aug 14', title: 'Schedule Release', blurb: 'Your opener, the marquee nights, back-to-backs, the longest road trip and how tough it all is.',
+    done: () => !!calFlags().schedRelease || !!calFlags().medical || !!calFlags().staff || !!calFlags().dev },
   { key: 'medical', date: 'Sep 14', title: 'Medical, Positions & Plans', blurb: 'Surgery or rehab for the injured, position changes, and a development plan for each player before camp starts.',
     done: () => !!calFlags().medical || !!calFlags().dev },
   { key: 'staff', date: 'Sep 16', title: 'Staff & Scheme', blurb: 'Your coaching staff and the system you run, set before camp opens.',
@@ -1806,6 +1814,8 @@ const CALENDAR = [
     done: () => !!calFlags().cuts },
   { key: 'rotation', date: 'Oct 18', title: 'Set the Rotation', blurb: 'Starters, the bench order and the minutes for opening night: stars get their minutes, prospects get theirs.',
     done: () => !!calFlags().rotation },
+  { key: 'projections', date: 'Oct 19', title: 'Preseason Projections', blurb: 'Power rankings, win totals, title odds and the award favorites, the night before the season.',
+    done: () => !!calFlags().projections },
   { key: 'export', date: 'Oct 20', title: 'Opening Night', blurb: 'Export the season file and load it in Hoop Land.',
     done: () => false },
 ];
@@ -2206,12 +2216,147 @@ function stepSummary(key) {
 }
 
 // The buttons for the step in progress.
+// ---- Offseason events (franchise): Coaching Carousel, Draft-Night Trade Market, Negotiation Window, Schedule Release,
+// Preseason Projections.
+const evDone = (k, label = 'Wrap Up') => `<button class="btn focus wide" data-act="calDone" data-k="${k}" style="margin-top:10px">✅ ${label}</button>`;
+const evTeam = id => league().teams.find(t => t.id === id);
+
+screens.coachCarousel = () => {
+  const L = league(), mine = L.teams.filter(isUserTeam);
+  const moves = isComplete() ? cpuCoachMoves() : [];
+  const row = m => { const t = evTeam(m.tid); return `<div class="drill-row"><span class="grow">${t ? logoImg(t) : ''} <b>${esc(t?.shortName || '?')}</b> ${m.kind === 'hire' ? `<span class="down">fired ${esc(m.out)}</span> → <span class="up">hired ${esc(m.in)}</span>` : m.kind === 'extend' ? `<span class="up">extended ${esc(m.in)}</span>` : `<span class="gold">kept ${esc(m.in)}</span>`}<br><span class="small muted">${esc(m.why || '')}</span></span></div>`; };
+  const hires = moves.filter(m => m.kind === 'hire'), ext = moves.filter(m => m.kind === 'extend'), kept = moves.filter(m => m.kind === 'keep');
+  const yours = mine.map(t => { const c = headCoachOf(t); if (!c) return `<p class="note"><b>${esc(t.shortName)}</b>: <span class="down">no head coach</span>. Hire one in Coaching.</p>`;
+    const pr = pressureOn(L, t, c).pressure, word = pr >= 0.7 ? '<span class="down">on the hot seat</span>' : pr >= 0.45 ? '<span class="gold">under some pressure</span>' : '<span class="up">secure</span>';
+    return `<p class="note"><b>${esc(t.shortName)}</b>: ${esc(c.fn)} ${esc(c.ln)} is ${word}${c.contract?.yrs ? ` · ${c.contract.yrs} yr${c.contract.yrs === 1 ? '' : 's'} left` : ''}.</p>`; }).join('');
+  layout({ title: 'Coaching Carousel', body: `
+    <fieldset class="frame"><legend>Your Bench</legend>${yours}<button class="btn small" data-act="nav" data-to="coaching">🧑‍💼 Coaching</button></fieldset>
+    ${!isComplete() ? '<p class="note muted">Coaching changes run with Complete rules (Settings).</p>' : ''}
+    ${hires.length ? `<fieldset class="frame"><legend>Changes (${hires.length})</legend><div class="stack">${hires.map(row).join('')}</div></fieldset>` : isComplete() ? '<p class="note">No coaching changes around the league this spring.</p>' : ''}
+    ${ext.length ? `<fieldset class="frame"><legend>Extensions</legend><div class="stack">${ext.map(row).join('')}</div></fieldset>` : ''}
+    ${kept.length ? `<fieldset class="frame"><legend>Survived the Hot Seat</legend><div class="stack">${kept.map(row).join('')}</div></fieldset>` : ''}
+    ${evDone('coachCarousel')}` });
+};
+
+// The night before the draft: the Draft Room's trade office, offers already fielded.
+actions.tradeNightOpen = () => { const ds = draftState(); if (!ds.offers || !ds.offers.length) ds.offers = null; go('draft', { tab: 'office' }); };
+
+// Negotiation Window: your own free agents (their ask, what they want, how many teams can pay them, whether they'd
+// stay) with an early deal at their ask; and the top of the market with the teams rumored to be meeting them.
+function negoStay(L, p, t) {
+  if (FA.hasGrudge(p, t) || FA.noReturn(p, t)) return { ok: false, why: 'won’t come back' };
+  const m = p.season?.morale ?? 60, loyal = tr(p, 'loyalty');
+  if (m < 40) return { ok: false, why: 'unhappy here, wants to test the market' };
+  if (FA.motiveOf(L, p) === 'contender' && !['contending', 'competing'].includes(teamStatus(L, t))) return { ok: false, why: 'wants a contender' };
+  if (m >= 60 || loyal >= 12) return { ok: true, why: loyal >= 14 ? 'loyal, wants to stay' : 'open to staying' };
+  return { ok: (p.id + L.season.currentYear) % 3 !== 0, why: 'might hear other offers first' };
+}
+function negoSuitors(L, p, ask, skip) {
+  return L.teams.filter(t => t !== skip && !isUserTeam(t) && FA.capSpace(L, t) >= Math.min(ask, 25)).map(t => ({ t, need: FA.signedRoster(t).filter(q => (q.pos <= 2 ? 0 : q.pos <= 5 ? 1 : 2) === (p.pos <= 2 ? 0 : p.pos <= 5 ? 1 : 2) && shownLevel(q) >= shownLevel(p) - 3).length }))
+    .map(x => ({ ...x, j: ((p.id * 2654435761 ^ x.t.id * 40503) >>> 0) % 997 / 997 }))
+    .sort((a, b) => (a.need + a.j * 1.5) - (b.need + b.j * 1.5) || FA.capSpace(L, b.t) - FA.capSpace(L, a.t)).slice(0, 3).map(x => x.t);
+}
+screens.nego = () => {
+  const L = league(), mine = L.teams.filter(isUserTeam);
+  const own = mine.flatMap(t => t.roster.filter(p => p.status === FA.STATUS_EXPIRING).map(p => ({ p, t }))).sort((a, b) => shownLevel(b.p) - shownLevel(a.p));
+  const yrsFor = p => (p.age >= 33 ? 1 : p.age >= 30 ? 2 : p.age >= 27 ? 3 : 4);
+  const ownRows = own.map(({ p, t }) => {
+    const ask = FA.baseAsk(L, p), mot = FA.MOTIVES[FA.motiveOf(L, p)], st = negoStay(L, p, t), sui = negoSuitors(L, p, ask, t);
+    const offer = { tid: t.id, sal: ask, yrs: yrsFor(p), opt: 0 }, err = FA.checkOffer(L, t, p, offer, 1);
+    return `<div class="drill-row wrap"><span class="grow"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b> ${lvTag(p)} <span class="small muted">${esc(posName(p))} · ${p.age}y</span><br>
+      <span class="small">Asks <b>$${ask}M</b> · ${mot ? `${mot.icon} ${esc(mot.name)}` : ''} · <span class="${st.ok ? 'up' : 'down'}">${esc(st.why)}</span>${sui.length ? ` · <span class="muted">${sui.length} team${sui.length === 1 ? '' : 's'} with room: ${sui.map(x => esc(x.shortName)).join(', ')}</span>` : ''}</span></span>
+      <span class="full">${st.ok && !err ? `<button class="btn small focus" data-act="negoAgree" data-id="${p.id}" data-t="${t.id}" data-sal="${ask}" data-yrs="${offer.yrs}">🤝 Agree: $${ask}M × ${offer.yrs}</button>` : `<span class="small muted">${esc(err || 'He goes to free agency.')}</span>`}</span></div>`;
+  }).join('');
+  const market = FA.marketPlayers(L).filter(x => !x.from || !isUserTeam(x.from)).sort((a, b) => shownLevel(b.p) - shownLevel(a.p)).slice(0, 12);
+  const rum = market.map(({ p, from }) => { const ask = FA.baseAsk(L, p), sui = negoSuitors(L, p, ask, from);
+    return `<div class="drill-row"><span class="grow"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b> ${lvTag(p)} <span class="small muted">${esc(from?.shortName || 'FA')} · ${esc(posName(p))} · ${p.age}y · asks $${ask}M</span><br><span class="small">${sui.length ? `Meeting with ${sui.map(x => `<b>${esc(x.shortName)}</b>`).join(', ')}` : 'Quiet so far'}${from && FA.isRestricted(L, p) ? ` · <span class="gold">restricted: ${esc(from.shortName)} can match</span>` : ''}</span></span></div>`; }).join('');
+  layout({ title: 'Negotiation Window', body: `
+    <p class="note small">The market opens on Week 1. Until then you can only talk to your own free agents: agree now at their ask, or let them hear offers.</p>
+    <fieldset class="frame"><legend>Your Free Agents</legend>${ownRows ? `<div class="stack">${ownRows}</div>` : '<p class="note muted">Nobody of yours is headed to free agency.</p>'}</fieldset>
+    <fieldset class="frame"><legend>Around the League</legend><div class="stack">${rum || '<p class="note muted">No one on the market yet.</p>'}</div></fieldset>
+    ${evDone('nego')}` });
+};
+actions.negoAgree = d => {
+  const L = league(), t = L.teams.find(x => x.id === +d.t), p = t?.roster.find(x => x.id === +d.id);
+  if (!p) return;
+  FA.signPlayer(L, p, t, { tid: t.id, sal: +d.sal, yrs: +d.yrs, opt: 0 }, 1);
+  state.dirty = true;
+  toast(`🤝 ${playerName(p)} agrees: $${d.sal}M × ${d.yrs}`, 'Done before the market opens.', 3000);
+  render();
+};
+
+// Schedule Release: the season's schedule, read from the file the game already made.
+function teamGames(L, t) {
+  const out = [];
+  (L.season.schedule || []).forEach((d, i) => { for (const g of d.results || []) if (g.gameType === 0 && (g.homeTeam === t.id || g.awayTeam === t.id)) out.push({ day: i, home: g.homeTeam === t.id, opp: g.homeTeam === t.id ? g.awayTeam : g.homeTeam }); });
+  return out;
+}
+screens.schedRelease = () => {
+  const L = league(), R = teamRatings(), mine = L.teams.filter(isUserTeam);
+  const sos = new Map(L.teams.map(t => { const g = teamGames(L, t); return [t.id, g.length ? g.reduce((a, x) => a + (R.get(x.opp)?.all || 70), 0) / g.length : 0]; }));
+  const sosRank = new Map([...sos.entries()].sort((a, b) => b[1] - a[1]).map(([id], i) => [id, i + 1]));
+  const top = new Set([...R.values()].sort((a, b) => b.all - a.all).slice(0, 6).map(r => r.id));
+  const body = mine.map(t => {
+    const g = teamGames(L, t);
+    if (!g.length) return `<fieldset class="frame"><legend>${esc(teamFull(t))}</legend><p class="note muted">The schedule isn't in this save yet.</p></fieldset>`;
+    let road = 0, run = 0, home = 0, hrun = 0;
+    g.forEach(x => { run = x.home ? 0 : run + 1; road = Math.max(road, run); hrun = x.home ? hrun + 1 : 0; home = Math.max(home, hrun); });
+    const rivals = new Set((rivalsOf(L, t) || []).slice(0, 3).map(r => r.id));
+    const marquee = g.filter(x => top.has(x.opp) || rivals.has(x.opp)).filter((x, i, a) => a.findIndex(y => y.opp === x.opp) === i).slice(0, 8);
+    const opener = g[0], homeOpener = g.find(x => x.home);
+    const vs = x => `${x.home ? 'vs' : '@'} ${logoImg(evTeam(x.opp))} <b>${esc(evTeam(x.opp)?.shortName || '?')}</b>`;
+    const cup = typeof cupOn === 'function' && cupOn() ? (() => { const d = cupDraw(), grp = d.groups.find(x => x.teams.includes(t.id)); return grp ? `<p class="note small">🏆 NBA Cup: <b>${esc(grp.name)}</b> with ${grp.teams.filter(id => id !== t.id).map(id => esc(evTeam(id)?.shortName || '?')).join(', ')}.</p>` : ''; })() : '';
+    return `<fieldset class="frame"><legend>${esc(teamFull(t))}</legend>
+      <p class="note">Opening night: ${vs(opener)}${homeOpener && homeOpener !== opener ? ` · Home opener: ${vs(homeOpener)} (game ${g.indexOf(homeOpener) + 1})` : ''}</p>
+      <div class="bio-grid"><div class="bio-box"><span class="glbl">Games</span><b>${g.length}</b></div><div class="bio-box"><span class="glbl">Big games</span><b>${g.filter(x => top.has(x.opp) || rivals.has(x.opp)).length}</b></div><div class="bio-box"><span class="glbl">Toughness</span><b>${ordN(sosRank.get(t.id))}</b></div>
+        <div class="bio-box"><span class="glbl">Longest trip</span><b>${road} road</b></div><div class="bio-box"><span class="glbl">Homestand</span><b>${home} home</b></div><div class="bio-box"><span class="glbl">Home / Away</span><b>${g.filter(x => x.home).length}-${g.filter(x => !x.home).length}</b></div></div>
+      ${marquee.length ? `<p class="note small" style="margin-top:6px"><b>Marquee nights</b> (contenders and rivals, first meeting):</p><div class="stack">${marquee.map(x => `<div class="small">Game ${g.indexOf(x) + 1}: ${vs(x)}${rivals.has(x.opp) ? ' <span class="gold">· rivalry</span>' : ''}</div>`).join('')}</div>` : ''}
+      ${cup}</fieldset>`;
+  }).join('');
+  layout({ title: 'Schedule Release', body: `<p class="note small">Toughness ranks every schedule by its opponents' strength (1st is the hardest).</p>${body}${evDone('schedRelease')}` });
+};
+
+// Preseason Projections: power rankings, win totals, title odds and award favorites from the rosters as they stand.
+screens.projections = () => {
+  const L = league(), R = teamRatings(), rows = [...R.values()], n = rows.length || 1;
+  const mean = rows.reduce((a, r) => a + r.all, 0) / n, sd = Math.sqrt(rows.reduce((a, r) => a + (r.all - mean) ** 2, 0) / n) || 1;
+  const proj = rows.map(r => ({ r, t: evTeam(r.id), z: (r.all - mean) / sd })).map(x => ({ ...x, w: Math.max(12, Math.min(68, Math.round(41 + x.z * 11))) })).sort((a, b) => b.z - a.z);
+  const shift = Math.round((41 * n - proj.reduce((a, x) => a + x.w, 0)) / n); proj.forEach(x => { x.w = Math.max(10, Math.min(70, x.w + shift)); });
+  const wsum = proj.reduce((a, x) => a + Math.exp(1.7 * x.z), 0); proj.forEach(x => { x.odds = Math.exp(1.7 * x.z) / wsum * 100; });
+  const teamZ = new Map(proj.map(x => [x.r.id, x.z]));
+  const all = leaguePlayers(L, false), lv = p => shownLevel(p);
+  const pick = (list, score, k = 3) => [...list].sort((a, b) => score(b) - score(a)).slice(0, k);
+  const mvp = pick(all.filter(e => lv(e.p) >= 80), e => lv(e.p) + 4 * (teamZ.get(e.team.id) || 0));
+  const dpoy = pick(all.filter(e => lv(e.p) >= 72), e => (regressed(e.p, 'DRE') + regressed(e.p, 'STL') * 1.2 + regressed(e.p, 'BLK') * 1.3) + (e.p.ht - 78) * 0.3);
+  const roy = pick(all.filter(e => (e.p.yrs ?? 0) === 0), e => lv(e.p) + (e.p.pot || 0));
+  const sixth = pick(L.teams.flatMap(t => FA.signedRoster(t).sort((a, b) => lv(b) - lv(a)).slice(5, 8).map(p => ({ p, team: t }))), e => lv(e.p));
+  const gain = e => { try { return diffPlayer(e.p, snapOf(e.p)).points; } catch { return 0; } };
+  const mip = pick(all.filter(e => e.p.age <= 27 && gain(e) > 0), gain);
+  const who = e => `<span class="tap" data-act="openPlayer" data-id="${e.p.id}"><b>${esc(playerName(e.p))}</b></span> <span class="muted small">${esc(e.team.shortName)}</span>`;
+  const mine = new Set(L.teams.filter(isUserTeam).map(t => t.id));
+  const conf = t => (t.division < Math.ceil((L.divisions || []).length / 2) ? 0 : 1);
+  const confRank = x => proj.filter(y => conf(y.t) === conf(x.t)).indexOf(x) + 1;
+  const myLines = proj.filter(x => mine.has(x.r.id)).map(x => `<p class="note"><b>${esc(teamFull(x.t))}</b>: projected <b>${x.w}-${82 - x.w}</b>, ${ordN(proj.indexOf(x) + 1)} in the power rankings, ${ordN(confRank(x))} in the ${conf(x.t) ? 'West' : 'East'} · title odds ${x.odds.toFixed(1)}%</p>`).join('');
+  layout({ title: 'Preseason Projections', body: `
+    ${myLines ? `<fieldset class="frame"><legend>Your Outlook</legend>${myLines}</fieldset>` : ''}
+    <fieldset class="frame"><legend>Award Favorites</legend><div class="stack small">
+      ${[['MVP', mvp], ['Defensive Player', dpoy], ['Rookie of the Year', roy], ['Sixth Man', sixth], ['Most Improved', mip]].map(([l, xs]) => xs.length ? `<div class="ol-line"><span class="muted">${l}</span><span>${xs.map(who).join(' · ')}</span></div>` : '').join('')}
+    </div></fieldset>
+    <fieldset class="frame"><legend>Power Rankings</legend><div class="stack">${proj.map((x, i) => `<div class="drill-row ${mine.has(x.r.id) ? 'mine' : ''}"><span class="rank-no">${i + 1}</span><span class="grow">${logoImg(x.t)} <b>${esc(x.t.shortName)}</b> <span class="muted small">${esc(x.t.name)}</span></span><span class="small">${x.w}-${82 - x.w} · <span class="${x.odds >= 10 ? 'gold' : 'muted'}">${x.odds >= 0.5 ? x.odds.toFixed(1) : '<0.5'}%</span></span></div>`).join('')}</div>
+      <p class="note small muted" style="margin-top:6px">Win totals and title odds from each team's top eight by level. Rosters change; so will these.</p></fieldset>
+    ${evDone('projections')}` });
+};
 function stepActions(key) {
   const L = league();
   const s = L.season;
   const st = activeCal().find(x => x.key === key);
   if (st?.soon) return '<p class="note small muted">Coming soon.</p>';
   switch (key) {
+    case 'coachCarousel': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="coachCarousel">🎠 Begin</button><button class="btn" data-act="calDone" data-k="coachCarousel">⏭ Skip</button></div>`;
+    case 'tradeNight': return `<div class="grid2"><button class="btn focus" data-act="tradeNightOpen">📞 Work the Phones</button><button class="btn" data-act="calDone" data-k="tradeNight">⏭ Skip</button></div>`;
+    case 'nego': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="nego">🤝 Begin</button><button class="btn" data-act="calDone" data-k="nego">⏭ Skip</button></div>`;
+    case 'schedRelease': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="schedRelease">📅 See the Schedule</button><button class="btn" data-act="calDone" data-k="schedRelease">⏭ Skip</button></div>`;
+    case 'projections': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="projections">📊 See the Projections</button><button class="btn" data-act="calDone" data-k="projections">⏭ Skip</button></div>`;
     case 'nba': return `<div class="grid2"><label class="btn focus">📂 Load End-of-Playoffs Save<input type="file" id="campusPreInput" hidden></label><button class="btn" data-act="campusSkip">⏭ Keep the Game's</button></div>
       <p class="note small muted" style="margin-top:6px">The save you made right after the championships, before advancing.</p>`;
     case 'campusBack': return `<div class="btn-set"><button class="btn focus wide" data-act="campusBack">🏫 Back to Campus</button></div>`;
@@ -2643,6 +2788,7 @@ actions.calDev = () => { ensureMeetings(); calFlags().dev = true; applySchemeEvo
 
 // Only the current step's screens open; anything else goes back to the calendar.
 const STEP_SCREENS = {
+  coachCarousel: ['coachCarousel', 'coaching', 'coach', 'coaches', 'coachtree', 'player'], tradeNight: ['draft', 'prospect', 'liveTrade', 'player'], nego: ['nego', 'player'], schedRelease: ['schedRelease', 'cup', 'player'], projections: ['projections', 'player', 'roster'],
   expansion: ['expansion', 'player', 'roster'], vote: ['vote'], hof: ['hofClass', 'player'], owner: ['ownerday', 'player'], medical: ['medical', 'player'], exhib: ['exhib', 'player', 'latefa', 'liveTrade'],
   office: ['teams'], overview: ['overview'], lottery: ['lottery'], mock1: ['mock', 'draft', 'prospect', 'overview'], scout: ['draft', 'prospect', 'lottery', 'liveTrade'], combine: ['combine', 'prospect', 'mock'], workouts: ['workouts', 'prospect', 'draft', 'liveTrade'], draft: ['draft', 'prospect', 'liveTrade', 'mock'], options: ['options', 'extensions'],
   camp: ['camp', 'rookies'], fa1: ['fa'], fa2: ['fa', 'liveTrade'], fa3: ['fa', 'liveTrade'],
@@ -12000,7 +12146,7 @@ const DRAFT_TABS = [['live', 'Live'], ['consensus', 'Prospects'], ['warroom', 'M
 function draftTabsNow(L = league()) {
   const step = phaseRank(L.season) === 0 ? null : currentStep()?.key;
   if (step === 'draft') return liveReady(L) && clockIndex(liveState(), liveOrder()) < 0 ? ['live'] : ['live', 'consensus', 'warroom'];
-  if (step === 'scout' || step === 'workouts') return ['consensus', 'warroom', 'office'];
+  if (step === 'scout' || step === 'workouts' || step === 'tradeNight') return ['consensus', 'warroom', 'office'];
   if (step === 'mock1') return ['consensus', 'warroom'];
   return DRAFT_TABS.map(([k]) => k).filter(k => k !== 'live' || liveReady(L));
 }
