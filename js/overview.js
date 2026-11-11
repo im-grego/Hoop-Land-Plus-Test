@@ -352,7 +352,7 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
           : pay >= C.apron1 ? m(pay - C.apron1, 'into the 1st apron', 'the 1st apron') : pay >= C.tax ? m(pay - C.tax, 'over the tax', 'the tax') : m(C.tax - pay, 'from the tax', 'the tax');
         const bill = pay > C.tax ? FA.taxBill(L, team) : 0;
         const why = [where, ...(bill ? [`a $${bill}M tax bill`] : []), ...(seller ? [`a ${tier} team`] : [])];
-        const core = roster.filter(p => level(p) >= 90).sort((a, b) => level(b) - level(a))[0] || null;
+        const core = roster.filter(p => level(p) >= 90 && p.age <= 32).sort((a, b) => (b.pot || 0) - (a.pot || 0) || level(b) - level(a))[0] || null;   // the one they build around: highest potential, never 33+
         const big = [...roster].filter(p => level(p) >= 74 && level(p) < 90).sort((a, b) => (b.contract?.sal || 0) - (a.contract?.sal || 0))[0];
         if (big) out.push({ kind: 'blowup', p: big, team, heat: seller || pay >= C.apron2 ? 2 : 1, why, level: level(big), morale: big.season?.morale ?? 70, bill, keep: core });
       }
@@ -379,6 +379,8 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
       for (const p of roster) if (p.season?.onTradeBlock === 1 && p.age >= 28 && level(p) >= 75 && (p.pot || 0) >= 8 && !out.some(x => x.p === p)) out.push({ kind: 'block', p, team, heat: 1, why: [], level: level(p), morale: p.season?.morale ?? 70 });
     }
   }
-  return out.sort((a, b) => b.heat - a.heat || b.level - a.level);
+  // One rumor per team: its hottest.
+  const seen = new Set();
+  return out.sort((a, b) => b.heat - a.heat || b.level - a.level).filter(r => !seen.has(r.team) && seen.add(r.team));
 }
 export const statusOfAll = L => L.teams.map(t => ({ team: t, ...teamStanding(L, t) }));

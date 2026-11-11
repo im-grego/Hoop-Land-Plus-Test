@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.349.4';
+const APP_VERSION = '0.349.5';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10639,9 +10639,10 @@ function tradeBlocks(L) {
 screens.rumors = () => {
   const L = league();
   const list = rumorMill(L, { level: shownLevel, li: state.leagueIdx, skip: isUserTeam });
-  const seen = new Set(list.map(r => r.p.id));
-  for (const t of L.teams.filter(x => !isUserTeam(x))) for (const p of FA.signedRoster(t)) {
-    if (p.season?.onTradeBlock === 1 && !seen.has(p.id) && shownLevel(p) >= 68) list.push({ kind: 'block', p, team: t, heat: 1, why: [], level: shownLevel(p), morale: p.season?.morale ?? 70 });
+  // One rumor per team: a team with nothing in the mill gets its best trade-block name.
+  const seen = new Set(list.map(r => r.p.id)), teams = new Set(list.map(r => r.team));
+  for (const t of L.teams.filter(x => !isUserTeam(x) && !teams.has(x))) for (const p of FA.signedRoster(t).sort((a, b) => shownLevel(b) - shownLevel(a))) {
+    if (!teams.has(t) && p.season?.onTradeBlock === 1 && !seen.has(p.id) && shownLevel(p) >= 68 && teams.add(t)) list.push({ kind: 'block', p, team: t, heat: 1, why: [], level: shownLevel(p), morale: p.season?.morale ?? 70 });
   }
   list.sort((x, y) => y.heat - x.heat || y.level - x.level);
   offSet('hgSeen', { ids: [...rumorSeen(), ...rumorTop()].slice(-300) });
