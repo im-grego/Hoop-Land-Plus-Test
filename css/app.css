@@ -1948,3 +1948,9 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 /* The 10/20 mark (5 on the game's scale): a small notch under the 10th segment */
 .gbar i { position: relative; }
 .gbar i:nth-child(10)::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 2px; background: rgba(255, 255, 255, .45); }
+.aw-shelf { display: flex; flex-wrap: wrap; gap: 6px; font-family: var(--game); }
+.aw-chip { font-size: 12.5px; font-weight: 500; padding: 3px 8px; border: 2px solid #3f86d0; background: #1d4290; white-space: nowrap; }
+.aw-chip b { color: var(--gold); }
+.aw-chip.big { border-color: var(--gold); background: #2b3f7a; font-weight: 700; }
+.aw-years { margin-top: 10px; }
+.aw-years > summary { cursor: pointer; color: var(--cyan); }

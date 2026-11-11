@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.333.1';
+const APP_VERSION = '0.333.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10405,7 +10405,13 @@ function awardsBox(p) {
     .map(x => ({ name: PO.honorName(table.find(t => t.id === x.id), x), yrs: [...x.yearsWon].sort((m, n) => m - n) })).filter(x => x.name)
     .sort((x, y) => y.yrs.length - x.yrs.length || y.yrs[y.yrs.length - 1] - x.yrs[x.yrs.length - 1]);
   if (!rows.length) return '';
-  return `<fieldset class="frame"><legend>Awards</legend><div class="stack">${rows.map(r => `<div class="small mv-row aw-row"><span class="mv-l"><b>${esc(r.name)}</b>${r.yrs.length > 1 ? ` <span class="gold">×${r.yrs.length}</span>` : ''}</span><span class="muted mv-r">${yearRuns(r.yrs)}</span></div>`).join('')}</div></fieldset>`;
+  // A trophy shelf: the big ones first, each with its count; the years a tap away.
+  const RANK = [[/^Champion/, '🏆', 0], [/Finals MVP/, '🏅', 2], [/^MVP|Most Valuable/, '👑', 1], [/Defensive Player/, '🛡️', 3], [/All-NBA/, '⭐', 4], [/Rookie of the Year/, '🌱', 5],
+    [/All-Star MVP/, '✨', 7], [/All-Star/, '🌟', 6], [/All-Defensive/, '🧱', 8], [/Sixth Man/, '6️⃣', 9], [/Most Improved/, '📈', 9], [/Leader/, '📊', 10], [/All-Rookie/, '🌱', 11]];
+  const meta = r => RANK.find(([re]) => re.test(r.name)) || [null, '🎖️', 12];
+  const shelf = [...rows].sort((x, y) => meta(x)[2] - meta(y)[2] || y.yrs.length - x.yrs.length);
+  return `<fieldset class="frame"><legend>Awards</legend><div class="aw-shelf">${shelf.map(r => `<span class="aw-chip ${meta(r)[2] <= 3 ? 'big' : ''}" title="${esc(yearRuns(r.yrs))}">${meta(r)[1]} ${esc(r.name)}${r.yrs.length > 1 ? ` <b>×${r.yrs.length}</b>` : ''}</span>`).join('')}</div>
+    <details class="aw-years" data-keep="aw-years" ${state.keepOpen?.['aw-years'] ? 'open' : ''}><summary class="small link">Years</summary><div class="stack" style="margin-top:8px">${shelf.map(r => `<div class="small mv-row aw-row"><span class="mv-l"><b>${esc(r.name)}</b>${r.yrs.length > 1 ? ` <span class="gold">×${r.yrs.length}</span>` : ''}</span><span class="muted mv-r">${yearRuns(r.yrs)}</span></div>`).join('')}</div></details></fieldset>`;
 }
 // What just happened to him: a trade (with the deal), a free agent signing, or an extension.
 function newsBox(p) {
