@@ -3,7 +3,7 @@ import {
   setBlessed, playerName, heightStr, avgRating, lastSeasonMpg, leaguePlayers, snapshot, restore, diffPlayer, jerseyClashes, fixJerseyNumbers, undoJerseyNumbers, levelOf, cloneData, MINOR_INJURY, potCap, ceilTotal, canGrow,
 } from './savefile.js';
 import { collegeProduction, productionWord, setDevPlans, PLAN_ATTRS, DEFAULT_PARAMS, runProgression, buildSkillProfiles, rankSkillsFor, unlockSkill, mulberry32, runRookieBump, injuryRisk, earnsNaturalLongevity, productionScores, spendHeldPoints } from './progression.js';
-import { setMadeLines } from './draft.js';
+import { setMadeLines, groupOf as posGroupOf } from './draft.js';
 import { setMadeGameScores, collegeGameScore } from './progression.js';
 import { makeLines } from './madeprod.js';
 import { buildSchedule, needsSchedule } from './schedule.js';
@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.349.14';
+const APP_VERSION = '0.350.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -12276,7 +12276,52 @@ function teamOutlook(team) {
   if (!cache.has('needBase')) cache.set('needBase', needBaseline(league()));
   const baseline = cache.get('needBase');
   const status = teamStatus(league(), team);
-  return { status, winNow: status === 'contending', needs: teamNeeds(league(), team, baseline), baseline };
+  // Core players at each spot (84+, 30 or younger): a team with three young guards that good isn't drafting a fourth
+  // first.
+  const crowd = { guards: 0, wings: 0, bigs: 0 };
+  for (const p of team.roster) if (p.status !== 4 && levelOf(p) >= 84 && p.age <= 30) crowd[posGroupOf(p.pos)]++;
+  return { status, winNow: status === 'contending', needs: teamNeeds(league(), team, baseline), baseline, crowd };
+}
+// How a team values a prospect on its own board (no draft-day noise).
+function teamBoardScore(team, p, combine = combineOn()) {
+  const v = draftVecs();
+  return draftScore(p, v.scales, v.fns, teamOutlook(team)) + eliteBonus(p) + (combine ? combineBonus(p) : 0);
+}
+const teamBoard = (team, avail, n = 3) => [...avail].map(p => ({ p, s: teamBoardScore(team, p) })).sort((a, b) => b.s - a.s).slice(0, n).map(x => x.p);
+// Why a team picking at `j` would move up to `idx`. It has to be after someone: the player at the top of its board,
+// when a team picking in between has him near the top of its own board too, and he's either the last one left in his
+// tier or that team needs the same thing. No reason, no trade. Returns { target, why } or null.
+function upReason(avail, order, idx, j) {
+  const team = order[j]?.owner;
+  if (!team) return null;
+  const top = [...avail].sort((a, b) => scoutValue(b) - scoutValue(a)).slice(0, 20);
+  const target = teamBoard(team, top, 1)[0];
+  if (!target) return null;
+  const mine = new Set(teamOutlook(team).needs.map(n => n.label));
+  const between = order.slice(idx, j).filter(q => q.owner.id !== team.id).map(q => q.owner);
+  const rivals = between.filter(t => teamBoard(t, top, 2).includes(target));
+  if (!rivals.length) return null;
+  const tier = gradeOf(target)[0];
+  if (!top.some(p => p !== target && gradeOf(p)[0] === tier)) return { target, why: 'the last of his tier' };
+  const same = rivals.find(t => teamOutlook(t).needs.some(n => mine.has(n.label)));
+  return same ? { target, why: `ahead of ${same.shortName}` } : null;
+}
+// A team loaded at the spot of the best player left trades back: a team a few picks behind wants him (he's at the top
+// of its board) and pays to move up. Returns { offer, target } or null.
+function backReason(avail, order, idx, opts) {
+  const L = league(), here = order[idx];
+  if (here.rd !== 1 || !slotPick(L, here)) return null;
+  const top = [...avail].sort((a, b) => scoutValue(b) - scoutValue(a)).slice(0, 20);
+  const best = top[0];
+  if (!best || (teamOutlook(here.owner).crowd[posGroupOf(best.pos)] || 0) < 2) return null;
+  for (let j = idx + 2; j <= Math.min(order.length - 1, idx + 6); j++) {
+    const o = order[j];
+    if (o.rd !== here.rd || opts.exclude.has(o.owner.id) || o.owner.id === here.owner.id) continue;
+    if (teamBoard(o.owner, top, 1)[0] !== best) continue;
+    const offer = tradeUpOffers(L, order, idx, { ...opts, min: j - idx, max: j - idx, count: 1, eager: 1, ceil: 1.5 })[0];
+    if (offer && offer.team === o.owner) return { offer, target: best };
+  }
+  return null;
 }
 
 // A CPU team's pick: its own value of each prospect plus draft-day noise.
@@ -13853,7 +13898,9 @@ function frontOfficeOffers(team, { only = null, max = 3 } = {}) {
     if (o.owner.id !== team.id) return;
     // Calls to move up are rarer than block offers, pay a fair price (not a windfall), and dry up as you keep trading down.
     if (upCalls >= 2) return;
-    for (const x of tradeUpOffers(L, order, idx, { value: futureValue, slot: slotValue, rng, count: 1, eager: 0.4 * 0.5 ** (ds.downs || 0), frozen: frozenFn, ceil: 1.2 })) {
+    for (const x of tradeUpOffers(L, order, idx, { value: futureValue, slot: slotValue, rng, count: 3, eager: 0.4 * 0.5 ** (ds.downs || 0), frozen: frozenFn, ceil: 1.2 })) {
+      // Only a team that's after someone (see upReason) calls.
+      if (upCalls >= 2 || !upReason(L.draftClass || [], order, idx, order.findIndex(q => slotPick(L, q) === x.give[0]))) continue;
       upCalls++;
       out.push({ team: x.team, kind: 'up',
         give: x.give.map(pk => ({ pick: pk, key: pk.yr === draftYear(L) ? `c:${order.find(q => slotPick(L, q) === pk)?.overall}` : `f:${pk.yr}:${pk.rd}:${pk.otid}`, text: pk.yr === draftYear(L) ? `#${order.find(q => slotPick(L, q) === pk)?.overall}` : pickLabel(pk) })),
@@ -14536,12 +14583,28 @@ function liveCpuStep(live, order, idx) {
     }
   }
   if (!busy.has(o.owner.id) && live.rng() * 100 < chance) {
-    const offer = o.rd === 1 ? tradeUpOffers(L, order, idx, { ...opts, far: 4, count: 1, eager: 0.6 })[0] : consolidationOffer(L, order, idx, opts);
+    // Round 1: a move up needs a reason (the player it's after), and a team loaded at the best player's spot trades
+    // back to a team that wants him. Round 2: two later picks for one.
+    const avail = liveAvailable(live);
+    let offer = null, target = null, why = '';
+    if (o.rd === 1) {
+      const back = backReason(avail, order, idx, opts);
+      if (back) { offer = back.offer; target = back.target; why = `${o.owner.shortName} already deep at ${{ guards: 'guard', wings: 'wing', bigs: 'big' }[posGroupOf(back.target.pos)]}`; }
+      else for (const x of tradeUpOffers(L, order, idx, { ...opts, far: 4, count: 3, eager: 0.6 })) {
+        const r = upReason(avail, order, idx, order.findIndex(q => q.owner === x.team && q.rd === o.rd && slotPick(L, q) === x.give[0]));
+        if (r) { offer = x; target = r.target; why = r.why; break; }
+      }
+    } else offer = consolidationOffer(L, order, idx, opts);
     if (offer && !TR.stepienErr(L, { team: offer.team, picks: offer.give }, { team: o.owner, picks: [offer.get] }, isProt)) {
-      liveExecute({ team: offer.team, picks: offer.give, players: [], prospects: [] },
+      const entry = liveExecute({ team: offer.team, picks: offer.give, players: [], prospects: [] },
         { team: o.owner, picks: [offer.get], players: [], prospects: [] }, 'CPU');
       live.cpuTeams.push(offer.team.id, o.owner.id);
       order = liveOrder();
+      if (target && liveAvailable(live).includes(target)) {
+        makeSelection(live, order, idx, target.id);
+        entry.text += ` · ${offer.team.shortName} moved up for ${playerName(target)}${why ? ` (${why})` : ''}`;
+        return true;
+      }
     }
   }
   const team = order[idx].owner;
@@ -14822,6 +14885,7 @@ function draftLive() {
   let offers = [];
   if (user) {
     live.offers[o.overall] ||= tradeUpOffers(L, order, idx, { value: futureValue, slot: slotValue, rng: live.rng, far: 3, exclude: new Set(live.cpuTeams || []), frozen: frozenFn })
+      .filter(x => upReason(liveAvailable(live), order, idx, order.findIndex(q => slotPick(L, q) === x.give[0])))   // only a team that's after someone
       .map(x => ({ tid: x.team.id, give: x.give, get: x.get }));
     offers = live.offers[o.overall].filter(x => x.give.every(pk => teamById(x.tid).draftPicks.includes(pk)) && o.owner.draftPicks.includes(x.get)
       && !TR.stepienErr(L, { team: teamById(x.tid), picks: x.give }, { team: o.owner, picks: [x.get] }, isProt));
@@ -18179,14 +18243,21 @@ function rumorPost(r) {
     star.splice(0, star.length,
       `Is the ${a}-${b} experiment already over in ${city}?`,
       `One full season of ${a} and ${b}${r.rec ? `, and ${city} is ${r.rec}` : ` in ${city}`}. Teams are wondering if ${first} could be had.`,
-      `Early, but rival executives are watching ${city}: if this doesn't turn around, ${first} could be available and ${k} becomes the centerpiece.`);
+      `Early, but rival executives are watching ${city}: if this doesn't turn around, ${first} could be available and ${k} becomes the centerpiece.`,
+      ...(r.alphas ? [`Two alphas, one ball. The ${a}-${b} fit in ${city} is already being questioned.`] : []));
   }
   if (r.kind === 'split' && r.mode === 'blowup') {
+    const need = (() => { try { return teamNeed(t); } catch { return ''; } })();
     const [a, b] = r.pair.map(x => shortName(x)), k = shortName(r.keep[0]), yrs = ['', 'one', 'two', 'three', 'four', 'five'][r.years] || `${r.years}`;
     star.splice(0, star.length,
       `Time to blow it up in ${city}? ${yrs[0].toUpperCase()}${yrs.slice(1)} full seasons of ${a} and ${b}, and this is where it's landed.`,
       `${a} and ${b} haven't worked in ${city}. Sources say ${first} is the one teams are calling about.`,
-      `Sources: ${city} would consider moving ${nm} and building around ${k}.`);
+      `Sources: ${city} would consider moving ${nm} and building around ${k}.`,
+      // Not a teardown, a retool: move one for what the roster is missing.
+      ...(need ? [`Not a teardown, a retool: ${city} could flip ${first} for ${need.toLowerCase()} that fits around ${k}.`,
+        `${city} is short on ${need.toLowerCase()}. Moving ${first} for a better fit next to ${k} is on the table.`] : []),
+      ...(r.pricey ? [`That's a lot of money for ${a} and ${b} to keep coming up short. ${city} is listening.`] : []),
+      ...(r.alphas ? [`Two alphas, ${r.years} years, same result. Something gives in ${city}, and it's probably ${first}.`] : []));
   }
   if (r.kind === 'split' && (r.mode || 'exits') === 'exits') {
     const [a, b] = r.pair, k = shortName(r.keep[0]), yrs = r.years === 3 ? 'three' : r.years === 4 ? 'four' : `${r.years}`;

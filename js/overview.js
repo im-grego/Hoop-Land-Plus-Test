@@ -405,10 +405,22 @@ export function rumorMill(L, { level = levelOf, li = 0, skip = () => false } = {
         const [keep, move] = pick(hit.a, hit.b);
         out.push({ kind: 'split', mode: 'exits', p: move, team, heat: 2, why: [], level: level(move), morale: move.season?.morale ?? 70, keep: [keep], pair: [hit.a, hit.b], years: hit.n });
       } else if (struggling) {
-        hit = pairs.map(([a, b]) => ({ a, b, n: Math.min(fullYrs(a, team), fullYrs(b, team)) })).find(x => x.n >= 1);
-        if (hit) {
+        // The pairing: a duo as above, or else its two best players when both are 84+ (a star brought in next to the
+        // one already there, like Towns next to Edwards). The noise grows the longer it fails: one full season, is the
+        // experiment over; two or more, it gets loud. It's louder when the pair is expensive (both on $30M+), when two
+        // alphas share the ball, and when the team is losing now as well; two young players still on cheap deals
+        // (25 or younger, under $20M) get patience until they've had three seasons together.
+        const pool = pairs.length ? pairs : (roster[1] && level(roster[0]) >= 84 && level(roster[1]) >= 84 ? [[roster[0], roster[1]]] : []);
+        const sal = x => x.contract?.sal || 0;
+        hit = pool.map(([a, b]) => ({ a, b, n: Math.min(fullYrs(a, team), fullYrs(b, team)) })).find(x => x.n >= 1);
+        const young = hit && [hit.a, hit.b].every(x => x.age <= 25 && sal(x) < 20);
+        if (hit && !(young && hit.n < 3)) {
           const [keep, move] = pick(hit.a, hit.b);
-          out.push({ kind: 'split', mode: hit.n >= 2 ? 'blowup' : 'experiment', p: move, team, heat: hit.n >= 2 ? 2 : 1, why: [], level: level(move), morale: move.season?.morale ?? 70, keep: [keep], pair: [hit.a, hit.b], years: hit.n, rec: recTxt });
+          const pressure = hit.n + (losing ? 1 : 0) + (last && (last.round || 0) < 1 ? 1 : 0)
+            + (sal(hit.a) >= 30 && sal(hit.b) >= 30 ? 1 : 0) + (tr(hit.a, 'playoffRiser') >= 16 && tr(hit.b, 'playoffRiser') >= 16 ? 1 : 0);
+          const heat = hit.n >= 2 ? (pressure >= 4 ? 3 : 2) : 1;
+          out.push({ kind: 'split', mode: hit.n >= 2 ? 'blowup' : 'experiment', p: move, team, heat, why: [], level: level(move), morale: move.season?.morale ?? 70,
+            keep: [keep], pair: [hit.a, hit.b], years: hit.n, rec: recTxt, alphas: tr(hit.a, 'playoffRiser') >= 16 && tr(hit.b, 'playoffRiser') >= 16, pricey: sal(hit.a) >= 30 && sal(hit.b) >= 30 });
         }
       }
       if (!hit && asb && losing) {

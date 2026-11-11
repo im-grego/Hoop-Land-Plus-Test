@@ -1097,5 +1097,8 @@ export function draftScore(p, scales, { ceilOf, floorOf, potOf = null }, team = 
     const vec = ceil.map((c, i) => (c + floor[i]) / 2);
     need = needsFilled(p, team.needs, team.baseline, vec).length * 0.35;
   }
+  // Already loaded at his spot (two or three core players there, 84+ and 30 or younger): not off the board, but a
+  // team looks harder at a position it needs.
+  if (team?.crowd) { const c = team.crowd[groupOf(p.pos)] || 0; need -= c >= 3 ? 1.2 : c === 2 ? 0.45 : 0; }
   return wc * zc + wf * zf + both + age + need + tier;
 }
