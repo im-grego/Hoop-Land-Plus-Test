@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.342.0';
+const APP_VERSION = '0.342.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -2422,7 +2422,7 @@ function stepActions(key) {
 
 // ---- Calendar grid (experiment): the month as a phone calendar, an emoji on each step's date,
 // finished and passed dates crossed off, the current topic on top.
-const CAL_EMOJI = { staff: '🧑‍🏫', vote: '🗳️', expansion: '🏟️', rotation: '🔁', owner: '🤝', medical: '🩺', exhib: '🏀', meeting: '🗣️', office: '🏢', review: '📜', hof: '🏛️', overview: '📊', preview: '👀', lottery: '🎱', mock1: '📝', scout: '🔎', combine: '⏱️', mock2: '🗒️', workouts: '🏀', draft: '🎤', options: '📃', ext: '✍️', camp: '🌴', fa1: '💰', fa2: '💰', fa3: '💰', dev: '🏋️', survey: '📋', media: '📸', latefa: '📞', cuts: '✂️', export: '🏁',
+const CAL_EMOJI = { staff: '🧑‍🏫', vote: '🗳️', expansion: '🏟️', rotation: '🔁', owner: '🤝', medical: '🩺', exhib: '🏀', meeting: '🗣️', office: '🏢', review: '📜', hof: '🏛️', overview: '📊', preview: '👀', lottery: '🎱', mock1: '📝', scout: '🔎', combine: '⏱️', mock2: '🗒️', workouts: '🏀', draft: '🎤', options: '📃', ext: '✍️', camp: '🌴', fa1: '💰', fa2: '💰', fa3: '💰', dev: '🏋️', survey: '📋', media: '🎤', latefa: '📞', cuts: '✂️', export: '🏁',
   departures: '🚪', seniors: '🎓', portal: '🔀', showcase: '⭐', rw1: '📣', rw2: '📣', rw3: '📣', rw4: '📣', signing: '✍️', preseason: '🏟️', rosterlock: '🔒', practice: '🏃' };
 const CAL_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const CAL_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -3107,7 +3107,7 @@ screens.main = () => {
         ${L.teams.some(isUserTeam) ? '<button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button>' : ''}
         ${!isCollege() && myTeam() ? '<button class="btn left" data-act="nav" data-to="coaching"><span class="ico">🧑‍🏫</span> My Coach</button>' : ''}
         <button class="btn left" data-act="nav" data-to="editor"><span class="ico">🏀</span> My League</button>
-        ${isCollege() ? '' : '<button class="btn left" data-act="nav" data-to="rumors"><span class="ico">📰</span> Hoop Gram</button>'}
+        ${isCollege() ? '' : '<button class="btn left" data-act="nav" data-to="rumors"><span class="ico">📸</span> Hoop Gram</button>'}
       </div>
       ${!isCollege() && !isFranchise() && !CAR.isCareer(L) && state.userTeams.size ? `<div class="grid2"><button class="btn left" data-act="nav" data-to="myteams"><span class="ico">🗂️</span> My Teams <span class="note small">${state.userTeams.size}${state.autoTeams.size ? ` · ${state.autoTeams.size} on autopilot` : ''}</span></button></div>` : ''}
       <input type="search" class="sel-team" placeholder="🔎 Find any player" data-change="pSearch" style="margin-top:8px">
@@ -10410,7 +10410,7 @@ function rankBox(p, mpg = null) {
   if (!r) return prod ? `<fieldset class="frame"><legend>${yr} Season</legend>${prod}</fieldset>` : '';
   const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
   return `<fieldset class="frame"><legend>${yr} Season</legend>
-    ${mpg ? `<p class="note small muted center" style="margin-bottom:6px">${mpg.mpg.toFixed(1)} MPG in ${mpg.gp} games</p>` : ''}
+    ${mpg ? `<div class="bio-grid season-mins"><div class="bio-box"><span class="glbl">Games</span><b>${mpg.gp}</b></div><div class="bio-box"><span class="glbl">MPG</span><b>${mpg.mpg.toFixed(1)}</b></div><div class="bio-box"><span class="glbl">Minutes</span><b>${Math.round(mpg.mpg * mpg.gp).toLocaleString()}</b></div></div>` : ''}
     <div class="statline rank-line">${RANK_STATS.map(([k, name]) => {
       const n = r.rank[k];
       return `<button class="stat-cell" data-act="openLeaders" data-m="stats" data-k="${k}" aria-label="${name} leaders"><span class="muted small">${k}</span><b>${r.pg[k].toFixed(1)}</b><span class="small ${n && n <= 10 ? 'gold' : n && n <= 30 ? 'up' : 'muted'}">${n ? ord(n) : '—'}</span></button>`;
@@ -10806,9 +10806,9 @@ function profileFacts(p, team, mpg) {
   const yd = declineYear(p);
   const f = [
     team ? `📋 ${ev(p, 'contract', ct ? esc(ct) : 'No contract')}` : '<span class="muted">Free agent</span>',
-    mpg?.mpg ? `⏱️ ${Math.round(mpg.mpg)} MPG` : '',
+    p.tag || editOn() ? `<span class="pl-gram">📸 ${ev(p, 'tag', p.tag ? `@${esc(p.tag)}` : 'add handle')}</span>` : '',
     hurt ? `<span class="down">🩹 Out ${hurt.gamesOut}g</span>` : '',
-    declining(p) ? `<span class="down">📉 ${ev(p, 'reg', yd > 0 ? `Decline yr ${yd}` : 'Decline starts')}</span>` : p.regressionAge ? `<span class="muted">${ev(p, 'reg', `Prime to ${p.regressionAge}`)}</span>` : '',
+    editOn() ? (declining(p) ? `<span class="down">📉 ${ev(p, 'reg', yd > 0 ? `Decline yr ${yd}` : 'Decline starts')}</span>` : p.regressionAge ? `<span class="muted">${ev(p, 'reg', `Prime to ${p.regressionAge}`)}</span>` : '') : '',
   ].filter(Boolean);
   return `<div class="pl-facts">${f.map(x => `<span>${x}</span>`).join('')}</div>`;
 }
@@ -11122,6 +11122,7 @@ actions.edVal = d => {
   if (f === 'age') return one('Age', p.age, v => { const n = num(v, 15, 55); if (n == null) return 'An age from 15 to 55.'; p.age = Math.round(n); });
   if (f === 'ht') return one(`Height (like 6'8" or inches)`, heightStr(p.ht), v => { const n = parseHt(v); if (!(n >= 60 && n <= 96)) return 'Between 5\'0" and 8\'0".'; p.ht = n; }, 'text');
   if (f === 'wt') return one('Weight (lb)', p.wt, v => { const n = num(v, 120, 400); if (n == null) return '120 to 400 lb.'; p.wt = Math.round(n); });
+  if (f === 'tag') return one('Hoop Gram handle (no @)', p.tag || '', v => { const h = v.replace(/^@/, '').trim(); if (!/^[A-Za-z0-9._]{1,30}$/.test(h)) return 'Letters, numbers, dots and underscores (up to 30).'; p.tag = h; }, 'text');
   if (f === 'morale') return one('Morale (0–100)', p.season?.morale ?? 60, v => { const n = num(v, 0, 100); if (n == null) return '0 to 100.'; if (p.season) p.season.morale = Math.round(n); });
   if (f === 'reg') return one('Regression age (decline starts the season after)', p.regressionAge, v => { const n = num(v, 25, 45); if (n == null) return '25 to 45.'; p.regressionAge = Math.round(n); });
   if (f === 'pot') return one('Potential in stars (2–5, half steps)', p.pot / 2, v => { const n = num(v, 2, 5.5); if (n == null) return '2 to 5 stars, in halves.'; p.pot = Math.round(n * 2); });
@@ -12661,7 +12662,7 @@ screens.combine = (args) => {
     const posts = hoopGram(L.draftClass, C, rank, saveSalt());
     body = `<p class="note muted small">Check the buzz on Hoop Gram.</p>
       <div class="stack">${posts.map(x => `<button class="hg-post" ${rowAct(x.p)}>
-        <div class="hg-head"><span class="hg-avatar">HG</span><b>${esc(x.handle)}</b><span class="hg-tag">${esc(x.tag)}</span></div>
+        <div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>${esc(x.handle)}</b><span class="hg-tag">${esc(x.tag)}</span></div>
         <p class="hg-text">${esc(x.text)}</p>
         <div class="hg-foot"><span>❤️ ${x.likes.toLocaleString()}</span><span class="cyan">${esc(playerName(x.p))} ›</span></div>
       </button>`).join('') || '<p class="note">Quiet combine.</p>'}</div>`;
@@ -17579,7 +17580,7 @@ function leagueGramCard() {
   if (!posts.length) return '';
   return `<h2 class="team-title">Trending on Hoop Gram</h2>
     <div class="stack">${posts.map(x => `<${x.pid ? `button data-act="openPlayer" data-id="${x.pid}"` : 'div'} class="hg-post ${x.pid ? 'tap' : ''}">
-      <div class="hg-head"><span class="hg-avatar">HG</span><b>${esc(x.handle)}</b></div>
+      <div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>${esc(x.handle)}</b></div>
       <p class="hg-text">${esc(x.text)}</p>
       <div class="hg-foot"><span>❤️ ${x.likes.toLocaleString()}</span><span class="muted">${esc(x.team.shortName)}</span></div>
     </${x.pid ? 'button' : 'div'}>`).join('')}</div>`;
@@ -17744,7 +17745,7 @@ function rumorPost(r) {
   const handle = pick(['@HoopInsider', '@LeagueWhispers', '@CapSpaceGuy', '@TradeMachine', '@CourtsideSources']);
   const likes = 800 + (seed % 9000) + r.heat * 4000;
   return `<button class="hg-post tap" data-act="openPlayer" data-id="${p.id}">
-    <div class="hg-head"><span class="hg-avatar">HG</span><b>${handle}</b></div>
+    <div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>${handle}</b></div>
     <p class="hg-text">${esc(pick(r.kind === 'vet' ? vet : r.kind === 'blowup' ? blowup : r.kind === 'taxpay' ? taxpay : r.kind === 'block' ? block : star).trim())}</p>
     <div class="hg-foot"><span>❤️ ${likes.toLocaleString()}</span><span class="muted">${esc(t.shortName)} · ${esc(nm)} ${lvTag(p)}</span></div>
   </button>`;
@@ -21155,8 +21156,8 @@ function reportCard() {
   const row = r => `<div class="drill-row tap ${isUserTeam(r.t) ? 'r1' : ''}" data-act="nav" data-to="roster" data-arg="${r.t.id}"><b class="rc-grade ${gradeCls(r.grade)}">${r.grade}</b><span class="grow"><b>${esc(r.t.shortName)}</b> <span class="small muted">${esc(r.line)}</span></span></div>`;
   return `<fieldset class="frame"><legend>Offseason Report Card</legend>
     ${mine.map(row).join('')}
-    <div class="hg-post"><div class="hg-head"><span class="hg-avatar">HG</span><b>@CapSpaceGuy</b></div><p class="hg-text">Winner of the summer: ${esc(top.t.city || top.t.shortName)}. ${esc(sentence(top.line))}</p></div>
-    <div class="hg-post"><div class="hg-head"><span class="hg-avatar">HG</span><b>@LeagueWhispers</b></div><p class="hg-text">Rough offseason in ${esc(low.t.city || low.t.shortName)}. ${esc(sentence(low.line))}</p></div>
+    <div class="hg-post"><div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>@CapSpaceGuy</b></div><p class="hg-text">Winner of the summer: ${esc(top.t.city || top.t.shortName)}. ${esc(sentence(top.line))}</p></div>
+    <div class="hg-post"><div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>@LeagueWhispers</b></div><p class="hg-text">Rough offseason in ${esc(low.t.city || low.t.shortName)}. ${esc(sentence(low.line))}</p></div>
     <details class="cmb-fold"><summary>Every team</summary><div class="stack">${rows.map(row).join('')}</div></details>
   </fieldset>`;
 }
@@ -21196,8 +21197,8 @@ function openingNightTab() {
   const top = rows[0], sleeper = rows.filter(r => r.rank > 8 && !r.move?.draft).sort((a, b) => (b.move?.up ? shownLevel(b.move.p) : 0) - (a.move?.up ? shownLevel(a.move.p) : 0))[0];
   return `<fieldset class="frame"><legend>Opening Night ${yr}</legend>${infoBtn('opening', '<p class="small">Power rankings from the rosters as they stand: each team\'s best nine by level, the top men counting most, and a player out half the season or more counting half. Projected wins follow from where a team sits against the league.</p>')}
     ${mine}
-    <div class="hg-post"><div class="hg-head"><span class="hg-avatar">HG</span><b>@HoopLandDaily</b></div><p class="hg-text">Preseason #1: ${esc(top.t.city || top.t.shortName)}, projected ${top.wins} wins.${top.move?.up ? ` ${esc(sentence(top.move.txt))}` : ''}</p></div>
-    ${sleeper?.move?.up ? `<div class="hg-post"><div class="hg-head"><span class="hg-avatar">HG</span><b>@SleeperAlert</b></div><p class="hg-text">Don't sleep on ${esc(sleeper.t.city || sleeper.t.shortName)}. They ${esc(sleeper.move.txt)}.</p></div>` : ''}
+    <div class="hg-post"><div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>@HoopLandDaily</b></div><p class="hg-text">Preseason #1: ${esc(top.t.city || top.t.shortName)}, projected ${top.wins} wins.${top.move?.up ? ` ${esc(sentence(top.move.txt))}` : ''}</p></div>
+    ${sleeper?.move?.up ? `<div class="hg-post"><div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>@SleeperAlert</b></div><p class="hg-text">Don't sleep on ${esc(sleeper.t.city || sleeper.t.shortName)}. They ${esc(sleeper.move.txt)}.</p></div>` : ''}
     <div class="stack">${rows.map(row).join('')}</div></fieldset>`;
 }
 screens.export = () => {
