@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.338.0';
+const APP_VERSION = '0.339.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -10264,15 +10264,19 @@ screens.leaders = (args) => {
     note = `${ATTR_NAMES[k]}: every player in the league and free agency. Ties go to the higher level.`;
   }
   const shown = args.all ? rows : rows.slice(0, 25);
-  const fmt = v => (mode === 'stats' ? v.toFixed(1) : v);
+  // The player you came from: marked, and added under the list when he's past it.
+  const meAt = args.pid ? rows.findIndex(x => x.e.p.id === args.pid) : -1;
+  const extra = meAt >= shown.length ? [{ ...rows[meAt], at: meAt }] : [];
+  const fmt = v => (mode === 'stats' ? v.toFixed(1) : gVal(v));
+  const barOf = x => (mode === 'stats' ? '' : `<span class="ld-bar">${gBar(G_CLS[gCat(k).key], gKinds(x.e.p, null, k).kinds)}</span>`);
   layout({
     title: 'League',
     body: `<div class="tabs"><button class="btn ${mode === 'stats' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="stats" data-k="${mode === 'stats' ? k : 'PTS'}" data-r="1">Stats</button><button class="btn ${mode === 'ratings' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="ratings" data-k="${mode === 'ratings' ? k : 'LAY'}" data-r="1">Ratings</button>${isCollege() ? '' : '<button class="btn off" data-act="openLeaders" data-m="rafters" data-r="1">🏟️ Rafters</button><button class="btn off" data-act="nav" data-to="records">📖 Records</button>'}</div>
       <div class="opts wrap ld-keys">${head}</div>
       <p class="note muted small" style="margin:6px 0">${esc(note)}</p>
-      <div class="stack">${shown.map((x, i) => `<button class="ld-row ${x.e.team && isUserTeam(x.e.team) ? 'mine' : ''}" data-act="openPlayer" data-id="${x.e.p.id}">
-        <span class="ld-n">${i + 1}</span>
-        <span class="grow"><b>${esc(playerName(x.e.p))}</b> ${lvTag(x.e.p)}<br><span class="small muted">${esc(tname(x.e))} · ${esc(posName(x.e.p))} · ${x.e.p.age}y</span></span>
+      <div class="stack">${[...shown.map((x, i) => ({ ...x, at: i })), ...extra].map((x, j) => `${extra.length && j === shown.length ? '<p class="note small muted center" style="margin:2px 0">⋯</p>' : ''}<button class="ld-row ${x.e.team && isUserTeam(x.e.team) ? 'mine' : ''} ${x.e.p.id === args.pid ? 'me' : ''}" data-act="openPlayer" data-id="${x.e.p.id}">
+        <span class="ld-n">${x.at + 1}</span>
+        <span class="grow"><b>${esc(playerName(x.e.p))}</b> ${lvTag(x.e.p)}<br><span class="small muted">${esc(tname(x.e))} · ${esc(posName(x.e.p))} · ${x.e.p.age}y</span>${barOf(x)}</span>
         <b class="ld-v ${x.core != null && x.v < x.core ? 'down' : ''}">${fmt(x.v)}</b></button>`).join('')}</div>
       ${!args.all && rows.length > 25 ? `<button class="btn small" data-act="leadersAll" style="margin-top:8px">Show all ${rows.length}</button>` : ''}`,
   });
@@ -10316,7 +10320,8 @@ function collegeLeaders(args) {
 }
 
 actions.openLeaders = d => {
-  const args = { m: d.m, k: d.k, ...(d.li != null ? { li: +d.li, yr: +d.yr } : {}) };
+  const prev = state.stack[state.stack.length - 1]?.args || {};
+  const args = { m: d.m, k: d.k, ...(d.li != null ? { li: +d.li, yr: +d.yr } : {}), ...(d.pid ? { pid: +d.pid } : d.r && prev.pid ? { pid: prev.pid } : {}) };
   if (d.r) replace('leaders', args); else go('leaders', args);
 };
 actions.leadersAll = () => { const a = state.stack[state.stack.length - 1].args || {}; replace('leaders', { ...a, all: true }); };
@@ -10586,7 +10591,7 @@ function gRow(p, snap, k, edit = false, ceilMode = false) {
 function gLine(p, snap, k, edit = false, ceilMode = false) {
   const g = gKinds(p, snap, k), cls = G_CLS[gCat(k).key];
   const sign = n => `${n > 0 ? '+' : '−'}${gVal(Math.abs(n))}`;
-  return `<div class="gcell gline ${edit ? 'edit' : ''}"><span class="glbl">${esc(G_NAMES[k])}</span>
+  return `<div class="gcell gline ${edit ? 'edit' : 'tap'}" ${edit ? '' : `data-act="openLeaders" data-m="ratings" data-k="${k}" data-pid="${p.id}"`}><span class="glbl">${esc(G_NAMES[k])}</span>
     ${edit ? gBtn('attr', `data-k="${k}" data-dir="-1"`, G_MINUS, `Lower ${ATTR_NAMES[k]}`) : ''}
     <span class="gmid">${gBar(cls, g.kinds)}</span>
     <span class="gnum"><b class="${g.down ? 'down' : ''}">${gVal(g.shown)}</b>${g.delta ? `<i class="${g.delta > 0 ? 'up' : 'down'}">${sign(g.delta)}</i>` : ''}${g.t ? `<i class="${g.t > 0 ? 'up' : 'down'}" title="${esc(g.src || '')}: temporary">${sign(g.t)}*</i>` : ''}</span>
