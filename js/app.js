@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.341.1';
+const APP_VERSION = '0.341.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -1586,6 +1586,32 @@ async function artifactSave(name, data) {
   }
 }
 
+// Give the user a file. On iPhone and iPad a download link often opens the file in the same tab (Chrome always), which
+// replaces the app and everything in memory with it. There the file goes out through the share sheet (Save to Files),
+// from a fresh tap once it's built; with no share sheet, it opens in a new tab and the app stays where it is.
+const iosDevice = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function giveFile(file) {
+  return new Promise(resolve => {
+    if (!iosDevice()) {
+      const url = URL.createObjectURL(file), a = document.createElement('a');
+      a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      resolve(true); return;
+    }
+    const canShare = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
+    const box = overlay(`<p class="note"><b>Your file is ready</b><br><span class="small">${esc(file.name)}</span></p>
+      <p class="note small">${canShare ? 'Tap Save the file, then choose <b>Save to Files</b>.' : 'It opens in a new tab: use the share button there to save it.'} The app stays open here.</p>
+      <div class="grid2"><button class="btn off" data-x>Cancel</button><button class="btn focus" data-go>💾 Save the file</button></div>`);
+    box.addEventListener('click', async e => {
+      if (e.target.closest('[data-x]')) { box.remove(); resolve(false); return; }
+      if (!e.target.closest('[data-go]')) return;
+      if (canShare) {
+        try { await navigator.share({ files: [file], title: file.name }); box.remove(); resolve(true); }
+        catch (err) { if (err?.name !== 'AbortError') { toast('Sharing didn’t work, opening the file in a new tab', '', 3000); window.open(URL.createObjectURL(file), '_blank'); box.remove(); resolve(true); } }
+      } else { window.open(URL.createObjectURL(file), '_blank'); box.remove(); resolve(true); }
+    });
+  });
+}
 actions.download = async () => {
   const o = overlay('<div class="spinner"></div><p class="note">Building file…</p>');
   await nextFrame();
@@ -1595,15 +1621,8 @@ actions.download = async () => {
     if (await artifactSave(file.name, file)) { state.dirty = false; toast('Season file saved. Remove .json from the name before loading it in Hoop Land.'); }
     return;
   }
-  const url = URL.createObjectURL(file);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = file.name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
   o.remove();
+  if (!(await giveFile(file))) return;
   state.dirty = false;
   countEvent('save-exported');
   toast('Season file saved');
@@ -2559,12 +2578,31 @@ actions.expAsk = d => {
   else try { localStorage.setItem(expAskKey(), String(league().season.currentYear)); } catch { /* ignore */ }
   render();
 };
+// Past the regular season but not yet in the playoffs (the game's awards and play-in, phase 13, and any late-season
+// phase this app doesn't know): the awards from the save and what comes next, instead of the offseason message.
+function seasonAwardsCard() {
+  const L = league(), s = L.season, yr = s.currentYear, table = L.awards || [];
+  if (![10, 12, 13, 14].includes(s.phase)) return '';
+  const won = new Map();
+  for (const p of [...L.teams.flatMap(t => t.roster), ...(L.freeAgents || [])]) for (const a of p.awards || []) {
+    if ((a.league ?? 0) !== 0 || !(a.yearsWon || []).includes(yr)) continue;
+    const award = table.find(t => t.id === a.id);
+    if (!PO.realHonor(award, a)) continue;
+    const name = PO.honorName(award, a);
+    if (name) (won.get(name) || won.set(name, []).get(name)).push(p);
+  }
+  const rows = [...won.entries()].sort((x, y) => x[1].length - y[1].length);
+  return `<fieldset class="frame"><legend>🏆 ${dispYr(yr)} Season Awards</legend>
+    ${rows.length ? `<div class="stack">${rows.map(([n, ps]) => `<div class="small mv-row aw-row"><span class="mv-l"><b>${esc(n)}</b></span><span class="mv-r">${ps.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</span>`).join(', ')}</span></div>`).join('')}</div>` : '<p class="note small muted">The awards aren\'t in this save yet.</p>'}
+    <p class="note small" style="margin-top:8px">The regular season is over. Keep going in Hoop Land: the play-in and the playoffs are played there. Load the save again at the start of the playoffs for the playoff preview, or once the season ends (Pre-Lottery) to run the offseason.</p></fieldset>`;
+}
 function calendarCard() {
   const s = league().season;
   if (phaseRank(s) === 0 && !isCollege()) {
     if (seasonUnplayed()) return setupCard();
     if (CL3.atAllStarBreak(league())) return deadlineCard() + glCard();
     if (PO.atPlayoffStart(league())) return playoffCard();
+    if (seasonAwardsCard()) return seasonAwardsCard();
     if (ciWindow()) return cupCard() + checkinCard() + glCard();
     if (cupCard() || glCard()) return cupCard() + glCard();
     return `<fieldset class="frame"><legend>Offseason</legend><p class="note">This save is at ${esc(phaseName(s))}. Advance once in Hoop Land after the season ends (to the Pre-Lottery phase), export that save and load it here to run the offseason.</p></fieldset>`;
