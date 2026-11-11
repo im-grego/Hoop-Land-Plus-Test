@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.346.4';
+const APP_VERSION = '0.347.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -3099,13 +3099,21 @@ screens.start = () => {
     seasonIndex().then(() => replace('start')).catch(e => layout({ title: 'Start a Franchise', body: `<p class="note">Couldn't reach the seasons (${esc(e.message)}). Check your connection and try again.</p>` }));
     return;
   }
+  // One card per start: the date across the top, then a snapshot of the league that day (or Opening Night's clean slate).
+  const card = (s, x, top) => `<button class="start-card ${top ? 'focus' : ''}" data-act="startPick" data-file="${esc(x.file)}" data-s="${esc(s.id)}" data-date="${esc(x.date)}">
+      <span class="start-date">📅 ${x.opening ? 'Opening Night · ' : ''}${esc(fmtDay(x.date))}</span>
+      ${x.snap ? `<span class="start-snap"><span>East: <b>${esc(x.snap.east.name)}</b> ${x.snap.east.w}-${x.snap.east.l}</span><span>West: <b>${esc(x.snap.west.name)}</b> ${x.snap.west.w}-${x.snap.west.l}</span>${x.snap.ppg ? `<span>Scoring leader: <b>${esc(x.snap.ppg.name)}</b> ${x.snap.ppg.ppg} ppg</span>` : ''}</span>`
+        : `<span class="start-snap"><span>A clean slate: 0-0 records, no stats, the preseason rosters and injuries.</span></span>`}</button>`;
   layout({
     title: 'Start a Franchise',
-    body: `<p class="note">Start a real season from today: the real schedule, every score, player stats, rosters, contracts and injuries so far. Pick your team, make your moves, then export once and load it in Hoop Land.</p>
-      ${idx.seasons.map(s => `<fieldset class="frame"><legend>${esc(s.label)}</legend><div class="stack">${[...s.starts].reverse().map((x, i) => `
-        <button class="btn left ${i ? '' : 'focus'}" data-act="startPick" data-file="${esc(x.file)}" data-s="${esc(s.id)}" data-date="${esc(x.date)}"><span class="ico">📅</span> ${esc(fmtDay(x.date))}
-          <span class="note small">${x.through ? `Real results through ${esc(fmtDay(x.through))}` : 'Opening Night'}${x.injuries ? ' · injuries as of that day' : ''} · ${x.days}-day season</span></button>`).join('')}</div></fieldset>`).join('')}
-      <p class="note small muted">The season is laid out over ${idx.seasons[0]?.starts.at(-1)?.days || 99} game days so the game's injuries keep their length. Every team plays its real 82 opponents, home and away, in close to the real order.</p>`,
+    body: `<p class="note">Start a real season: the real schedule, every score, player stats, rosters, contracts and injuries so far. Pick your team, make your moves, then export once and load it in Hoop Land.</p>
+      ${idx.seasons.map(s => {
+        const all = [...s.starts].sort((a, b) => b.date.localeCompare(a.date)), latest = all[0], older = all.slice(1);
+        return `<fieldset class="frame"><legend>${esc(s.label)}</legend><div class="stack">
+          <h4 class="ov-h start-h">Start today</h4>${latest ? card(s, latest, true) : ''}
+          ${older.length ? `<details class="start-older" data-keep="start-older-${esc(s.id)}" ${state.keepOpen?.[`start-older-${s.id}`] ? 'open' : ''}><summary class="small link">Start from an older date (${older.length})</summary><div class="stack">${older.map(x => card(s, x, false)).join('')}</div></details>` : ''}
+        </div></fieldset>`;
+      }).join('')}`,
   });
 };
 // Download, unpack and read a season file; then the team picker.
