@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.349.10';
+const APP_VERSION = '0.349.11';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -18074,20 +18074,44 @@ function teamDirections(L) {
 }
 // A rumor as a Hoop Gram post: the wording varies by player so a list of
 // them never reads the same twice.
-// A player's short name: the shorter of his first and last name that only he has in the league (Jokic, Towns, Giannis,
-// VJ), never a common one (Smith); his full name when neither is his alone.
+// A player's short name. In the NBA league, a nickname he has really gone by (AD, PG, KAT, SGA, Ant); otherwise his
+// last name when it identifies him (Mitchell, Towns, Jokic), his first name when that does and is much shorter
+// (Giannis, VJ, Amen), and his full name when neither does. A name identifies the player who has it alone, or the
+// clearly best of up to three who share it (Donovan Mitchell over Ajay), never a common one (Williams, Smith).
+const NICKNAMES = {
+  'Anthony Davis': 'AD', 'Paul George': 'PG', 'Karl-Anthony Towns': 'KAT', 'Shai Gilgeous-Alexander': 'SGA', 'Anthony Edwards': 'Ant',
+  'Kevin Durant': 'KD', 'Kentavious Caldwell-Pope': 'KCP', 'Michael Porter Jr.': 'MPJ', 'Jaren Jackson Jr.': 'JJJ', 'Chris Paul': 'CP3',
+  'LeBron James': 'LeBron', 'Stephen Curry': 'Steph', 'Russell Westbrook': 'Russ', 'Victor Wembanyama': 'Wemby', 'Giannis Antetokounmpo': 'Giannis',
+  'Kawhi Leonard': 'Kawhi', 'Kyrie Irving': 'Kyrie', 'Luka Doncic': 'Luka', 'Zion Williamson': 'Zion', 'Ja Morant': 'Ja', 'Trae Young': 'Trae',
+  'Bam Adebayo': 'Bam', 'OG Anunoby': 'OG', 'RJ Barrett': 'RJ', 'CJ McCollum': 'CJ', 'Jaylen Brown': 'JB', 'Jalen Williams': 'J-Dub',
+  'Tyrese Haliburton': 'Hali', 'Jimmy Butler III': 'Jimmy', 'Draymond Green': 'Draymond', 'Scottie Barnes': 'Scottie', 'Cade Cunningham': 'Cade',
+};
+const plain = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
 const shortNames = new WeakMap();
 function shortName(p, L = league()) {
   let c = shortNames.get(L);
   if (!c) {
-    c = new Map();
     const all = [...L.teams.flatMap(t => t.roster || []), ...(L.freeAgents || [])];
     const fn = x => (x.fn || '').replace(/\./g, '').trim(), ln = x => (x.ln || '').replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i, '').trim();
-    for (const x of all) for (const k of new Set([fn(x), ln(x)])) if (k) c.set(k, (c.get(k) || 0) + 1);
-    c.fn = fn; c.ln = ln; shortNames.set(L, c);
+    const holders = new Map();
+    for (const x of all) for (const k of new Set([fn(x), ln(x)])) if (k) { if (!holders.has(k)) holders.set(k, []); holders.get(k).push(x); }
+    const owner = new Map();
+    for (const [k, xs] of holders) {
+      if (xs.length === 1) { owner.set(k, xs[0]); continue; }
+      if (xs.length > 3) continue;
+      const s = [...xs].sort((a, b) => shownLevel(b) - shownLevel(a));
+      if (shownLevel(s[0]) - shownLevel(s[1]) >= 6) owner.set(k, s[0]);
+    }
+    const nba = /^(NBA|National Basketball Association)$/i.test(L.shortName || '') || /National Basketball Association/i.test(L.leagueName || '');
+    c = { fn, ln, owner, nba, taken: new Set(holders.keys()) };
+    shortNames.set(L, c);
   }
-  const opts = [c.ln(p), c.fn(p)].filter(k => k && c.get(k) === 1).sort((a, b) => a.length - b.length);
-  return opts[0] || playerName(p);
+  const nick = c.nba && NICKNAMES[plain(`${p.fn} ${p.ln}`)];
+  if (nick) return nick;
+  const l = c.ln(p), f = c.fn(p), mine = k => k && c.owner.get(k) === p;
+  if (mine(f) && (!mine(l) || f.length <= l.length - 4)) return f;
+  if (mine(l)) return l;
+  return playerName(p);
 }
 function rumorPost(r) {
   const p = r.p, t = r.team, nm = playerName(p), first = shortName(p), city = t.city;
