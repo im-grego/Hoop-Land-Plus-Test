@@ -2053,6 +2053,7 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .start-card { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; padding: 12px 14px; background: var(--btn); border: 4px solid var(--btn-edge); box-shadow: 0 4px 0 var(--btn-shadow); color: var(--text); font: inherit; cursor: pointer; }
 .start-card.focus { border-color: var(--cyan); }
 .start-date { font-family: var(--game); font-weight: 700; font-size: 18px; white-space: nowrap; }
+.start-sub { display: block; font-size: 15px; color: var(--dim, #b9c8e8); margin-top: 2px; }
 .start-snap { display: flex; flex-direction: column; gap: 2px; font-size: 14px; color: var(--dim, #b9c8e8); }
 .start-snap b { color: var(--text); }
 .start-h { margin: 0 0 2px; font-size: 16px; font-weight: 800; color: var(--text); text-transform: none; letter-spacing: 0; }

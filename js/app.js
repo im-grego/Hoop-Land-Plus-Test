@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.349.3';
+const APP_VERSION = '0.349.4';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Test build';
 const $app = document.getElementById('app');
@@ -3101,7 +3101,7 @@ screens.start = () => {
   }
   // One card per start: the date across the top, then a snapshot of the league that day (or Opening Night's clean slate).
   const card = (s, x, top) => `<button class="start-card ${top ? 'focus' : ''}" data-act="startPick" data-file="${esc(x.file)}" data-s="${esc(s.id)}" data-date="${esc(x.date)}">
-      <span class="start-date">📅 ${x.opening ? 'Opening Night · ' : ''}${esc(fmtDay(x.date))}</span>
+      <span class="start-date">📅 ${x.opening ? `Opening Night<span class="start-sub">${esc(fmtDay(x.date))}</span>` : esc(fmtDay(x.date))}</span>
       ${x.snap ? `<span class="start-snap"><span>East: <b>${esc(x.snap.east.name)}</b> ${x.snap.east.w}-${x.snap.east.l}</span><span>West: <b>${esc(x.snap.west.name)}</b> ${x.snap.west.w}-${x.snap.west.l}</span>${x.snap.ppg ? `<span>Scoring leader: <b>${esc(x.snap.ppg.name)}</b> ${x.snap.ppg.ppg} ppg</span>` : ''}</span>`
         : `<span class="start-snap"><span>A clean slate: 0-0 records, no stats, the preseason rosters and injuries.</span></span>`}</button>`;
   layout({
