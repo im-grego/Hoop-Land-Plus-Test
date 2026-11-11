@@ -2032,9 +2032,19 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 
 /* The game's red notification dot, on a button's icon. */
 .ico { position: relative; }
-.ndot { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 4px; margin-left: 4px; vertical-align: top;
-  border-radius: 9px; background: #d9605f; border: 2px solid #1a0f1a; color: #fff; font: 700 11px/1 var(--font); text-shadow: none; box-sizing: border-box; }
-.ndot:empty { min-width: 13px; width: 13px; height: 13px; padding: 0; }
+.ndot { --px: polygon(4px 0, calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px, calc(100% - 2px) 4px, 100% 4px, 100% calc(100% - 4px),
+    calc(100% - 2px) calc(100% - 4px), calc(100% - 2px) calc(100% - 2px), calc(100% - 4px) calc(100% - 2px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 2px),
+    2px calc(100% - 2px), 2px calc(100% - 4px), 0 calc(100% - 4px), 0 4px, 2px 4px, 2px 2px, 4px 2px);
+  position: relative; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px;
+  margin-left: 5px; vertical-align: middle; background: #1a0f1a; clip-path: var(--px); color: #fff; font: 400 11px/1 var(--game); text-shadow: none; box-sizing: border-box; }
+/* The game's dot is pixel-drawn: a dark stepped outline, red inside with a lighter pixel highlight. */
+.ndot::before { content: ''; position: absolute; inset: 2px; z-index: -1; background: #e0453f; clip-path: polygon(2px 0, calc(100% - 2px) 0, calc(100% - 2px) 2px, 100% 2px,
+    100% calc(100% - 2px), calc(100% - 2px) calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 2px calc(100% - 2px), 0 calc(100% - 2px), 0 2px, 2px 2px); }
+.ndot::after { content: ''; position: absolute; top: 4px; left: 5px; width: 2px; height: 2px; background: #ff9a8f; z-index: -1; }
+.ndot:empty { min-width: 14px; width: 14px; height: 14px; padding: 0; }
+.ndot.blink { animation: ndot-blink 1.1s steps(1, end) infinite; }
+@keyframes ndot-blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0.15; } }
+@media (prefers-reduced-motion: reduce) { .ndot.blink { animation: none; } }
 .ico .ndot { position: absolute; top: -11px; right: -16px; margin: 0; }
 .aw-ic { height: 1.5em; width: auto; image-rendering: pixelated; vertical-align: -0.35em; margin-right: 5px; }
 .aw-chip .aw-ic { height: 1.35em; }

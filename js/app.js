@@ -72,7 +72,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.352.2';
+const APP_VERSION = '0.352.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3004,7 +3004,7 @@ function bugReportText() {
   return lines.join('\n');
 }
 // The bottom of the title screen and the main menu: Discord, Report a Bug, Roadmap and the version, one even 2x2 grid.
-const footerGrid = () => communityRow(`${roadmapBtn()}<button class="ver-badge ver-btn" data-act="devlog"><span>${SHOWN_VERSION}</span><span class="ver-new">What's new${devlogUnseen() ? '<span class="ndot"></span>' : ' ›'}</span></button>`);
+const footerGrid = () => communityRow(`${roadmapBtn()}<button class="ver-badge ver-btn" data-act="devlog"><span>${SHOWN_VERSION}</span><span class="ver-new">What's new${devlogUnseen() ? '<span class="ndot blink">1</span>' : ' ›'}</span></button>`);
 actions.devlog = () => {
   try { localStorage.setItem(devlogKey, DEVLOG[0].v); } catch { /* ignore */ }
   const box = overlay(`<h2 class="devlog-h">What's New</h2>
