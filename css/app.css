@@ -2330,3 +2330,7 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .tsel-team:has(img.tsel-logo:not(.logo-failed)) .tsel-name { display: none; }
 .tsel-team img.tsel-logo.logo-failed, .tsel-team .tsel-logo.logo-ph { display: none; }
 .tsel-team .tsel-logo { width: 48px !important; height: 48px !important; }
+
+/* Trade machine team picker: no box, the logo sits right on the panel (the arrows keep theirs). */
+.tsel .tsel-team { background: none; border: 0; box-shadow: none; clip-path: none; }
+.tsel .tsel-team .tsel-logo { width: 56px !important; height: 56px !important; }
