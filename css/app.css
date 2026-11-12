@@ -2296,3 +2296,7 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .hg-list .hg-post, .stack .hg-post, button.hg-post { display: grid !important; grid-template-columns: 44px minmax(0, 1fr); align-items: start; }
 .hg-post .hg-foot { display: block; }
 .hg-post .hg-foot .lv, .hg-post .hg-foot [class*="lv"] { margin-left: 4px; }
+
+/* Hoop Gram: Feed · Team · Mentions (a fourth tab only for the Report Card). */
+.news-tabs { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+.news-tabs .btn { font-size: 14px; }

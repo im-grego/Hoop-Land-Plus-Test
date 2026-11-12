@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.362.0';
+const APP_VERSION = '0.362.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -10722,7 +10722,7 @@ actions.medPick = d => {
 };
 
 // ---- League News: rumors, transactions, coaching moves, CPU trades and (at Opening Night) the report card, as tabs.
-const NEWS_TABS = [['rumors', 'Feed'], ['team', 'Team'], ['mentions', 'Mentions'], ['block', 'Trade Block'], ['report', 'Report Card']];
+const NEWS_TABS = [['rumors', 'Feed'], ['team', 'Team'], ['mentions', 'Mentions'], ['report', 'Report Card']];
 const newsTabs = cur => { const u = gramUnseen(); return `<div class="tabs fa-tabs news-tabs">${NEWS_TABS.filter(([k]) => k !== 'report' || league().season.phase === 6).map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="newsTab" data-t="${k}">${l}${k !== cur && u[k] ? '<span class="tab-dot"></span>' : ''}</button>`).join('')}</div>`; };
 actions.gramBox = () => {
   if (['rumors', 'news', 'gramMine', 'transactions'].includes(state.stack[state.stack.length - 1]?.name)) return;
