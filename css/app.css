@@ -2334,3 +2334,11 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 /* Trade machine team picker: no box, the logo sits right on the panel (the arrows keep theirs). */
 .tsel .tsel-team { background: none; border: 0; box-shadow: none; clip-path: none; }
 .tsel .tsel-team .tsel-logo { width: 56px !important; height: 56px !important; }
+
+/* Trade machine: each team's cap bar at its payroll after the deal, sliding as salary comes and goes. */
+.trade-cap-bar { margin-top: 4px; }
+.trade-cap-bar .cap-bar { height: 12px; }
+.trade-cap-bar .cap-legend { font-size: 11px; justify-content: center; }
+.cb-pay.cb-slide { animation: cbSlide 0.45s ease-out; }
+@keyframes cbSlide { from { width: var(--from); } }
+.trade-cap-bar .cap-legend { display: none; }

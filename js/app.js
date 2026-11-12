@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.363.4';
+const APP_VERSION = '0.363.5';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -15871,7 +15871,15 @@ function capRoomLine(t, outP = [], inP = []) {
   const room = C.off ? '' : com <= C.cap ? `$${C.cap - com}M space` : com <= C.tax ? `$${C.tax - com}M to the tax`
     : com <= C.apron1 ? `$${C.apron1 - com}M to the 1st apron` : com <= C.apron2 ? `$${C.apron2 - com}M to the 2nd apron` : '<span class="down">Over the 2nd apron</span>';
   const payTxt = d ? `Payroll $${pay}M → <b class="${d > 0 ? 'down' : 'up'}">$${after}M</b>` : `Payroll $${pay}M`;
-  return `<p class="small muted trade-cap-line">${room ? `${room} · ` : ''}${payTxt}</p>`;
+  // The cap bar under it, at the payroll after the deal: it slides from where it was to where the trade puts it.
+  let bar = '';
+  if (FA.capSystemOn()) {
+    bar = capBarOf(after, deadFor(t.id), true);
+    const w = +(bar.match(/class="cb-pay" style="width:([\d.]+)%"/)?.[1] ?? 0), prev = (state.capPrev ||= {})[t.id] ?? w;
+    state.capPrev[t.id] = w;
+    bar = bar.replace(/class="cb-pay" style="width:([\d.]+)%"/, `class="cb-pay${prev !== w ? ' cb-slide' : ''}" style="width:$1%;--from:${prev}%"`);
+  }
+  return `<p class="small muted trade-cap-line">${room ? `${room} · ` : ''}${payTxt}</p>${bar ? `<div class="trade-cap-bar">${bar}</div>` : ''}`;
 }
 // A team's cap in a trade: the bar shows payroll as it would be after the deal.
 function tradeCap(t, outP, inP, label = false) {
