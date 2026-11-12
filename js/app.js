@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.15';
+const APP_VERSION = '0.365.16';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3289,7 +3289,13 @@ function mediaQuestions(L, t) {
   const need = teamNeed(t);
   if (need && fresh('need') && gp >= 5) {
     const inGrp = { 'Rim protection': 'b', Rebounding: 'b', 'Frontcourt depth': 'b', 'Guard playmaking': 'g', 'Backcourt depth': 'g', 'Shot creation': 'g', 'Wing playmaking': 'w', '3-point shooting': 'w', 'Perimeter defense': 'w' }[need];
-    const mates = top.filter(q => !inGrp || grp(q) === inGrp).slice(0, 3).map(q => q.id), mateLbl = { g: 'Guards', w: 'Wings', b: 'Bigs' }[inGrp] || 'Rotation players';
+    // Who it touches: the best shooter for shooting, the scorers for shot creation, the group at the spot otherwise.
+    const A = (q, k) => q.attributes?.[k]?.[0] || 0;
+    let mates, mateLbl;
+    if (need === '3-point shooting') { mates = [...top].sort((a, b) => A(b, 'TPT') - A(a, 'TPT')).slice(0, 1).map(q => q.id); mateLbl = 'Best shooter'; }
+    else if (need === 'Shot creation') { mates = [...top].sort((a, b) => (line(b)?.ppg || 0) - (line(a)?.ppg || 0)).slice(0, 3).map(q => q.id); mateLbl = 'Scorers'; }
+    else if (need === 'Perimeter defense') { mates = top.filter(q => grp(q) !== 'b').slice(0, 3).map(q => q.id); mateLbl = 'Perimeter defenders'; }
+    else { mates = top.filter(q => !inGrp || grp(q) === inGrp).slice(0, 3).map(q => q.id); mateLbl = { g: 'Guards', w: 'Wings', b: 'Bigs' }[inGrp] || 'Rotation players'; }
     // The team stat behind the need, ranked against the league (the bottom half reads as the question).
     const NEED_STAT = {
       'Guard playmaking': ['assists', 'a playmaker', s => s.AST / s.GP], 'Wing playmaking': ['assists', 'a playmaker', s => s.AST / s.GP],
@@ -3336,7 +3342,7 @@ function mediaQuestions(L, t) {
       const ahead = top.filter(q => q !== p && grp(q) === grp(p) && (line(q)?.mpg || 0) > l.mpg).slice(0, 2).map(q => q.id), goal = Math.round(l.mpg + 6);
       add({ key: `bench:${p.id}`, q: `${playerName(p)} is only playing ${l.mpg.toFixed(0)} minutes a night. Does he deserve more?`, options: [
         ['more', 'Yes. His minutes are going up.', [['m', p.id, 4], ['m', ahead, -2, 'The players ahead of him'], ['promise', { kind: 'min', pid: p.id, base: base(p), need: goal, games: 10, due: day + 30, win: [['m', p.id, 3]], lose: [['m', p.id, -8]], text: `If he plays ${goal}+ minutes ${G10}` }]]],
-        ['earn', 'He has to earn them in practice.', [['m', p.id, -4], ['trait', p.id, 'motor', 1]]]] });
+        ['earn', 'He has to earn them in practice.', [['m', p.id, -4], ['trait', p.id, 'motor', 1], ['m', top.slice(5).filter(q => q !== p).map(q => q.id), 1, 'Bench']]]] });
       break;
     }
   }
@@ -11408,7 +11414,7 @@ function teamPostsOf(tm) {
       if (!home) roadWins++; wins++;
       text = `${esc(line)}<br>${esc(tm.shortName)} ${my}, ${esc(opp?.shortName || '')} ${their}${big ? `<br>${esc(gram(shortName(star)))} with ${esc(big)}.` : ''}`;
     } else text = `Final. ${esc(opp?.shortName || '')} ${their}, ${esc(tm.shortName)} ${my}`;
-    out.push({ k: `t:g:${yr}:${g.gId}`, d, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text, foot: `Game ${n} · ${won ? '<span class="up">W</span>' : '<span class="down">L</span>'}`, act: big ? `data-act="openPlayer" data-id="${star.id}"` : '' }) });
+    out.push({ k: `t:g:${yr}:${g.gId}`, d, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text, act: big ? `data-act="openPlayer" data-id="${star.id}"` : '' }) });
   }
   // Roster moves: dated the day the app first sees them (before the season: under every game).
   try {
@@ -11418,14 +11424,14 @@ function teamPostsOf(tm) {
     const mv = teamMoves(L, tm), nm = q => esc(gram(shortName(q)));
     for (const m of mv.ins.filter(x => !x.back)) {
       const from = m.from.replace(/^Trade · /, '').replace(/^FA · /, '');
-      const text = m.from.startsWith('Trade') ? `Welcome to the ${esc(tm.name)}, ${nm(m.p)}.` : m.from === 'Draft' ? `Welcome to the family, ${nm(m.p)}.` : `Welcome to ${esc(tm.city)}, ${nm(m.p)}.`;
+      const text = m.from.startsWith('Trade') ? `Welcome to the ${esc(tm.name)}, ${nm(m.p)}. (via ${esc(from)})` : m.from === 'Draft' ? `Welcome to the family, ${nm(m.p)}.` : `Welcome to ${esc(tm.city)}, ${nm(m.p)}.`;
       const k = `t:in:${yr}:${m.p.id}`;
-      out.push({ k, d: when(k), html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text, foot: m.from.startsWith('Trade') ? `Trade · from ${esc(from)}` : m.from === 'Draft' ? 'Draft' : 'Signing', act: `data-act="openPlayer" data-id="${m.p.id}"` }) });
+      out.push({ k, d: when(k), html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text, act: `data-act="openPlayer" data-id="${m.p.id}"` }) });
     }
     for (const m of mv.outs || []) {
       const text = /retir/i.test(m.to || '') ? `Congrats on a great career, ${nm(m.p)}.` : `Thank you, ${nm(m.p)}.`;
       const k = `t:out:${yr}:${m.p.id}`;
-      out.push({ k, d: when(k), html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text, foot: String(m.to || '').startsWith('Trade') ? 'Trade' : 'Roster move', act: `data-act="openPlayer" data-id="${m.p.id}"` }) });
+      out.push({ k, d: when(k), html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text, act: `data-act="openPlayer" data-id="${m.p.id}"` }) });
     }
     if (changed) lsSet(stampK, stamps);
   } catch { /* the moves are a bonus */ }
@@ -11519,7 +11525,7 @@ screens.gramMine = (args = {}) => {
   state.myGramK = '';
   layout({
     title: 'Hoop Gram',
-    body: `${newsTabs(tab)}<p class="note small muted">${tab === 'team' ? `${esc(me ? `${me.city} ${me.name}` : 'Your team')}: every final and roster move this season, newest first.` : 'What people are saying about your team and players this season.'}</p>
+    body: `${newsTabs(tab)}${tab === 'team' ? '' : '<p class="note small muted">What people are saying about your team and players this season.</p>'}
       <div class="stack hg-list">${html || `<p class="note small muted">${tab === 'team' ? 'No games or moves yet.' : 'Nobody is talking about you yet.'}</p>`}</div>`,
   });
 };
@@ -11541,7 +11547,7 @@ screens.rumors = () => {
   const posts = rumorPosts(L);
   layout({
     title: 'Hoop Gram',
-    body: `${newsTabs('rumors')}${(() => { const cpu = Object.entries(shiftStore()).filter(([, r]) => r.cpu).map(([pid, r]) => ({ pid: +pid, ...r })); return cpu.length ? `<fieldset class="frame"><legend>🏀 From Camp</legend><div class="stack">${cpu.map(shiftRumor).join('')}</div></fieldset>` : ''; })()}<p class="note small muted">Whispers about who could be on the move. Some of it comes true, some doesn't.</p>
+    body: `${newsTabs('rumors')}${(() => { const cpu = Object.entries(shiftStore()).filter(([, r]) => r.cpu).map(([pid, r]) => ({ pid: +pid, ...r })); return cpu.length ? `<fieldset class="frame"><legend>🏀 From Camp</legend><div class="stack">${cpu.map(shiftRumor).join('')}</div></fieldset>` : ''; })()}<p class="note small muted">Where there's smoke, there's fire.</p>
       <div class="stack hg-list">${posts.map(x => x.html).join('') || '<p class="note small muted">Quiet around the league.</p>'}</div>${leagueGramCard()}${hotSeatBox(L)}`,
   });
 };
