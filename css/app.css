@@ -2191,3 +2191,12 @@ body:has(.ticker) #app, body:has(.ticker) { padding-bottom: 40px; }
 .tk-track { height: 32px; align-items: center; }
 .tk-track > span { line-height: 32px; }
 body:has(.ticker) { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+
+/* Trying the app with nothing up top: no title board, no coin and token chips. Only Back (or Home) stays, small, and an
+   empty header takes no room at all. */
+.header { min-height: 0; margin-bottom: 8px; }
+.header:not(:has(.btn)) { display: none; }
+.header .back { width: 44px; height: 44px; }
+.header .back svg { width: 24px; height: 17px; }
+.header .home-btn svg { width: 20px; height: 18px; }
+.header .marquee[hidden] { display: none !important; }
