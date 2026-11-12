@@ -2200,3 +2200,23 @@ body:has(.ticker) { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)
 .header .back svg { width: 24px; height: 17px; }
 .header .home-btn svg { width: 20px; height: 18px; }
 .header .marquee[hidden] { display: none !important; }
+
+/* Injury report: Name · Lvl · Team · Injury · Out, every column header sorts. */
+.ir-frame { padding-left: 6px; padding-right: 6px; }
+.ir-tr { display: grid; grid-template-columns: minmax(0, 1.3fr) 34px 58px minmax(0, 1.2fr) 36px; align-items: center; gap: 4px; padding: 7px 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-size: 13px; }
+.ir-tr:last-child { border-bottom: 0; }
+.ir-tr.ir-mine { background: rgba(255, 210, 80, 0.08); }
+.ir-tr .c { text-align: center; justify-content: center; }
+.ir-th { padding-top: 0; }
+.ir-h { background: none; border: 0; padding: 4px 0; font: inherit; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim, #b9c8e8); text-align: left; cursor: pointer; }
+.ir-h.c { text-align: center; }
+.ir-h.on { color: var(--cyan); }
+.ir-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.ir-lvl { font-weight: 700; color: var(--gold); }
+.ir-team { display: flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; }
+.ir-team .ir-logo { width: 18px !important; height: 18px !important; }
+.ir-inj { line-height: 1.15; }
+.ir-out { font-weight: 800; }
+.news-tabs { grid-template-columns: repeat(4, 1fr); }
+.news-tabs .btn { font-size: 12px; padding: 8px 1px; white-space: nowrap; }
+.ir-name { white-space: normal; line-height: 1.15; overflow-wrap: anywhere; }

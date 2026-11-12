@@ -1,5 +1,5 @@
 import {
-  parseSave, serializeSave, FT_MAX, attrCap, injuryHistory, ATTRS, ATTR_NAMES, PHYSICAL, attrMin, skillName, skillCategory, sortSkills, isEliteSkill, isFreeSkill, ELITE_REQUIREMENTS, ELITE_MIN, ATTR_MAX, activeSkills, isLeveled, CATEGORIES, SKILL_MAX_LEVEL, SKILL_CATEGORIES, POSITIONS, MODE_NAMES, phaseName, BUMP_PHASES, BUMP_DAY, POT_MIN, POT_MAX, regressionYear, injuryName, PHASE_POST_DRAFT, PHASE_PRE_DRAFT, PHASE_PRE_LOTTERY, PHASE_FREE_AGENCY, leagueRookies, draftYear, jerseyNumber,
+  parseSave, serializeSave, FT_MAX, attrCap, injuryHistory, ATTRS, ATTR_NAMES, PHYSICAL, attrMin, skillName, skillCategory, sortSkills, isEliteSkill, isFreeSkill, ELITE_REQUIREMENTS, ELITE_MIN, ATTR_MAX, activeSkills, isLeveled, CATEGORIES, SKILL_MAX_LEVEL, SKILL_CATEGORIES, POSITIONS, MODE_NAMES, phaseName, BUMP_PHASES, BUMP_DAY, POT_MIN, POT_MAX, regressionYear, injuryName, injuryPart, PHASE_POST_DRAFT, PHASE_PRE_DRAFT, PHASE_PRE_LOTTERY, PHASE_FREE_AGENCY, leagueRookies, draftYear, jerseyNumber,
   setBlessed, playerName, heightStr, avgRating, lastSeasonMpg, leaguePlayers, snapshot, restore, diffPlayer, jerseyClashes, fixJerseyNumbers, undoJerseyNumbers, levelOf, cloneData, MINOR_INJURY, potCap, ceilTotal, canGrow,
 } from './savefile.js';
 import { collegeProduction, productionWord, setDevPlans, PLAN_ATTRS, DEFAULT_PARAMS, runProgression, buildSkillProfiles, rankSkillsFor, unlockSkill, mulberry32, runRookieBump, injuryRisk, earnsNaturalLongevity, productionScores, spendHeldPoints } from './progression.js';
@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.358.0';
+const APP_VERSION = '0.359.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2911,7 +2911,7 @@ const STEP_SCREENS = {
   dev: ['staff', 'meeting', 'offseason', 'report', 'mentor', 'rookies', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'teamBooks', 'coaches', 'coach'], media: ['storylines', 'survey', 'mediaRumors'], cuts: ['cuts', 'latefa', 'liveTrade'], rotation: ['lineup', 'player'], export: ['export'],
   review: ['review', 'teamStats', 'player'], waters: ['waters', 'player'], nil: ['nil', 'player'], retention: ['retention', 'player'], carousel: ['carousel'], camps: ['camps', 'recruitee'], legacy: ['legacy', 'player'], schedule: ['schedule'], tour: ['tour', 'player'], walkons: ['walkons', 'player'], redshirt: ['redshirt', 'player'], madness: ['madness'], mediaday: ['mediaday', 'player'], departures: ['departures'], seniors: ['seniors'], portal: ['portal'], showcase: ['showcase', 'recruitee'], rw1: ['recruit', 'recruitee', 'recruitweek'], rw2: ['recruit', 'recruitee', 'recruitweek'], rw3: ['recruit', 'recruitee', 'recruitweek'], rw4: ['recruit', 'recruitee', 'recruitweek'], signing: ['signing'], preseason: ['preseason'], rosterlock: ['rosterlock'], practice: ['practice'], summer: ['offseason', 'report', 'mentor', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook'],
 };
-const ALWAYS = ['start', 'startTeam', 'startFA', 'market', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks'];
+const ALWAYS = ['start', 'startTeam', 'startFA', 'market', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks', 'injuries'];
 function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
@@ -10670,9 +10670,46 @@ actions.medPick = d => {
 };
 
 // ---- League News: rumors, transactions, coaching moves, CPU trades and (at Opening Night) the report card, as tabs.
-const NEWS_TABS = [['rumors', 'Rumors'], ['block', 'Trade Block'], ['gram', 'Hoop Gram'], ['report', 'Report Card']];
+const NEWS_TABS = [['rumors', 'Rumors'], ['block', 'Trade Block'], ['gram', 'Hoop Gram'], ['injuries', 'Injuries'], ['report', 'Report Card']];
 const newsTabs = cur => `<div class="tabs fa-tabs news-tabs">${NEWS_TABS.filter(([k]) => k !== 'report' || league().season.phase === 6).map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="newsTab" data-t="${k}">${l}</button>`).join('')}</div>`;
-actions.newsTab = d => (d.t === 'rumors' ? replace('rumors', {}) : d.t === 'block' ? replace('transactions', { tab: 'block', only: true }) : replace('news', { tab: d.t }));
+actions.newsTab = d => (d.t === 'rumors' ? replace('rumors', {}) : d.t === 'block' ? replace('transactions', { tab: 'block', only: true }) : d.t === 'injuries' ? replace('injuries', {}) : replace('news', { tab: d.t }));
+
+// The injury report: everyone in the league who's out right now, on one sheet. Tap a column to sort by it, tap it
+// again to flip it. Out: the longest first (major injuries ahead of minor ones at the same length).
+screens.injuries = (args = {}) => {
+  const L = league(), key = args.k || 'out', dir = args.d ?? (key === 'out' || key === 'lvl' ? -1 : 1);
+  const rows = [];
+  for (const tm of L.teams) for (const p of tm.roster) {
+    const i = p.season?.injury;
+    if (!(i?.gamesOut > 0)) continue;
+    rows.push({ p, tm, i, lvl: shownLevel(p), inj: injuryName(i), part: injuryPart(i) || '', major: i.majorSeverity > 0 ? 1 : 0 });
+  }
+  const sev = (a, b) => a.i.gamesOut - b.i.gamesOut || a.major - b.major;
+  const cmp = {
+    out: sev,
+    name: (a, b) => `${a.p.ln} ${a.p.fn}`.localeCompare(`${b.p.ln} ${b.p.fn}`),
+    lvl: (a, b) => a.lvl - b.lvl,
+    team: (a, b) => a.tm.shortName.localeCompare(b.tm.shortName) || -sev(a, b),
+    inj: (a, b) => a.part.localeCompare(b.part) || sev(b, a),
+  }[key] || sev;
+  rows.sort((a, b) => dir * cmp(a, b) || b.i.gamesOut - a.i.gamesOut);
+  const th = (k, l, cls = '') => `<button class="ir-h ${cls} ${k === key ? 'on' : ''}" data-act="irSort" data-k="${k}">${l}${k === key ? (dir < 0 ? ' ▾' : ' ▴') : ''}</button>`;
+  const mine = tm => isUserTeam(tm) ? ' ir-mine' : '';
+  layout({
+    title: 'Injury Report',
+    body: `${newsTabs('injuries')}
+      <p class="note small muted">${rows.length ? `${rows.length} player${rows.length === 1 ? '' : 's'} out around the league. Tap a column to sort.` : ''}</p>
+      ${rows.length ? `<fieldset class="frame ir-frame"><div class="ir-tr ir-th">${th('name', 'Name')}${th('lvl', 'Lvl', 'c')}${th('team', 'Team', 'c')}${th('inj', 'Injury')}${th('out', 'Out', 'c')}</div>
+      ${rows.map(r => `<div class="ir-tr tap${mine(r.tm)}" data-act="openPlayer" data-id="${r.p.id}">
+        <b class="ir-name">${esc(`${(r.p.fn || '')[0] || ''}. ${r.p.ln}`)}</b>
+        <span class="ir-lvl c">${r.lvl}</span>
+        <span class="ir-team c">${logoImg(r.tm, 'logo-sm ir-logo')}<span>${esc(r.tm.shortName)}</span></span>
+        <span class="ir-inj ${r.major ? 'down' : ''}">${esc(r.inj)}</span>
+        <span class="ir-out c ${r.i.gamesOut >= 17 ? 'down' : ''}">${r.i.gamesOut}g</span>
+      </div>`).join('')}</fieldset>` : '<p class="note up">Nobody in the league is hurt right now.</p>'}`,
+  });
+};
+actions.irSort = d => { const a = state.stack[state.stack.length - 1].args || {}, cur = a.k || 'out'; replace('injuries', { k: d.k, d: d.k === cur ? -(a.d ?? (cur === 'out' || cur === 'lvl' ? -1 : 1)) : undefined }); };
 screens.news = (args = {}) => {
   const tab = args.tab || 'gram';
   let body = '';
