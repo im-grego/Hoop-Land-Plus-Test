@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.363.6';
+const APP_VERSION = '0.363.7';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -15884,7 +15884,9 @@ function capRoomLine(t, outP = [], inP = []) {
       bar = bar.replace('<span class="cb-dead"', `<span class="cb-delta ${d > 0 ? 'in' : 'out'}" style="left:${lo}%;width:${hi - lo}%"></span><span class="cb-dead"`);
     }
   }
-  return `<p class="small muted trade-cap-line">${room ? `${room} · ` : ''}${payTxt}</p>${bar ? `<div class="trade-cap-bar">${bar}</div>` : ''}`;
+  // Under the logo: the bar, then where the payroll lands after the deal (it changes as you add and take off assets).
+  if (!bar) return `<p class="small muted trade-cap-line">${room ? `${room} · ` : ''}${payTxt}</p>`;
+  return `<div class="trade-cap-bar">${bar}</div><p class="small trade-cap-room ${com <= C.cap ? 'up' : com <= C.tax ? '' : 'down'}">${room || `Payroll $${after}M`}</p>`;
 }
 // A team's cap in a trade: the bar shows payroll as it would be after the deal.
 function tradeCap(t, outP, inP, label = false) {
@@ -15974,8 +15976,8 @@ screens.liveTrade = (args) => {
     body: `
       <div class="trade-top">
         <div class="grid2 trade">
-          <div class="stack">${select('a', aId)}${needLine(A)}${capRoomLine(A, playersOf(sentA), playersOf(sentB))}${sendingLine(sentA, vA)}</div>
-          <div class="stack">${select('b', bId)}${needLine(B)}${capRoomLine(B, playersOf(sentB), playersOf(sentA))}${sendingLine(sentB, vB)}</div>
+          <div class="stack">${select('a', aId)}${FA.capSystemOn() ? '' : needLine(A)}${capRoomLine(A, playersOf(sentA), playersOf(sentB))}${sendingLine(sentA, vA)}</div>
+          <div class="stack">${select('b', bId)}${FA.capSystemOn() ? '' : needLine(B)}${capRoomLine(B, playersOf(sentB), playersOf(sentA))}${sendingLine(sentB, vB)}</div>
         </div>
         ${tradeBar(A, B, vA, vB)}
         <div class="seg trade-tabs">${[['you', A, sentA], ['them', B, sentB]].map(([k, t, sent]) => `<button class="btn small ${step === k ? 'on focus' : 'off'}" data-act="liveStep" data-s="${k}">${esc(t.shortName)} Assets${sent.length ? ` · ${sent.length}` : ''}</button>`).join('')}</div>

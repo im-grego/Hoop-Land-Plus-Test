@@ -2349,3 +2349,11 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .trade-cap-bar .cb-delta.in { background: #e5484d; }
 .trade-cap-bar .cb-delta.out { background: #3ddc84; }
 @keyframes cbFade { from { opacity: 0; } }
+
+/* Trade cap bar: green for salary added, red for salary sent away; the room text right under it. */
+.trade-cap-bar .cb-delta.in { background: #3ddc84; }
+.trade-cap-bar .cb-delta.out { background: #e5484d; }
+.trade-cap-room { text-align: center; margin: 2px 0 0; font-weight: 700; }
+.trade-cap-room:not(.up):not(.down) { color: var(--dim, #b9c8e8); }
+.trade-cap-bar { margin-top: 6px; }
+.trade-cap-bar + .trade-cap-room { margin-top: -6px; }
