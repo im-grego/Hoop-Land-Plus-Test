@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.355.1';
+const APP_VERSION = '0.356.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -8661,7 +8661,7 @@ screens.lineup = (args = {}) => {
   const real = !!realMinutes(t), mode = args.mode && (args.mode !== 'real' || real) ? args.mode : luDefault(t);
   const game = gameMinutes(), cr = coachRot(t, mode === 'playoffs'), size = args.size || cr.size;
   const plan = luPlan(t, { ...args, mode });
-  const step = game >= 40 ? 2 : 1;
+  const step = 1;
   const posN = p => POSITIONS[p.pos] || '';
   // A table like a game's rotation screen: spot, name, position, level, minutes (a segmented bar, − and +) and the
   // suggested minutes (the real NBA rotation) with an arrow when yours differ.
@@ -8675,7 +8675,7 @@ screens.lineup = (args = {}) => {
       <span class="lu-c-name tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln || playerName(p))}</b>${r.hand ? ' ✋' : ''}${split}
         <span class="lu-bar2"><i style="width:${(r.minutes[0] / game * 100).toFixed(1)}%"></i></span></span>
       <span class="lu-c-ovr">${shownLevel(p)}</span>
-      <span class="lu-c-min"><button class="lu-step" data-act="luMin" data-id="${p.id}" data-d="-${step}" aria-label="Fewer minutes" ${inRot || r.hand ? '' : 'disabled'}>−</button><b>${r.minutes[0]}</b><button class="lu-step" data-act="luMin" data-id="${p.id}" data-d="${step}" aria-label="More minutes">+</button></span>
+      <span class="lu-c-min"><button class="lu-step" data-hold="luMin" data-id="${p.id}" data-d="-${step}" aria-label="Fewer minutes" ${inRot || r.hand ? '' : 'disabled'}>−</button><b>${r.minutes[0]}</b><button class="lu-step" data-hold="luMin" data-id="${p.id}" data-d="${step}" aria-label="More minutes">+</button></span>
       <span class="lu-c-sug">${sv}${diff ? `<i class="${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '▲' : '▼'}</i>` : ''}</span>
     </div>`;
   };
@@ -8687,19 +8687,34 @@ screens.lineup = (args = {}) => {
     body: `<p class="note small">${logoImg(t)} <b>${esc(teamFull(t))}</b></p>
       <div class="tabs fa-tabs">${tabs.map(k => `<button class="btn small ${k === mode ? 'on focus' : 'off'}" data-act="luSet" data-k="mode" data-v="${k}">${LU_TABS[k]}</button>`).join('')}</div>
       <div class="grid2 lu-acts"><button class="btn off" data-act="luSet" data-k="over" data-v="">↩ Clear edits</button><button class="btn focus" data-act="luApply">✅ Set lineup</button></div>
-      <div class="drill-row"><span class="grow small">Players in the rotation</span><span class="trait-ctl"><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.max(7, size - 1)}">−</button><b class="small" style="min-width:2em;text-align:center">${plan.rot.length}</b><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.min(12, size + 1)}">+</button></span></div>
+      <div class="drill-row"><span class="grow small">Players in the rotation</span><span class="trait-ctl"><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.max(5, plan.rot.length - 1)}" ${plan.rot.length <= 5 ? 'disabled' : ''}>−</button><b class="small" style="min-width:2em;text-align:center">${plan.rot.length}</b><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.min(12, plan.rot.length + 1)}" ${plan.rot.length >= 12 ? 'disabled' : ''}>+</button></span></div>
       <fieldset class="frame lu-frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend><div class="lu-list">${head}${plan.rows.map(row).join('')}</div>
         ${plan.short.length ? `<p class="note small down">Short at ${plan.short.map(x => `${x.slot} (${x.v})`).join(', ')}: add a player or minutes.</p>` : ''}</fieldset>`,
   });
 };
 const luArgs = () => state.stack[state.stack.length - 1].args || {};
+// Press and hold a − or + (data-hold): one step now, then a step every tenth of a second until you let go.
+{
+  let timer = null, wait = null;
+  const stop = () => { clearTimeout(wait); clearInterval(timer); wait = timer = null; };
+  document.addEventListener('pointerdown', e => {
+    const b = e.target.closest('[data-hold]');
+    if (!b || b.disabled) return;
+    e.preventDefault();
+    const d = { ...b.dataset }, act = actions[d.hold];
+    if (!act) return;
+    act(d);
+    wait = setTimeout(() => { timer = setInterval(() => act(d), 90); }, 380);
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'blur']) window.addEventListener(ev, stop);
+}
 // The screen's plan: the mode you picked, the coach's rotation size and minutes split unless you changed the size.
 function luPlan(t, a) {
   let mode = a.mode || luDefault(t);
   const real = mode === 'real' ? realMinutes(t) : null;
   if (mode === 'real') mode = real ? 'normal' : lineupMode(t);
   const cr = coachRot(t, mode === 'playoffs');
-  return LU.planLineup(t, { mode, size: real && !a.size ? 9 : a.size || cr.size, share: real ? null : cr.share, game: gameMinutes(), over: a.over || {}, promised: promisedMinutes(t), real });
+  return LU.planLineup(t, { mode, size: a.size || cr.size, sizeSet: !!a.size, share: real ? null : cr.share, game: gameMinutes(), over: a.over || {}, promised: promisedMinutes(t), real });
 }
 actions.luSet = d => { const a = { ...luArgs() }; if (d.k === 'over') a.over = {}; else a[d.k] = d.k === 'size' ? +d.v : d.v; replace('lineup', a); };
 actions.luMin = d => {
@@ -8707,7 +8722,7 @@ actions.luMin = d => {
   const game = gameMinutes(), plan = luPlan(t, a);
   const r = plan.rows.find(x => x.p.id === +d.id); if (!r) return;
   a.over = { ...(a.over || {}), [d.id]: Math.max(0, Math.min(game, r.minutes[0] + +d.d)) };
-  const sz = a.size || coachRot(t, a.mode === 'playoffs').size;
+  const sz = a.size || plan.rot.length;
   if (r.linePos >= sz && +d.d > 0) a.size = Math.min(12, sz + 1);   // "Play him": he joins the rotation
   replace('lineup', a);
 };

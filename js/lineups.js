@@ -210,7 +210,7 @@ const offMinutes = (rot, g) => rot.reduce((a, q) => a + g.slots.get(q).reduce((b
 // order, a player with no games yet (back from injury, just signed) slots in by his level next to the teammate
 // closest to it; the rotation runs 9 to 12 deep and stops where the talent drops off (4+ levels below the man
 // before), and the minutes follow what each has been playing.
-export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = {}, share = null, promised = {}, real = null } = {}) {
+export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = {}, share = null, promised = {}, real = null, sizeSet = false } = {}) {
   const roster = team.roster.filter(p => p.status === 3 || p.status === 2), deep = isDeep(roster);
   const top5 = [...roster].map(levelOf).sort((a, b) => b - a).slice(0, 5), awful = top5.reduce((a, v) => a + v, 0) / Math.max(1, top5.length) < 80;
   const lowCap = mode === 'develop' || awful ? 0 : 20;
@@ -223,11 +223,9 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
   const starters = pickStarters(cands, score);
   const bench = cands.filter(p => !starters.includes(p));
   if (realOn) {
-    // How deep: at least nine (and everyone getting real minutes), then on while the next man is within 3 levels of
-    // the one before him, never past twelve.
-    let n = Math.max(9, Math.min(12, 5 + bench.filter(p => (real[p.id]?.mpg || 0) >= 12).length));
-    while (n < 12 && bench[n - 5] && bench[n - 6] && levelOf(bench[n - 5]) >= levelOf(bench[n - 6]) - 3) n++;
-    size = Math.min(n, cands.length);
+    // How deep: everyone healthy who really plays (8+ minutes a game), at least eight, never past twelve; a size you
+    // set by hand stands.
+    if (!sizeSet) size = Math.min(cands.length, Math.max(8, Math.min(12, cands.filter(p => (real[p.id]?.mpg || 0) >= 8).length)));
   }
   // The bench: a backup big and a backup guard always (a weaker true center beats a point guard playing the five),
   // a backup wing when there's one close enough, then the best of the rest.

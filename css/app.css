@@ -2151,3 +2151,17 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 /* The title board fills the header's height: its bottom lines up with the back/home button and the coin and token chips. */
 .header .marquee { height: auto; min-height: 84px; align-self: stretch; }
 @media (min-width: 700px) { .header .marquee { min-height: 96px; } }
+
+/* Header: a plain title (no scrolling board), the bar shorter so the screen below gets the room. */
+.header { align-items: center; }
+.header .marquee { background: transparent; border: 0; box-shadow: none; height: auto; min-height: 0; align-self: center; }
+@media (min-width: 700px) { .header .marquee { min-height: 0; } }
+.header .marquee::after { display: none; }
+.header .marquee-track { animation: none; width: 100%; }
+.header .marquee-track span:nth-child(2) { display: none; }
+.header .marquee-track span { -webkit-mask-image: none; mask-image: none; line-height: 1.2; font-family: var(--font); font-size: 22px; font-weight: 800; letter-spacing: 0.5px; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); text-transform: uppercase; padding: 0 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; color: var(--text); }
+.header .back { width: 52px; height: 52px; align-self: center; }
+.header .back svg { width: 28px; height: 20px; }
+.header .home-btn svg { width: 24px; height: 22px; }
+.header .career-chips { align-self: center; }
