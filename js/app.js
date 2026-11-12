@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.364.3';
+const APP_VERSION = '0.364.4';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -1116,7 +1116,6 @@ async function loadFile(file) {
     if (!isCollege() && playoffRotations()) state.dirty = true;
     if (!isCollege() && labOn() && applyStreaks()) state.dirty = true;   // hot and cold streaks: test site only for now
     if (!isCollege() && applyFatigue()) state.dirty = true;
-    if (!isCollege() && applyRealLineups()) state.dirty = true;
     if (!isCollege()) cupKnockout();
     if (!isCollege()) glCatchUp();
     if (!isCollege() && (applyRisers() + settleRisers())) state.dirty = true;
@@ -11000,6 +10999,10 @@ function teamMoves(L, t) {
   const everyone = new Map([...L.teams.flatMap(x => x.roster.map(p => [p.id, { p, at: x.shortName }])), ...(L.freeAgents || []).map(p => [p.id, { p, at: 'Free agency' }])]);
   // Trades first: a player's net trip through the ledger (first team he left, last he reached).
   const trail = new Map();
+  for (const x of (L.season.news || []).filter(n => n.type === 7 && n.data?.trade?.status === 1)) for (const sd of x.data.trade.teams || []) for (const a of sd.assets || []) {
+    if (!(a.pid > 0) || a.tid == null || a.tid === sd.tid) continue;
+    const r = trail.get(a.pid) || { from: sd.tid, to: a.tid }; r.to = a.tid; trail.set(a.pid, r);
+  }
   for (const x of offGet('moves').list || []) { const r = trail.get(x.pid) || { from: x.from, to: x.to }; r.to = x.to; trail.set(x.pid, r); }
   const ins = [], outs = [], traded = new Set();
   for (const [pid, r] of trail) {
