@@ -2325,3 +2325,8 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .tr-item .tr-logo { width: 28px !important; height: 28px !important; flex: none; }
 .tr-item .grow, .tr-box .tr-item { text-align: left; }
 .tr-side > .note { text-align: left; }
+
+/* Trade machine team picker: the logo alone; the abbreviation only when there's no logo or it won't load. */
+.tsel-team:has(img.tsel-logo:not(.logo-failed)) .tsel-name { display: none; }
+.tsel-team img.tsel-logo.logo-failed, .tsel-team .tsel-logo.logo-ph { display: none; }
+.tsel-team .tsel-logo { width: 48px !important; height: 48px !important; }

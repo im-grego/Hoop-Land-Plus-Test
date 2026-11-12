@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.363.2';
+const APP_VERSION = '0.363.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -541,7 +541,7 @@ function logoImg(team, cls = 'logo-sm') {
   const u = logoUrl(team.logoURL);
   if (!u) return `<span class="${cls} logo-ph" aria-hidden="true"></span>`;
   // A logo that fails to load tries again a couple of times before it's given up on.
-  return `<img class="${cls}" src="${esc(u)}" alt="" width="34" height="34" decoding="async" referrerpolicy="no-referrer" onerror="var t=(+this.dataset.t||0)+1;this.dataset.t=t;if(t<=2){var s=this.src.split('#')[0],e=this;setTimeout(function(){e.src=s+(s.indexOf('?')<0?'?':'&')+'r='+t},600*t)}else{this.style.visibility='hidden'}">`;
+  return `<img class="${cls}" src="${esc(u)}" alt="" width="34" height="34" decoding="async" referrerpolicy="no-referrer" onerror="var t=(+this.dataset.t||0)+1;this.dataset.t=t;if(t<=2){var s=this.src.split('#')[0],e=this;setTimeout(function(){e.src=s+(s.indexOf('?')<0?'?':'&')+'r='+t},600*t)}else{this.style.visibility='hidden';this.classList.add('logo-failed')}">`;
 }
 // Fetch every team logo as soon as a save loads (and keep them), so screens
 // open with their logos already there. Failed loads retry; logosPending() /
