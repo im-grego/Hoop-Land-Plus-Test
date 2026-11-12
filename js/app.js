@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.18';
+const APP_VERSION = '0.365.19';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -869,8 +869,10 @@ function render() {
   }
   let target = view === lastView ? y : top.y ?? 0;
   if (view === lastView && state.anchor) {
-    const n = state.anchor.sel ? document.querySelector(state.anchor.sel) : document.querySelector(`[data-anchor="${state.anchor.key}"]`);
-    if (n) target = Math.max(0, n.getBoundingClientRect().top + window.scrollY - state.anchor.top);
+    // The same button can show up twice (a player in the strip and in the list): keep the one nearest where you were.
+    const ns = [...document.querySelectorAll(state.anchor.sel || `[data-anchor="${state.anchor.key}"]`)].filter(x => x.getClientRects().length);
+    const ts = ns.map(x => Math.max(0, x.getBoundingClientRect().top + window.scrollY - state.anchor.top));
+    if (ts.length) target = ts.reduce((a, b) => (Math.abs(b - y) < Math.abs(a - y) ? b : a));
   }
   state.anchor = null;
   if (state.toTop) { target = 0; state.toTop = false; }   // an action that wants its results at the top of the page
