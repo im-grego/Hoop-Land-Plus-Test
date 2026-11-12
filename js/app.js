@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.363.8';
+const APP_VERSION = '0.363.9';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -10907,7 +10907,9 @@ function teamMoves(L, t) {
         continue;
       }
     }
-    ins.push({ p, from: isCollege() ? (l ? `Transfer · ${nameOf(l.tid) || 'portal'}` : 'High school') : rookie(p) ? 'Draft' : 'FA' });
+    // A free agent: the team he last played for (last season's, or the last one on record), when there is one.
+    const prevTeam = () => { const x = l || lastLine(p); return x && x.tid !== t.id ? nameOf(x.tid) : null; };
+    ins.push({ p, from: isCollege() ? (l ? `Transfer · ${nameOf(l.tid) || 'portal'}` : 'High school') : rookie(p) ? 'Draft' : prevTeam() ? `FA · ${prevTeam()}` : 'FA' });
   }
   ins.push(...comeback);
   // Back from a long injury: out a fifth of last season or more and healthy now, so he's like a new addition.
