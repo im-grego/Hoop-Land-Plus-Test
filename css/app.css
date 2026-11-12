@@ -2171,3 +2171,16 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
   justify-content: center; padding: 0 8px; box-sizing: border-box; }
 .header .marquee-track { justify-content: center; }
 .header .marquee-track span { font-size: 19px; text-align: center; padding: 0; }
+
+/* League ticker: a crawl of scores and leaders fixed along the bottom during the season. */
+.ticker { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; height: 32px; overflow: hidden; display: flex; align-items: center;
+  background: #0b1530; border-top: 3px solid var(--btn-edge); box-shadow: 0 -3px 0 rgba(0, 0, 0, 0.35); padding-bottom: env(safe-area-inset-bottom); }
+.tk-track { display: flex; white-space: nowrap; animation: tk-scroll linear infinite; }
+.tk-track > span { padding-right: 48px; font-size: 14px; font-weight: 600; color: var(--dim, #b9c8e8); }
+.tk-track .tk-w { color: #fff; font-weight: 800; }
+.tk-track .tk-h { color: var(--gold); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 6px; }
+.tk-track .tk-dot { font-style: normal; color: var(--cyan); margin: 0 10px; }
+@keyframes tk-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .tk-track { animation-duration: 120s !important; } }
+body:has(.ticker) #app, body:has(.ticker) { padding-bottom: 40px; }
+.tk-track .tk-at { font-style: normal; color: var(--dim, #b9c8e8); opacity: 0.6; }

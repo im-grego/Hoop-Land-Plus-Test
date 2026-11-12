@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.356.1';
+const APP_VERSION = '0.357.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -682,6 +682,51 @@ function keepLogos(draw) {
   }
 }
 
+// The league ticker along the bottom (the regular season and playoffs): the last day's scores, the conference leaders
+// and the stat leaders, scrolling like a TV crawl. Built once a day of the season.
+const tickerCache = { key: '', html: '' };
+function tickerBar() {
+  try {
+    if (!state.data || isCollege()) return '';
+    const L = league(), s = L.season;
+    if (s.phase < 9 || s.phase > 11) return '';
+    const key = `${saveTag()}:${s.phase}:${s.currentDay}`;
+    if (tickerCache.key === key) return tickerCache.html;
+    const ab = id => L.teams.find(x => x.id === id)?.shortName || '?';
+    const items = [];
+    // The last day with games played.
+    for (let d = Math.min((s.schedule || []).length, s.currentDay) - 1; d >= 0; d--) {
+      const done = (s.schedule[d]?.results || []).filter(g => g.winner != null && g.winner >= 0 && (g.homeScore || g.awayScore));
+      if (!done.length) continue;
+      items.push('<b class="tk-h">Final</b>');
+      for (const g of done) {
+        const hw = g.winner === g.homeTeam;
+        items.push(`<span class="${hw ? '' : 'tk-w'}">${esc(ab(g.awayTeam))} ${g.awayScore}</span> <i class="tk-at">@</i> <span class="${hw ? 'tk-w' : ''}">${esc(ab(g.homeTeam))} ${g.homeScore}</span>`);
+      }
+      break;
+    }
+    // The conference leaders.
+    const conf = c => L.teams.filter(x => (x.division < 3 ? 0 : 1) === c).map(x => ({ x, r: teamRecord(x) })).filter(o => o.r.yr === s.currentYear && o.r.W + o.r.L > 0).sort((a, b) => b.r.pct - a.r.pct || b.r.W - a.r.W)[0];
+    const east = conf(0), west = conf(1);
+    if (east || west) items.push('<b class="tk-h">Leaders</b>', ...[['East', east], ['West', west]].filter(([, o]) => o).map(([n, o]) => `${n}: ${esc(o.x.shortName)} ${o.r.W}-${o.r.L}`));
+    // The stat leaders (half the team's games played or more).
+    const rows = [];
+    for (const tm of L.teams) {
+      const gp = dlPct(tm).gp;
+      for (const p of tm.roster) { const l = seasonLine(p, state.leagueIdx, s.currentYear); if (l && l.gp >= Math.max(3, gp / 2)) rows.push({ p, l }); }
+    }
+    for (const [k, lbl] of [['ppg', 'PPG'], ['rpg', 'RPG'], ['apg', 'APG']]) {
+      const top = rows.sort((a, b) => b.l[k] - a.l[k])[0];
+      if (top) items.push(`${lbl}: ${esc(top.p.ln || playerName(top.p))} ${top.l[k].toFixed(1)}`);
+    }
+    if (!items.length) { tickerCache.key = key; tickerCache.html = ''; return ''; }
+    const run = items.join('<i class="tk-dot">•</i>');
+    const secs = Math.max(20, Math.round(run.replace(/<[^>]+>/g, '').length * 0.22));
+    tickerCache.key = key;
+    tickerCache.html = `<div class="ticker" aria-label="League ticker"><div class="tk-track" style="animation-duration:${secs}s"><span>${run}</span><span aria-hidden="true">${run}</span></div></div>`;
+    return tickerCache.html;
+  } catch { return ''; }
+}
 function layout({ title, left = '', right = '', body, action = null, actionLeft = null, bare = false }) {
   const t = esc(title);
   keepLogos(() => { $app.innerHTML = `
@@ -694,6 +739,7 @@ function layout({ title, left = '', right = '', body, action = null, actionLeft 
       ${right || careerChips()}
     </div>`}
     <main class="panel ${bare ? 'bare' : ''}">${body}</main>
+    ${tickerBar()}
     ${action ? `<div class="bottom ${actionLeft ? 'two' : ''}">${actionLeft ? `<button class="btn action alt" data-act="${actionLeft.act}" data-id="${actionLeft.id}">${esc(actionLeft.label)}</button>` : ''}<button class="btn action" data-act="${action.act}"${action.k ? ` data-k="${esc(action.k)}"` : ''}${action.n != null ? ` data-n="${action.n}"` : ''}${action.to ? ` data-to="${esc(action.to)}"` : ''}>${esc(action.label)}</button></div>` : ''}`; });
   addHelp(title);
 }
