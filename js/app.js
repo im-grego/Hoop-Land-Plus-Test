@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.25';
+const APP_VERSION = '0.365.26';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3778,13 +3778,16 @@ screens.startTeam = () => {
   const tile = t => { const r = rec(t); return `<button class="team-tile ${sel === t ? 'sel' : ''}" data-act="startSel" data-id="${t.id}">
       ${t.logoURL ? logoImg(t, '') : `<div class="fallback">${esc(t.shortName)}</div>`}<span>${esc(t.shortName)}</span><span class="small muted">${r.W}-${r.L}</span></button>`; };
   const ord = n => `${n}${['th', 'st', 'nd', 'rd'][(n % 100 >= 11 && n % 100 <= 13) ? 0 : Math.min(n % 10, 4) % 4] || 'th'}`;
+  const streaks = P.streaks ||= streakPreview(L);
   const detail = t => {
     const r = rec(t);
     const top = [...t.roster].sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 3);
     return `<fieldset class="frame start-detail"><legend>${esc(teamFull(t))}</legend><div class="stack">
       <div class="sd-head">${logoImg(t)}<div class="sd-ranks"><span class="sd-line">Offense <b>${ord(offRank.get(t.id))}</b> <span class="small muted">(${per(t, 'PTS').toFixed(1)} ppg)</span></span><span class="sd-line">Defense <b>${ord(defRank.get(t.id))}</b> <span class="small muted">(${per(t, 'OPP').toFixed(1)} allowed)</span></span></div></div>
-      ${top.map(p => { const l = seasonLine(p, 0, yr); const hurt = p.season?.injury?.gamesOut > 0;
-        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvTag(p)}</span><span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}${hurt ? ` · <span class="down">out ${injShort(p)}</span>` : ''}</span></div>`; }).join('')}
+      ${top.map(p => { const l = seasonLine(p, 0, yr); const hurt = p.season?.injury?.gamesOut > 0, sk = streaks.get(p.id);
+        const lvS = sk ? ` ${sk.kind === 'hot' ? '🔥' : '❄️'}<sup class="${sk.lv > 0 ? 'up' : 'down'} lv-streak">${sk.lv > 0 ? '+' : ''}${sk.lv}</sup>` : '';
+        const lvNow = sk ? `<span class="${declining(p) ? 'small down' : 'gold small'}">Lv ${(declining(p) ? shownLevel(p) : levelOf(p)) + sk.lv}</span>` : lvTag(p);
+        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvNow}${lvS}</span><span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}${hurt ? ` · <span class="down">out ${injShort(p)}</span>` : ''}</span></div>`; }).join('')}
       <button class="btn focus" data-act="startTeam" data-id="${t.id}">🏀 Take over the ${esc(t.name || t.shortName)}</button></div></fieldset>`;
   };
   layout({
@@ -10613,6 +10616,26 @@ function tempLine(p) {
     return `<p class="note small temp-note">${icon[src] || '💤'} <b>${esc(src)}</b>${amt ? `: <span class="${d > 0 ? 'up' : 'down'}">${amt}</span>` : ''}<span class="muted"> · ${src === 'Playoff riser' ? 'for the playoffs' : 'until the next file'}</span></p>`; }).join('');
 }
 const streakIcon = p => { const k = streakOf(p.id), f = fxOf(p.id); return (k === 'hot' ? ' <span title="Hot streak">🔥</span>' : k === 'cold' ? ' <span title="Cold streak">❄️</span>' : '') + (f ? ` <span title="${esc(f.src)}">💤</span>` : ''); };
+// Hot or cold: the game's streak plus production at or above (or below) players his age at his position, 5+ games in.
+function streakKindOf(p, prod, li, yr) {
+  const s0 = p.gameStatus?.streak || 0, z = prod.get(p.id), l = seasonLine(p, li, yr);
+  if (z == null || !l || l.gp < 5) return null;
+  return s0 >= HOT_MIN && z >= 0 ? 'hot' : s0 <= -COLD_MIN && z <= 0 ? 'cold' : null;
+}
+// The streaks a season file will bring (for the team picker, before the file is loaded): kind and level change.
+function streakPreview(L) {
+  const out = new Map();
+  if (L.season.phase !== 9) return out;
+  const yr = L.season.currentYear, ps = L.teams.flatMap(t => t.roster.filter(q => q.status === 3 || q.status === 2));
+  const prod = productionScores(ps, 0, yr, { ...state.params, trainerMinGames: 5 });
+  for (const q of ps) {
+    const kind = streakKindOf(q, prod, 0, yr); if (!kind) continue;
+    const d = kind === 'hot' ? 1 : -1, keys = kind === 'hot' ? HOT_KEYS : COLD_KEYS;
+    const attrs = Object.fromEntries(Object.entries(q.attributes || {}).map(([k, a]) => [k, keys.includes(k) ? [Math.max(1, Math.min(20, a[0] + d)), ...a.slice(1)] : a]));
+    out.set(q.id, { kind, lv: levelOf({ ...q, attributes: attrs }) - levelOf(q) });
+  }
+  return out;
+}
 function applyStreaks() {
   const L = league(), st = streakStore();
   let n = 0;
@@ -10635,9 +10658,7 @@ function applyStreaks() {
     const risen = riseStore()[L.season.currentYear]?.list || {};
     for (const p of ps) {
       if (risen[p.id]) continue;   // a playoff riser's boost and a streak never stack
-      const s0 = p.gameStatus?.streak || 0, z = prod.get(p.id), l = seasonLine(p, state.leagueIdx, L.season.currentYear);
-      if (z == null || !l || l.gp < 5) continue;
-      const kind = s0 >= HOT_MIN && z >= 0 ? 'hot' : s0 <= -COLD_MIN && z <= 0 ? 'cold' : null;
+      const s0 = p.gameStatus?.streak || 0, kind = streakKindOf(p, prod, state.leagueIdx, L.season.currentYear), z = prod.get(p.id);
       if (!kind) continue;
       const keys = kind === 'hot' ? HOT_KEYS : COLD_KEYS, d = kind === 'hot' ? 1 : -1, add = {}, base = {};
       for (const k of keys) {
