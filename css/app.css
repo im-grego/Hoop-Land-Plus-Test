@@ -2390,3 +2390,5 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .pq-opts .btn { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 3px; }
 .pq-opt-fx { font-size: 11.5px; font-weight: 700; line-height: 1.3; }
 .pq-stakes { display: block; font-size: 11px; color: var(--dim, #b9c8e8); font-weight: 600; }
+
+.pq-fx .pq-later { color: #fff; }

@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.4';
+const APP_VERSION = '0.365.5';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3238,7 +3238,7 @@ function mediaFxText(t, fx) {
     : k === 'trust' ? `<span class="${a > 0 ? 'up' : 'down'}">Owner trust ${a > 0 ? '+' : ''}${a}</span>`
     : k === 'block' ? `<span class="down">${esc(nm(a))} on the trade block</span>`
     : k === 'trait' ? `<span class="${(b === EGO_KEY ? -c : c) > 0 ? 'up' : 'down'}">${esc(who(a))} ${esc(traitLbl(b))} ${c > 0 ? '+' : ''}${c}</span>`
-    : k === 'promise' ? `<span class="gold">${esc(a.text)}${a.win.length ? `: ${esc(mediaPlain(t, a.win))}` : ''}${a.lose.length ? `${a.win.length ? '; if not, ' : ': '}${esc(mediaPlain(t, a.lose))}` : ''}</span>` : '').filter(Boolean).join(' · ');
+    : k === 'promise' ? `<span class="pq-later">${esc(a.text)}:</span> ${a.win.length ? mediaFxText(t, a.win) : ''}${a.lose.length ? `${a.win.length ? '<span class="pq-later">; if not,</span> ' : ''}${mediaFxText(t, a.lose)}` : ''}` : '').filter(Boolean).join(' · ');
 }
 const mediaPlain = (t, fx) => mediaFxText(t, fx).replace(/<[^>]+>/g, '').replace(/ · /g, ', ');
 function mediaApply(t, fx) {
@@ -3431,7 +3431,7 @@ screens.media = () => {
   const all = m.qs.every(q => m.ans[q.key]);
   layout({
     title: 'Media Availability',
-    body: `<fieldset class="frame presser"><legend>🎙️ ${esc(t.city)} ${esc(t.name)}</legend><p class="note small muted">Two ways to answer, and each one costs something. Yellow is what's riding on it later.</p><div class="stack">${body}</div>
+    body: `<fieldset class="frame presser"><legend>🎙️ ${esc(t.city)} ${esc(t.name)}</legend><p class="note small muted">Two ways to answer, and each one costs something.</p><div class="stack">${body}</div>
       ${m.done ? '<p class="note small muted" style="margin-top:8px">On the record. It\'s on Hoop Gram.</p>' : `<button class="btn focus" data-act="mediaFinish" style="margin-top:8px" ${all ? '' : 'disabled'}>🎙️ That's All</button>`}</fieldset>`,
   });
 };
