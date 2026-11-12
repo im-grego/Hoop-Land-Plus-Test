@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.14';
+const APP_VERSION = '0.365.15';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3231,12 +3231,12 @@ const mediaLog = () => lsGet(mediaLogKey(), {});
 // ['block', id] on the trade block, ['promise', {kind, ..., text}] checked later.
 function mediaFxText(t, fx) {
   const nm = id => t.roster.find(q => q.id === id)?.ln || 'He';
-  const who = w => (w === 'all' ? 'Locker room' : Array.isArray(w) ? (w.length === 1 ? nm(w[0]) : `${w.length} players`) : nm(w));
-  return fx.map(([k, a, b, c]) => k === 'm' ? `<span class="${b > 0 ? 'up' : 'down'}">${esc(who(a))} morale ${b > 0 ? '+' : ''}${b}</span>`
+  const who = (w, lbl) => (w === 'all' ? 'Locker room' : Array.isArray(w) ? (w.length === 1 ? nm(w[0]) : lbl || 'Teammates') : nm(w));
+  return fx.map(([k, a, b, c, d]) => k === 'm' ? `<span class="${b > 0 ? 'up' : 'down'}">${esc(who(a, c))} morale ${b > 0 ? '+' : ''}${b}</span>`
     : k === 'fans' ? `<span class="${a > 0 ? 'up' : 'down'}">Fans ${a > 0 ? '+' : ''}${a}</span>`
     : k === 'trust' ? `<span class="${a > 0 ? 'up' : 'down'}">Owner trust ${a > 0 ? '+' : ''}${a}</span>`
     : k === 'block' ? `<span class="down">${esc(nm(a))} on the trade block</span>`
-    : k === 'trait' ? `<span class="${(b === EGO_KEY ? -c : c) > 0 ? 'up' : 'down'}">${esc(who(a))} ${esc(traitLbl(b))} ${c > 0 ? '+' : ''}${c}</span>`
+    : k === 'trait' ? `<span class="${(b === EGO_KEY ? -c : c) > 0 ? 'up' : 'down'}">${esc(who(a, d))} ${esc(traitLbl(b))} ${c > 0 ? '+' : ''}${c}</span>`
     : k === 'promise' ? `<span class="pq-later">${esc(a.text)}:</span> ${a.win.length ? mediaFxText(t, a.win) : ''}${a.lose.length ? `${a.win.length ? '<span class="pq-later">; if not,</span> ' : ''}${mediaFxText(t, a.lose)}` : ''}` : '').filter(Boolean).join(' · ');
 }
 const mediaPlain = (t, fx) => mediaFxText(t, fx).replace(/<[^>]+>/g, '').replace(/ · /g, ', ');
@@ -3280,7 +3280,7 @@ function mediaQuestions(L, t) {
     if (fresh(`hot:${p.id}`) && l && b && l.gp >= 8 && l.ppg >= 18 && l.ppg >= b.ppg + 5) {
       const mvp = shownLevel(p) >= 93;
       add({ key: `hot:${p.id}`, q: `${playerName(p)} is averaging ${Math.ceil(l.ppg)} points a night, up from ${Math.floor(b.ppg)}. ${mvp ? 'Should he be in the MVP conversation?' : 'Is he an All-Star this year?'}`, options: [
-        ['yes', mvp ? 'He\'s the MVP. Nobody means more to his team.' : 'Absolutely. He\'s been our best player.', [['m', p.id, 5], ['trait', p.id, EGO_KEY, 1], ['m', top.filter(q => q !== p).slice(0, 3).map(q => q.id), -2]]],
+        ['yes', mvp ? 'He\'s the MVP. Nobody means more to his team.' : 'Absolutely. He\'s been our best player.', [['m', p.id, 5], ['trait', p.id, EGO_KEY, 1], ['m', top.filter(q => q !== p).slice(0, 3).map(q => q.id), -2, 'The other stars']]],
         ['team', 'It\'s about how the team plays.', [['m', p.id, -3], ['m', 'all', 1]]]] });
       break;
     }
@@ -3289,7 +3289,7 @@ function mediaQuestions(L, t) {
   const need = teamNeed(t);
   if (need && fresh('need') && gp >= 5) {
     const inGrp = { 'Rim protection': 'b', Rebounding: 'b', 'Frontcourt depth': 'b', 'Guard playmaking': 'g', 'Backcourt depth': 'g', 'Shot creation': 'g', 'Wing playmaking': 'w', '3-point shooting': 'w', 'Perimeter defense': 'w' }[need];
-    const mates = top.filter(q => !inGrp || grp(q) === inGrp).slice(0, 3).map(q => q.id);
+    const mates = top.filter(q => !inGrp || grp(q) === inGrp).slice(0, 3).map(q => q.id), mateLbl = { g: 'Guards', w: 'Wings', b: 'Bigs' }[inGrp] || 'Rotation players';
     // The team stat behind the need, ranked against the league (the bottom half reads as the question).
     const NEED_STAT = {
       'Guard playmaking': ['assists', 'a playmaker', s => s.AST / s.GP], 'Wing playmaking': ['assists', 'a playmaker', s => s.AST / s.GP],
@@ -3303,15 +3303,15 @@ function mediaQuestions(L, t) {
       if (rk > rows.length / 2) needQ = `Your team ranks ${rk === rows.length ? 'dead last' : ordinal(rk)} in ${NEED_STAT[0]} this year. Are you looking to add ${NEED_STAT[1]}?`;
     }
     add({ key: 'need', q: needQ, options: [
-      ['shop', 'We\'re actively looking.', [['fans', 2], ['m', mates, -3], ['promise', { kind: 'add', roster: t.roster.map(q => q.id), lvl: shownLevel(top[7] || top[top.length - 1] || {}), due: deadline, win: [['fans', 3]], lose: [['fans', -4], ['trust', -2]], text: 'If you add a rotation player by the deadline' }]]],
-      ['internal', 'The answer is in this locker room.', [['m', mates, 3], ['fans', -2]]]] });
+      ['shop', 'We\'re actively looking.', [['fans', 2], ['m', mates, -3, mateLbl], ['promise', { kind: 'add', roster: t.roster.map(q => q.id), lvl: shownLevel(top[7] || top[top.length - 1] || {}), due: deadline, win: [['fans', 3]], lose: [['fans', -4], ['trust', -2]], text: 'If you add a rotation player by the deadline' }]]],
+      ['internal', 'The answer is in this locker room.', [['m', mates, 3, mateLbl], ['fans', -2]]]] });
   }
   // A season slipping away: outside the play-in after 15 games.
   if (fresh('playoffs') && gp >= 15 && x.seed > 10) {
     const young = signed.filter(p => p.age <= 24).map(p => p.id), vets = signed.filter(p => p.age >= 30).map(p => p.id);
     add({ key: 'playoffs', q: `You're ${x.w}-${x.l}, ${ordinal(x.seed)} in the conference and on pace to miss the playoffs. Is this season slipping away?`, options: [
       ['fight', 'We\'re going to turn this around.', [['m', 'all', 2], ['promise', { kind: 'seed', max: 10, due: day + 20, win: [['fans', 3], ['trust', 3]], lose: [['m', 'all', -2], ['fans', -3]], text: 'If you\'re back in the top 10 in 20 days' }]]],
-      ['future', 'We\'re building toward something bigger.', [['m', young, 3], ['m', vets, -4], ['trust', 2]]]] });
+      ['future', 'We\'re building toward something bigger.', [['m', young, 3, 'Young players'], ['m', vets, -4, 'Veterans'], ['trust', 2]]]] });
   }
   // The coach's job: a losing record 15 games in.
   const coach = CO.headCoach(t);
@@ -3325,17 +3325,17 @@ function mediaQuestions(L, t) {
   const strk = ss.STRK || 0;
   if (fresh('streak') && strk <= -4) add({ key: 'streak', q: `That's ${-strk} straight losses. What's wrong?`, options: [
     ['me', 'That\'s on me. I have to put them in a better spot.', [['m', 'all', 2], ['trust', -2]]],
-    ['effort', 'The effort hasn\'t been there.', [['m', 'all', -3], ['trait', top.slice(0, 3).map(q => q.id), 'motor', 1], ['fans', 1]]]] });
+    ['effort', 'The effort hasn\'t been there.', [['m', 'all', -3], ['trait', top.slice(0, 3).map(q => q.id), 'motor', 1, 'Your stars'], ['fans', 1]]]] });
   else if (fresh('streak') && strk >= 5) add({ key: 'streak', q: `${strk} wins in a row. Are you a contender?`, options: [
     ['yes', 'We\'re here to win it all.', [['m', 'all', 2], ['fans', 3], ['promise', { kind: 'seed', max: 4, due: day + 20, win: [['fans', 2]], lose: [['fans', -4]], text: 'If you\'re a top-4 seed in 20 days' }]]],
-    ['notyet', 'We\'re not there yet.', [['m', 'all', -1], ['trait', top.slice(0, 3).map(q => q.id), 'motor', 1]]]] });
+    ['notyet', 'We\'re not there yet.', [['m', 'all', -1], ['trait', top.slice(0, 3).map(q => q.id), 'motor', 1, 'Your stars']]]] });
   // Stuck on the bench: a top-eight player under 15 minutes.
   for (const p of top.slice(0, 8)) {
     const l = line(p);
     if (fresh(`bench:${p.id}`) && l && l.gp >= 5 && l.mpg < 15) {
       const ahead = top.filter(q => q !== p && grp(q) === grp(p) && (line(q)?.mpg || 0) > l.mpg).slice(0, 2).map(q => q.id), goal = Math.round(l.mpg + 6);
       add({ key: `bench:${p.id}`, q: `${playerName(p)} is only playing ${l.mpg.toFixed(0)} minutes a night. Does he deserve more?`, options: [
-        ['more', 'Yes. His minutes are going up.', [['m', p.id, 4], ['m', ahead, -2], ['promise', { kind: 'min', pid: p.id, base: base(p), need: goal, games: 10, due: day + 30, win: [['m', p.id, 3]], lose: [['m', p.id, -8]], text: `If he plays ${goal}+ minutes ${G10}` }]]],
+        ['more', 'Yes. His minutes are going up.', [['m', p.id, 4], ['m', ahead, -2, 'The players ahead of him'], ['promise', { kind: 'min', pid: p.id, base: base(p), need: goal, games: 10, due: day + 30, win: [['m', p.id, 3]], lose: [['m', p.id, -8]], text: `If he plays ${goal}+ minutes ${G10}` }]]],
         ['earn', 'He has to earn them in practice.', [['m', p.id, -4], ['trait', p.id, 'motor', 1]]]] });
       break;
     }
