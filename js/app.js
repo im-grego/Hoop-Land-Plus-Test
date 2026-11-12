@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.364.4';
+const APP_VERSION = '0.365.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2934,7 +2934,7 @@ const STEP_SCREENS = {
   dev: ['staff', 'meeting', 'offseason', 'report', 'mentor', 'rookies', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'teamBooks', 'coaches', 'coach'], media: ['storylines', 'survey', 'mediaRumors'], cuts: ['cuts', 'latefa', 'liveTrade'], rotation: ['lineup', 'player'], export: ['export'],
   review: ['review', 'teamStats', 'player'], waters: ['waters', 'player'], nil: ['nil', 'player'], retention: ['retention', 'player'], carousel: ['carousel'], camps: ['camps', 'recruitee'], legacy: ['legacy', 'player'], schedule: ['schedule'], tour: ['tour', 'player'], walkons: ['walkons', 'player'], redshirt: ['redshirt', 'player'], madness: ['madness'], mediaday: ['mediaday', 'player'], departures: ['departures'], seniors: ['seniors'], portal: ['portal'], showcase: ['showcase', 'recruitee'], rw1: ['recruit', 'recruitee', 'recruitweek'], rw2: ['recruit', 'recruitee', 'recruitweek'], rw3: ['recruit', 'recruitee', 'recruitweek'], rw4: ['recruit', 'recruitee', 'recruitweek'], signing: ['signing'], preseason: ['preseason'], rosterlock: ['rosterlock'], practice: ['practice'], summer: ['offseason', 'report', 'mentor', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook'],
 };
-const ALWAYS = ['start', 'startTeam', 'startFA', 'market', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks', 'injuries', 'teamStats', 'gramMine', 'standings', 'awards', 'lgHistory'];
+const ALWAYS = ['start', 'startTeam', 'startFA', 'market', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks', 'injuries', 'teamStats', 'gramMine', 'standings', 'awards', 'lgHistory', 'media'];
 function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
@@ -3218,6 +3218,127 @@ actions.installApp = async () => {
 actions.installHide = () => { try { localStorage.setItem(INSTALL_HIDE, '1'); } catch { /* fine */ } refreshInstall(); };
 
 // ---------------------------------------------------------------------------
+// Media availability (the regular season): each time you bring in a new day, the beat reporters have a few
+// questions from what's going on with your team: a player in a slump, the need everyone sees, a season slipping
+// away, the coach's job, a player stuck on the bench, a veteran against a young player at his spot. Your answers
+// move morale (and say it on the record: it goes up on Hoop Gram).
+const mediaKey = () => `hlc:media:${saveTag()}:${league().season.currentYear}:${league().season.currentDay ?? 0}`;
+const mediaLogKey = () => `hlc:mediaLog:${saveTag()}:${league().season.currentYear}`;
+const mediaGet = () => { try { return JSON.parse(localStorage.getItem(mediaKey())) || null; } catch { return null; } };
+const mediaSet = v => { try { localStorage.setItem(mediaKey(), JSON.stringify(v)); } catch { /* ignore */ } };
+const mediaLog = () => { try { return JSON.parse(localStorage.getItem(mediaLogKey())) || {}; } catch { return {}; } };
+function mediaQuestions(L, t) {
+  const yr = L.season.currentYear, day = L.season.currentDay ?? 0, log = mediaLog();
+  const fresh = k => !(log[k] != null && day - log[k] < 12);   // the same topic waits about two weeks
+  const signed = FA.signedRoster(t).filter(p => !(p.season?.injury?.gamesOut > 0));
+  const line = p => seasonLine(p, state.leagueIdx, yr), last = p => seasonLine(p, state.leagueIdx, yr - 1);
+  const x = ciStanding(L, t), gp = x.gp || 0, out = [];
+  const top = [...signed].sort((a, b) => shownLevel(b) - shownLevel(a));
+  // 1. A slump: one of the top five scoring well under last season.
+  for (const p of top.slice(0, 5)) {
+    const l = line(p), b = last(p);
+    if (fresh(`slump:${p.id}`) && l && b && l.gp >= 8 && b.gp >= 20 && b.ppg >= 10 && l.ppg < b.ppg * 0.75) {
+      out.push({ key: `slump:${p.id}`, pid: p.id, q: `${playerName(p)} is down to ${l.ppg.toFixed(1)} points a game from ${b.ppg.toFixed(1)} last season. What's going on?`,
+        options: [['back', 'He\'ll find it. We believe in him.', [[p.id, 4]]], ['role', 'We\'re asking him to do different things.', [[p.id, 1]]], ['challenge', 'He has to be better.', [[p.id, -4]]]] });
+      break;
+    }
+  }
+  // 2. The need everyone sees.
+  const need = teamNeed(t);
+  if (need && fresh('need') && gp >= 5) {
+    out.push({ key: 'need', q: `Everyone's talking about ${need.toLowerCase()}. Are you looking to add someone?`,
+      options: [['shop', 'We\'re actively looking.', [['all', -1]]], ['internal', 'The answer is in this locker room.', [['all', 2]]], ['patient', 'We\'ll see where we are at the deadline.', []]] });
+  }
+  // 3. A season slipping away: outside the play-in after 15 games.
+  if (fresh('playoffs') && gp >= 15 && x.seed > 10) {
+    const young = signed.filter(p => p.age <= 24).map(p => p.id), vets = signed.filter(p => p.age >= 30).map(p => p.id);
+    out.push({ key: 'playoffs', q: `You're ${x.w}-${x.l}, ${ordinal(x.seed)} in the conference and on pace to miss the playoffs. Is this season slipping away?`,
+      options: [['fight', 'We\'re going to turn this around.', [['all', 2]]], ['future', 'We\'re building toward something bigger.', [...young.map(id => [id, 3]), ...vets.map(id => [id, -3])]], ['changes', 'Changes are coming.', [['all', -3]]]] });
+  }
+  // 4. The coach's job: a losing record 15 games in.
+  const coach = CO.headCoach(t);
+  if (coach && fresh('coach') && gp >= 15 && x.pct < 0.45) {
+    const cn = `${coach.fn || ''} ${coach.ln || ''}`.trim() || 'your coach';
+    out.push({ key: 'coach', q: `Is ${cn}'s job safe?`,
+      options: [['full', `${cn} has my full support.`, [['all', 2]]], ['eval', 'Everyone is being evaluated, me included.', [['all', -1]]], ['soon', 'We\'ll have a decision soon.', [['all', -3]]]] });
+  }
+  // 5. Stuck on the bench: a top-eight player getting under 15 minutes.
+  for (const p of top.slice(0, 8)) {
+    const l = line(p);
+    if (fresh(`bench:${p.id}`) && l && l.gp >= 5 && l.mpg < 15) {
+      out.push({ key: `bench:${p.id}`, pid: p.id, q: `${playerName(p)} is only playing ${l.mpg.toFixed(0)} minutes a night. Does he deserve more?`,
+        options: [['more', 'Yes. His minutes are going up.', [[p.id, 5]]], ['earn', 'He has to earn them in practice.', [[p.id, -3]]], ['fit', 'It\'s about fit, not talent.', [[p.id, -1]]]] });
+      break;
+    }
+  }
+  // 6. A veteran against a young player at the same spot: the vet playing more, the kid with the higher ceiling.
+  const grp = p => ((p.pos ?? 4) <= 2 ? 'g' : (p.pos ?? 4) <= 5 ? 'w' : 'b');
+  outer: for (const v of top.filter(p => p.age >= 30)) for (const y of top.filter(p => p.age <= 24 && grp(p) === grp(v))) {
+    const lv = line(v), ly = line(y);
+    if (fresh(`vy:${y.id}`) && lv && ly && lv.mpg > ly.mpg + 4 && (y.pot || 0) > (v.pot || 0) && Math.abs(shownLevel(v) - shownLevel(y)) <= 6) {
+      out.push({ key: `vy:${y.id}`, pid: y.id, pid2: v.id, q: `${playerName(v)} or ${playerName(y)}: who should be getting the minutes?`,
+        options: [['young', `The future is now: ${y.ln}.`, [[y.id, 5], [v.id, -5]]], ['vet', `${v.ln} has earned it.`, [[v.id, 4], [y.id, -4]]], ['both', 'There\'s room for both of them.', [[v.id, 1], [y.id, 1]]]] });
+      break outer;
+    }
+  }
+  // At most three a day, a different mix each day.
+  const seed = (day * 7 + t.id) >>> 0;
+  return out.map((q, i) => ({ q, r: (seed * (i + 3)) % 97 })).sort((a, b) => a.r - b.r).slice(0, 3).map(x => x.q);
+}
+function mediaState() {
+  const L = league(), t = myTeam();
+  if (!t || isCollege() || CAR.isCareer(L) || L.season.phase !== 9) return null;
+  let m = mediaGet();
+  if (!m) { m = { qs: mediaQuestions(L, t), ans: {}, done: false }; mediaSet(m); }
+  return m.qs.length ? m : null;
+}
+const moodTxt = (t, fx) => fx.map(([id, n]) => { const p = id === 'all' ? null : t.roster.find(q => q.id === id); return `<span class="${n > 0 ? 'up' : 'down'}">${id === 'all' ? 'Locker room' : esc(p?.ln || '')} morale ${n > 0 ? '+' : ''}${n}</span>`; }).join(' · ');
+function mediaCard() {
+  const m = mediaState();
+  if (!m || m.done) return '';
+  return `<fieldset class="frame"><legend>🎙️ Media Availability</legend><p class="note small">The beat reporters have ${m.qs.length} question${m.qs.length > 1 ? 's' : ''} for you today.</p>
+    <button class="btn focus" data-act="nav" data-to="media">🎙️ Take Questions</button></fieldset>`;
+}
+screens.media = () => {
+  const L = league(), t = myTeam(), m = mediaState();
+  if (!m) { layout({ title: 'Media', body: '<p class="note">No questions today.</p>' }); return; }
+  const body = m.qs.map(q => {
+    const pick = m.ans[q.key], o = q.options.find(x => x[0] === pick);
+    return `<div class="pq"><p class="note small"><b>${esc(q.q)}</b></p>
+      ${m.done ? `<p class="note pq-quote">"${esc(o?.[1] || '')}"</p>${o?.[2]?.length ? `<p class="note small pq-fx">${moodTxt(t, o[2])}</p>` : ''}`
+        : `<div class="pq-opts">${q.options.map(([v, lbl]) => `<button class="btn small ${pick === v ? 'on focus' : 'off'}" data-act="mediaAnswer" data-k="${esc(q.key)}" data-v="${v}">${esc(lbl)}</button>`).join('')}</div>${o?.[2]?.length ? `<p class="note small pq-fx">${moodTxt(t, o[2])}</p>` : ''}`}</div>`;
+  }).join('');
+  const all = m.qs.every(q => m.ans[q.key]);
+  layout({
+    title: 'Media Availability',
+    body: `<fieldset class="frame presser"><legend>🎙️ ${esc(t.city)} ${esc(t.name)}</legend><div class="stack">${body}</div>
+      ${m.done ? '<p class="note small muted" style="margin-top:8px">On the record. It\'s on Hoop Gram.</p>' : `<button class="btn focus" data-act="mediaFinish" style="margin-top:8px" ${all ? '' : 'disabled'}>🎙️ That's All</button>`}</fieldset>`,
+  });
+};
+actions.mediaAnswer = d => { const m = mediaGet(); if (!m || m.done) return; m.ans[d.k] = d.v; mediaSet(m); render(); };
+actions.mediaFinish = () => {
+  const m = mediaGet(), t = myTeam(), L = league();
+  if (!m || m.done || !t) return;
+  const log = mediaLog(), day = L.season.currentDay ?? 0;
+  const store = offGet('hgMentions'), list = Array.isArray(store.list) ? store.list : [];
+  for (const q of m.qs) {
+    const o = q.options.find(x => x[0] === m.ans[q.key]);
+    if (!o) continue;
+    for (const [id, n] of o[2]) for (const p of id === 'all' ? t.roster : t.roster.filter(x => x.id === id)) if (p.season) p.season.morale = Math.max(0, Math.min(100, (p.season.morale ?? 60) + n));
+    log[q.key] = day;
+    // On the record: a beat reporter posts the quote.
+    list.push({ k: `m:media:${L.season.currentYear}:${day}:${q.key}`, d: day, html: gpost({ name: 'BeatWriter', handle: `${tTag(t)}beat`, text: `${esc(q.q)}<br>"${esc(o[1])}"`, ver: false, foot: esc(t.shortName) }) });
+  }
+  offSet('hgMentions', { list: list.slice(-300) });
+  try { localStorage.setItem(mediaLogKey(), JSON.stringify(log)); } catch { /* ignore */ }
+  m.done = true; mediaSet(m);
+  state.myGramK = '';
+  state.dirty = true;
+  toast('🎙️ On the record', 'Your answers are on Hoop Gram.');
+  goHome();
+};
+
+// ---------------------------------------------------------------------------
 // Main menu
 
 // The game's red notification dot, on a button's icon (with a count when there is one).
@@ -3460,6 +3581,7 @@ screens.main = () => {
       </div>`}
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
       ${sCard}
+      ${mediaCard()}
       ${marketCard()}
       ${retireeCard()}
       ${careerCard()}
