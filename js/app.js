@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.363.12';
+const APP_VERSION = '0.364.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -8807,8 +8807,8 @@ screens.lineup = (args = {}) => {
     const p = r.p, inRot = r.minutes[0] > 0, spots = r.minutes.slice(1).map((v, k) => (v ? [LU.SLOTS[k], v, LU.inPos(p, k)] : null)).filter(Boolean);
     const split = spots.length > 1 ? `<span class="lu-split">${spots.map(([s, v, ok]) => `<span class="${ok ? '' : 'down'}">${s} ${v}</span>`).join(' · ')}</span>` : spots.length && !spots[0][2] ? `<span class="lu-split down">at ${spots[0][0]}</span>` : '';
     const sv = sug.get(p.id) ?? 0, diff = sv - r.minutes[0];
-    return `<div class="lu-tr ${r.linePos < 5 ? 'lu-st' : ''} ${inRot ? '' : 'out'}">
-      <button class="lu-c-slot lu-pick" data-act="luStartPick" data-id="${p.id}" aria-label="Starting spot">${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? r.linePos + 1 : '—'}</button>
+    return `<div class="lu-tr ${r.linePos < 5 ? 'lu-st' : ''} ${inRot ? '' : 'out'} ${args.sel != null && +args.sel === p.id ? 'lu-sel' : ''}">
+      <button class="lu-c-slot lu-pick" data-act="luTap" data-id="${p.id}" aria-label="Select to swap">${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? r.linePos + 1 : '—'}</button>
       <span class="lu-c-name tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln || playerName(p))}</b>${r.hand ? ' ✋' : ''}${split}
         <span class="lu-bar2"><i style="width:${(r.minutes[0] / game * 100).toFixed(1)}%"></i></span></span>
       <span class="lu-c-ovr">${shownLevel(p)}</span>
@@ -8818,14 +8818,41 @@ screens.lineup = (args = {}) => {
   };
   const head = '<div class="lu-tr lu-th"><span class="lu-c-slot"></span><span class="lu-c-name">Name</span><span class="lu-c-ovr">Lvl</span><span class="lu-c-min">Min</span><span class="lu-c-sug">Sug</span></div>';
   const total = plan.rows.reduce((s, r) => s + r.minutes[0], 0);
+  // The game's strip on top: starter and bench minutes, each position out of a full game, the total.
+  const stMin = plan.rows.filter(r => r.linePos < 5).reduce((s, r) => s + r.minutes[0], 0), bnMin = total - stMin, full = 5 * game;
+  const bySlot = [0, 1, 2, 3, 4].map(k => plan.rows.reduce((s, r) => s + (r.minutes[k + 1] || 0), 0));
+  const strip = `<div class="lu-strip">
+      <div class="lu-sb wide"><span>Starters</span><b>${stMin}/${full}</b><i style="width:${(stMin / full * 100).toFixed(1)}%"></i></div>
+      <div class="lu-sb wide"><span>Bench</span><b>${bnMin}/${full}</b><i style="width:${(bnMin / full * 100).toFixed(1)}%"></i></div>
+      ${LU.SLOTS.map((s, k) => `<div class="lu-sb ${bySlot[k] < game ? 'short' : ''}"><span>${s}</span><b>${bySlot[k]}/${game}</b></div>`).join('')}
+      <div class="lu-sb ${total < full ? 'short' : ''}"><span>Total</span><b>${total}/${full}</b></div></div>`;
+  // Edit Minutes: one player's minutes at each position, like the game's screen (◀ ▶ through the rotation).
+  if (args.edit != null) {
+    const r = plan.rows.find(x => x.p.id === +args.edit) || plan.rows[0], p = r.p, ring = plan.rows.filter(x => x.minutes[0] > 0 || x.p === p).map(x => x.p);
+    const i = ring.indexOf(p), prev = ring[(i - 1 + ring.length) % ring.length], next = ring[(i + 1) % ring.length];
+    const slotRow = k => `<div class="lu-tr lu-pos"><span class="lu-c-slot">${LU.SLOTS[k]}</span><span class="lu-c-name"><span class="lu-bar2"><i style="width:${((r.minutes[k + 1] || 0) / game * 100).toFixed(1)}%"></i></span>${LU.inPos(p, k) ? '' : '<span class="lu-split down">out of position</span>'}</span><span></span>
+        <span class="lu-c-min"><button class="lu-step" data-hold="luSlot" data-id="${p.id}" data-s="${k}" data-d="-1" aria-label="Fewer minutes at ${LU.SLOTS[k]}" ${(r.minutes[k + 1] || 0) > 0 ? '' : 'disabled'}>−</button><b>${r.minutes[k + 1] || 0}</b><button class="lu-step" data-hold="luSlot" data-id="${p.id}" data-s="${k}" data-d="1" aria-label="More minutes at ${LU.SLOTS[k]}">+</button></span><span></span></div>`;
+    layout({
+      title: 'Edit Minutes',
+      body: `${strip}<fieldset class="frame lu-frame"><legend>${esc(playerName(p))} · ${esc(posName(p))} · Lv ${shownLevel(p)}</legend>
+        <p class="note small muted">${r.minutes[0]} minutes in all${(p.season?.injury?.gamesOut || 0) > 0 ? ` · <span class="down">${esc(injLong(p))}</span>` : ''}</p>
+        <div class="lu-list">${[0, 1, 2, 3, 4].map(slotRow).join('')}</div>
+        ${args.lock && total < full ? `<p class="note small gold lu-free">${full - total} minute${full - total === 1 ? '' : 's'} to hand out.</p>` : ''}</fieldset>
+        <div class="lu-cycle"><button class="btn" data-act="luEdit" data-id="${prev.id}" aria-label="Previous player">◀</button><b>${esc(p.ln || playerName(p))}</b><button class="btn" data-act="luEdit" data-id="${next.id}" aria-label="Next player">▶</button></div>
+        <button class="btn focus" data-act="luEditDone" style="margin-top:8px">✅ Done</button>`,
+    });
+    return;
+  }
+  const sel = args.sel != null ? +args.sel : null;
   const tabs = Object.keys(LU_TABS).filter(k => (k !== 'real' || real) && (k !== 'playoffs' || PO.atPlayoffStart(L) || mode === 'playoffs'));
   layout({
     title: 'Lineup & Minutes',
     body: `<p class="note small">${logoImg(t)} <b>${esc(teamFull(t))}</b></p>
       <div class="tabs fa-tabs">${tabs.map(k => `<button class="btn small ${k === mode ? 'on focus' : 'off'}" data-act="luSet" data-k="mode" data-v="${k}">${LU_TABS[k]}</button>`).join('')}</div>
-      <div class="grid2 lu-acts"><button class="btn off" data-act="luSet" data-k="over" data-v="">↩ Reset minutes</button><button class="btn focus" data-act="luApply">✅ Set lineup</button></div>
+      <div class="grid3 lu-opts"><button class="btn small" data-act="luOpt" data-k="lineup">Optimize Lineup</button><button class="btn small" data-act="luOpt" data-k="minutes">Optimize Minutes</button><button class="btn small" data-act="luOpt" data-k="clear">Clear All Minutes</button></div>
+      ${sel != null ? `<div class="grid2 lu-acts lu-selbar"><button class="btn off" data-act="luTap" data-id="${sel}">Cancel</button><button class="btn focus" data-act="luEdit" data-id="${sel}">✏️ Edit Minutes</button></div><p class="note small gold">Tap another player's spot to swap them.</p>` : `<div class="lu-acts"><button class="btn focus" data-act="luApply" style="width:100%">✅ Set lineup</button><p class="note small muted" style="margin-top:6px">Tap a player's spot to pick him: then tap another to swap them, or edit his minutes by position.</p></div>`}
       <div class="drill-row"><span class="grow small">Players in the rotation</span><span class="trait-ctl"><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.max(5, plan.rot.length - 1)}" ${plan.rot.length <= 5 ? 'disabled' : ''}>−</button><b class="small" style="min-width:2em;text-align:center">${plan.rot.length}</b><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.min(12, plan.rot.length + 1)}" ${plan.rot.length >= 12 ? 'disabled' : ''}>+</button></span></div>
-      <fieldset class="frame lu-frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend>${args.lock && total < 5 * game ? `<p class="note small gold lu-free">${5 * game - total} minute${5 * game - total === 1 ? '' : 's'} to hand out: tap + on anyone.</p>` : ''}<div class="lu-list">${head}${plan.rows.map(row).join('')}</div>
+      ${strip}<fieldset class="frame lu-frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend>${args.lock && total < 5 * game ? `<p class="note small gold lu-free">${5 * game - total} minute${5 * game - total === 1 ? '' : 's'} to hand out: tap + on anyone.</p>` : ''}<div class="lu-list">${head}${plan.rows.map(row).join('')}</div>
         ${plan.short.length && !(args.lock && total < 5 * game) ? `<p class="note small down">Short at ${plan.short.map(x => `${x.slot} (${x.v})`).join(', ')}: add a player or minutes.</p>` : ''}</fieldset>`,
   });
 };
@@ -8851,9 +8878,71 @@ function luPlan(t, a) {
   const real = mode === 'real' ? realMinutes(t) : null;
   if (mode === 'real') mode = real ? 'normal' : lineupMode(t);
   const cr = coachRot(t, mode === 'playoffs');
-  return LU.planLineup(t, { mode, size: a.size || cr.size, sizeSet: !!a.size, locked: !!a.lock, start: a.start || {}, share: real ? null : cr.share, game: gameMinutes(), over: a.over || {}, promised: promisedMinutes(t), real });
+  return LU.planLineup(t, { mode, size: a.size || cr.size, sizeSet: !!a.size, locked: !!a.lock, start: a.start || {}, pins: a.pins || {}, share: real ? null : cr.share, game: gameMinutes(), over: a.over || {}, promised: promisedMinutes(t), real });
 }
 // Pick where a player starts (PG to C), or send a picked starter back to the bench.
+// Tap a spot: pick that player; tap another: swap them (a starter's spot for the other, or into the five).
+actions.luTap = d => {
+  const a = { ...luArgs() }, pid = +d.id;
+  if (a.sel == null) { a.sel = pid; replace('lineup', a); return; }
+  if (+a.sel === pid) { delete a.sel; replace('lineup', a); return; }
+  const L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam(), plan = luPlan(t, a);
+  const rA = plan.rows.find(r => r.p.id === +a.sel), rB = plan.rows.find(r => r.p.id === pid);
+  delete a.sel;
+  if (!rA || !rB) { replace('lineup', a); return; }
+  if (rA.linePos >= 5 && rB.linePos >= 5) { toast('Both on the bench', 'The bench runs in order of minutes: give one more to move him up.', 2200); replace('lineup', a); return; }
+  const hurt = r => (r.p.season?.injury?.gamesOut || 0) > 0;
+  if ((rA.linePos < 5 && hurt(rB)) || (rB.linePos < 5 && hurt(rA))) { toast('He\'s hurt', 'An injured player can\'t start.', 1800, true); replace('lineup', a); return; }
+  const st = Object.fromEntries(Object.entries(a.start || {}).filter(([, v]) => +v !== rA.p.id && +v !== rB.p.id));
+  if (rA.linePos < 5) st[rA.slot] = rB.p.id;
+  if (rB.linePos < 5) st[rB.slot] = rA.p.id;
+  a.start = st;
+  // By-position minutes don't follow a player to a new spot; his total does.
+  if (a.pins) { a.pins = { ...a.pins }; delete a.pins[rA.p.id]; delete a.pins[rB.p.id]; }
+  if (a.lock) { a.over = { ...a.over }; for (const r of [rA, rB]) if (!(a.over[r.p.id] > 0) && r.linePos >= 5) a.over[r.p.id] = 0; }
+  replace('lineup', a);
+};
+actions.luEdit = d => { const a = { ...luArgs(), edit: +d.id }; delete a.sel; replace('lineup', a); };
+actions.luEditDone = () => { const a = { ...luArgs() }; delete a.edit; replace('lineup', a); };
+// One player's minutes at one position: they come from (and go back to) the minutes still to hand out.
+actions.luSlot = d => {
+  const a = { ...luArgs() }, L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
+  const game = gameMinutes(), plan = luPlan(t, a), pid = +d.id, s = +d.s;
+  const r = plan.rows.find(x => x.p.id === pid); if (!r) return;
+  if (+d.d > 0 && (r.p.season?.injury?.gamesOut || 0) > 0) { toast('He\'s hurt', `${r.p.ln} is ${injLong(r.p)}.`, 1800, true); return; }
+  if (!a.lock) { a.over = Object.fromEntries(plan.rows.filter(x => x.minutes[0] > 0).map(x => [x.p.id, x.minutes[0]])); a.lock = true; a.mode = a.mode || luDefault(t); }
+  // Editing by position freezes everyone where they play now, so a minute taken at PG leaves PG short (as in the game).
+  const pins = { ...(a.pins || {}) };
+  if (!a.pinAll) { for (const q of plan.rows) if (q.minutes[0] > 0 && !pins[q.p.id]) pins[q.p.id] = q.minutes.slice(1, 6); a.pinAll = true; }
+  const pin = [...(pins[pid] || r.minutes.slice(1, 6))];
+  const over = { ...a.over }, free = 5 * game - Object.values(over).reduce((x, v) => x + v, 0);
+  const slotFull = plan.rows.reduce((x, q) => x + (q.minutes[s + 1] || 0), 0);
+  const v = pin[s] + +d.d;
+  if (v < 0) return;
+  if (+d.d > 0 && free <= 0) { toast('No free minutes', 'Take minutes from someone first.', 1800, true); return; }
+  if (+d.d > 0 && slotFull >= game) { toast(`${LU.SLOTS[s]} is full`, `Every ${game} minutes there are covered: take some from someone at ${LU.SLOTS[s]} first.`, 2000, true); return; }
+  pin[s] = v;
+  pins[pid] = pin;
+  over[pid] = pin.reduce((x, y) => x + y, 0);
+  a.pins = pins; a.over = over;
+  a.size = Math.max(5, Object.values(over).filter(x => x > 0).length);
+  replace('lineup', a);
+};
+// The game's Options: Optimize Lineup (the suggestion, your starters included), Optimize Minutes (your five, the
+// minutes suggested around them), Clear All Minutes (your five stay; every minute is yours to hand out).
+actions.luOpt = d => {
+  const a = { ...luArgs() }, L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
+  delete a.sel; delete a.edit; delete a.pins; delete a.pinAll;
+  if (d.k === 'lineup') { a.over = {}; a.lock = false; delete a.size; delete a.start; }
+  else if (d.k === 'minutes') { a.over = {}; a.lock = false; delete a.size; }
+  else {
+    const plan = luPlan(t, a);
+    a.start = Object.fromEntries(plan.starters.map((p, s) => [s, p.id]));
+    a.over = Object.fromEntries(plan.rows.map(r => [r.p.id, 0]));
+    a.lock = true; a.size = 5;
+  }
+  replace('lineup', a);
+};
 actions.luStartPick = d => {
   const a = luArgs(), pid = +d.id, cur = Object.entries(a.start || {}).find(([, v]) => +v === pid);
   const o = overlay(`<div class="info-head">Starting spot</div><p class="note small">Start him at:</p>
@@ -8874,7 +8963,7 @@ actions.luStartPick = d => {
 };
 actions.luSet = d => {
   const a = { ...luArgs() };
-  if (d.k === 'over' || d.k === 'mode') { a.over = {}; a.lock = false; delete a.size; if (d.k === 'mode') delete a.start; }   // reset: back to the suggestion
+  if (d.k === 'over' || d.k === 'mode') { a.over = {}; a.lock = false; delete a.size; delete a.pins; delete a.pinAll; delete a.sel; delete a.edit; if (d.k === 'mode') delete a.start; }   // reset: back to the suggestion
   if (d.k !== 'over') a[d.k] = d.k === 'size' ? +d.v : d.v;
   replace('lineup', a);
 };
@@ -8890,6 +8979,7 @@ actions.luMin = d => {
   if (v > 0 && Object.values(over).filter(x => x > 0).length >= 12 && !(cur > 0)) { toast('Twelve is the most', 'Take someone out of the rotation first.', 1800, true); return; }
   over[d.id] = v;
   a.over = over;
+  if (a.pins?.[d.id]) { a.pins = { ...a.pins }; delete a.pins[d.id]; }   // a new total: his minutes by position are planned again
   a.size = Math.max(5, Object.values(over).filter(x => x > 0).length);
   replace('lineup', a);
 };

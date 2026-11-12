@@ -2362,3 +2362,26 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .ir-out { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
 .ir-out small { font-size: 10px; font-weight: 700; color: var(--dim, #b9c8e8); }
 .ir-tr { grid-template-columns: minmax(0, 1.3fr) 34px 58px minmax(0, 1.2fr) 44px; }
+
+/* Lineup, the game's way: the minutes strip on top, a picked row in gold, Edit Minutes by position. */
+.lu-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 8px 0; }
+.lu-sb { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; padding: 4px 2px; background: var(--btn); border: 2px solid var(--btn-edge); font-size: 11px; line-height: 1.2; }
+.lu-sb span { color: var(--dim, #b9c8e8); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; font-size: 10px; }
+.lu-sb b { font-size: 13px; position: relative; z-index: 1; }
+.lu-sb.wide { grid-column: span 2; }
+.lu-sb.wide i { position: absolute; left: 0; bottom: 0; height: 4px; background: #3ddc84; }
+.lu-sb.short b { color: var(--gold); }
+.lu-strip .lu-sb:nth-child(2) { grid-column: span 3; }
+.lu-tr.lu-sel { background: rgba(255, 210, 80, 0.14); outline: 2px solid var(--gold); outline-offset: -2px; }
+.lu-tr.lu-sel .lu-c-name b { color: var(--gold); }
+.lu-opts { margin: 8px 0 0; gap: 4px; }
+.lu-opts .btn { font-size: 12px; padding: 6px 2px; min-height: 40px; }
+.lu-selbar { margin-bottom: 2px; }
+.lu-cycle { display: grid; grid-template-columns: 52px 1fr 52px; gap: 6px; align-items: center; margin-top: 8px; text-align: center; }
+.lu-pos .lu-c-slot { color: var(--cyan); }
+
+.lu-opts .btn { white-space: normal; line-height: 1.15; font-size: 13px; min-height: 46px; text-wrap: balance; }
+.lu-strip { grid-template-columns: repeat(6, 1fr); }
+.lu-strip .lu-sb.wide, .lu-strip .lu-sb:nth-child(2) { grid-column: span 3; }
+.lu-strip .lu-sb b { font-size: 12px; }
+.lu-strip .lu-sb:last-child b { font-size: 10.5px; letter-spacing: -0.2px; }
