@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.17';
+const APP_VERSION = '0.365.18';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -11566,7 +11566,7 @@ screens.gramMine = (args = {}) => {
   state.myGramK = '';
   layout({
     title: 'Hoop Gram',
-    body: `${newsTabs(tab)}<p class="note small muted">${tab === 'team' ? 'Stats, scores, and team moves.' : 'What people are saying about your team and players this season.'}</p>
+    body: `${newsTabs(tab)}<p class="note small muted">${tab === 'team' ? 'Stats, scores, and team moves.' : 'What the league is saying about your team.'}</p>
       <div class="stack hg-list">${html || `<p class="note small muted">${tab === 'team' ? 'No games or moves yet.' : 'Nobody is talking about you yet.'}</p>`}</div>`,
   });
 };
