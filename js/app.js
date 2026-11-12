@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.363.9';
+const APP_VERSION = '0.363.10';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3338,7 +3338,7 @@ screens.startTeam = () => {
     return `<fieldset class="frame start-detail"><legend>${esc(teamFull(t))}</legend><div class="stack">
       <p class="note">${logoImg(t)} <b>${r.W}-${r.L}</b> · Offense <b>${ord(offRank.get(t.id))}</b> <span class="small muted">(${per(t, 'PTS').toFixed(1)} ppg)</span> · Defense <b>${ord(defRank.get(t.id))}</b> <span class="small muted">(${per(t, 'OPP').toFixed(1)} allowed)</span></p>
       ${top.map(p => { const l = seasonLine(p, 0, yr); const hurt = p.season?.injury?.gamesOut > 0;
-        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvTag(p)}</span><span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}${hurt ? ` · <span class="down">out ${p.season.injury.gamesOut}g</span>` : ''}</span></div>`; }).join('')}
+        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvTag(p)}</span><span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}${hurt ? ` · <span class="down">out ${injShort(p)}</span>` : ''}</span></div>`; }).join('')}
       <button class="btn focus" data-act="startTeam" data-id="${t.id}">🏀 Take over the ${esc(t.name || t.shortName)}</button></div></fieldset>`;
   };
   layout({
@@ -3398,7 +3398,7 @@ screens.startFA = (args = {}) => {
         const now = seasonLine(p, state.leagueIdx, yr), l = now || seasonLine(p, state.leagueIdx, yr - 1);
         return `<div class="prow tap" data-act="openPlayer" data-id="${p.id}"><span class="name">${esc(playerName(p))} ${lvTag(p)}</span>
           <span class="right"><button class="btn small ${n < 15 ? 'focus' : ''}" data-act="startSign" data-id="${p.id}" ${n < 15 ? '' : 'disabled'}>✍️ $${FA.minFor(p)}M</button></span>
-          <span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${now ? '' : 'last season '}${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : ''}${p.season?.injury?.gamesOut > 0 ? ` · <span class="down">out ${p.season.injury.gamesOut}g</span>` : ''}</span></div>`;
+          <span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${now ? '' : 'last season '}${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : ''}${p.season?.injury?.gamesOut > 0 ? ` · <span class="down">out ${injShort(p)}</span>` : ''}</span></div>`;
       }).join('') || '<p class="note muted">Nobody here.</p>'}</div>
       ${!args.all && pool.length > 30 ? `<button class="btn small" data-act="startFAAll">Show all ${pool.length}</button>` : ''}`,
   });
@@ -8584,6 +8584,24 @@ const potStars = p => stars(p.pot,
 const levelStarsOf = lv => Math.max(1, Math.min(10, Math.round((5 - (100 - lv) / 14) * 2)));
 
 // Level as the game shows it (from the regressed ratings).
+function injOut(p) {
+  const i = p?.season?.injury, days = i?.gamesOut || 0;
+  if (!days) return null;
+  const L = league(), sched = L.season.schedule || [], d0 = L.season.currentDay ?? 0;
+  const tm = L.teams.find(x => x.roster.includes(p));
+  if (!tm || L.season.phase !== 9 || !sched.length) return { games: days, back: null, season: false };
+  let n = 0, played = 0, total = 0;
+  for (let d = 0; d < sched.length; d++) for (const g of sched[d]?.results || []) {
+    if (g.homeTeam !== tm.id && g.awayTeam !== tm.id) continue;
+    total++;
+    if (d < d0) played++; else if (d < d0 + days) n++;
+  }
+  const season = d0 + days >= sched.length;
+  return { games: n, back: season ? null : played + n + 1, season, total };
+}
+// "12g" (back for game 31) or "Season" for the injury report and short spots; the longer line for profiles.
+const injShort = p => { const o = injOut(p); return o ? (o.season ? 'Season' : `${o.games}g`) : ''; };
+const injLong = p => { const o = injOut(p); return o ? (o.season ? 'out for the season' : `${o.games} game${o.games === 1 ? '' : 's'} left${o.back ? `, back for game ${o.back}` : ''}`) : ''; };
 function shownLevel(p) {
   if (!declining(p)) return levelOf(p);
   return levelOf({ pot: p.pot, attributes: Object.fromEntries(ATTRS.map(k => [k, [regressed(p, k), p.attributes[k][1]]])) });
@@ -8856,7 +8874,7 @@ actions.luMin = d => {
   const a = { ...luArgs() }, L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
   const game = gameMinutes(), plan = luPlan(t, a);
   const r = plan.rows.find(x => x.p.id === +d.id); if (!r) return;
-  if (+d.d > 0 && !(r.minutes[0] > 0) && (r.p.season?.injury?.gamesOut || 0) > 0) { toast('He\'s hurt', `${r.p.ln} is out ${r.p.season.injury.gamesOut} more game${r.p.season.injury.gamesOut === 1 ? '' : 's'}.`, 1800, true); return; }
+  if (+d.d > 0 && !(r.minutes[0] > 0) && (r.p.season?.injury?.gamesOut || 0) > 0) { toast('He\'s hurt', `${r.p.ln} is ${injLong(r.p)}.`, 1800, true); return; }
   if (!a.lock) { a.over = Object.fromEntries(plan.rows.filter(x => x.minutes[0] > 0).map(x => [x.p.id, x.minutes[0]])); a.lock = true; a.mode = a.mode || luDefault(t); }
   const over = { ...a.over }, cur = over[d.id] ?? 0, free = 5 * game - Object.values(over).reduce((s, v) => s + v, 0);
   const v = Math.max(0, Math.min(game, cur + +d.d, cur + Math.max(0, free)));
@@ -9721,7 +9739,7 @@ screens.checkin = () => {
         return `<div class="ci-form">${infoBtn('ciForm', '<p class="small"><b>Hot and cold</b> compare a player\'s production this season (points, rebounds, assists, steals and blocks against his misses and turnovers, per game) with his own last season. Ten games or more in both seasons count. Hot is clearly better than last year, cold clearly worse.</p>')}
           <p class="note small">🔥 ${hot.length ? hot.map(f => `<b>${esc(shortName(f.p))}</b>`).join(', ') : 'Nobody is on a hot streak'}</p>
           <p class="note small">🧊 ${cold.length ? cold.map(f => `<b>${esc(shortName(f.p))}</b>`).join(', ') : 'Nobody is on a cold streak'}</p></div>`; })()}
-      ${hurt.length ? `<p class="note small">🩹 ${hurt.slice(0, 4).map(p => `<b>${esc(p.ln)}</b> ${p.season.injury.gamesOut}g`).join(' · ')}</p>` : '<p class="note small up">🩹 Healthy.</p>'}
+      ${hurt.length ? `<p class="note small">🩹 ${hurt.slice(0, 4).map(p => `<b>${esc(p.ln)}</b> ${injShort(p)}`).join(' · ')}</p>` : '<p class="note small up">🩹 Healthy.</p>'}
       ${me ? '' : pick ? `<p class="note small up">✓ ${calls[pick].icon} ${esc(calls[pick].label)}</p>` : `<div class="stack">${Object.entries(calls).filter(([k]) => !(k === 'rest' && x.seed > 8) && !(k === 'kids' && x.seed <= 6)).map(([k, c]) => `<button class="btn left small ci-call" data-act="ciPick" data-t="${t.id}" data-k="${k}"><span class="grow"><b>${c.icon} ${esc(c.label)}</b><span class="ci-says">${esc(c.says)}</span></span></button>`).join('')}</div>`}
       ${me ? '' : rotCheck(t)}
       ${me ? '' : `<button class="btn small" data-act="nav" data-to="lineup" data-arg="${t.id}" style="margin-top:6px">⏱️ Lineup</button>`}</fieldset>`;
@@ -10768,9 +10786,10 @@ screens.injuries = (args = {}) => {
   for (const tm of L.teams) for (const p of tm.roster) {
     const i = p.season?.injury;
     if (!(i?.gamesOut > 0)) continue;
-    rows.push({ p, tm, i, lvl: shownLevel(p), inj: injuryName(i), part: injuryPart(i) || '', major: i.majorSeverity > 0 ? 1 : 0 });
+    const o = injOut(p) || { games: i.gamesOut, back: null, season: false };
+    rows.push({ p, tm, i, o, g: o.season ? 999 : o.games, lvl: shownLevel(p), inj: injuryName(i), part: injuryPart(i) || '', major: i.majorSeverity > 0 ? 1 : 0 });
   }
-  const sev = (a, b) => a.i.gamesOut - b.i.gamesOut || a.major - b.major;
+  const sev = (a, b) => a.g - b.g || a.i.gamesOut - b.i.gamesOut || a.major - b.major;
   const cmp = {
     out: sev,
     name: (a, b) => `${a.p.ln} ${a.p.fn}`.localeCompare(`${b.p.ln} ${b.p.fn}`),
@@ -10778,7 +10797,7 @@ screens.injuries = (args = {}) => {
     team: (a, b) => a.tm.shortName.localeCompare(b.tm.shortName) || -sev(a, b),
     inj: (a, b) => a.part.localeCompare(b.part) || sev(b, a),
   }[key] || sev;
-  rows.sort((a, b) => dir * cmp(a, b) || b.i.gamesOut - a.i.gamesOut);
+  rows.sort((a, b) => dir * cmp(a, b) || b.g - a.g);
   const th = (k, l, cls = '') => `<button class="ir-h ${cls} ${k === key ? 'on' : ''}" data-act="irSort" data-k="${k}">${l}${k === key ? (dir < 0 ? ' ▾' : ' ▴') : ''}</button>`;
   const mine = tm => isUserTeam(tm) ? ' ir-mine' : '';
   layout({
@@ -10790,7 +10809,7 @@ screens.injuries = (args = {}) => {
         <span class="ir-lvl c">${r.lvl}</span>
         <span class="ir-team c">${logoImg(r.tm, 'logo-sm ir-logo')}<span>${esc(r.tm.shortName)}</span></span>
         <span class="ir-inj ${r.major ? 'down' : ''}">${esc(r.inj)}</span>
-        <span class="ir-out c ${r.i.gamesOut >= 17 ? 'down' : ''}">${r.i.gamesOut}g</span>
+        <span class="ir-out c ${r.o.season || r.o.games >= 17 ? 'down' : ''}">${r.o.season ? 'Season' : `${r.o.games}g`}${r.o.back ? `<small>G${r.o.back}</small>` : ''}</span>
       </div>`).join('')}</fieldset>` : '<p class="note up">Nobody in the league is hurt right now.</p>'}`,
   });
 };
@@ -11563,7 +11582,7 @@ function profileFacts(p, team, mpg) {
   const f = [
     team ? `📋 ${ev(p, 'contract', ct ? esc(ct) : 'No contract')}` : '<span class="muted">Free agent</span>',
     p.tag || editOn() ? `<span class="pl-gram">📸 ${ev(p, 'tag', p.tag ? `@${esc(p.tag)}` : 'add handle')}</span>` : '',
-    hurt ? `<span class="down">🩹 Out ${hurt.gamesOut}g</span>` : '',
+    hurt ? `<span class="down">🩹 Out ${injShort(p)}</span>` : '',
     editOn() ? (declining(p) ? `<span class="down">📉 ${ev(p, 'reg', yd > 0 ? `Decline yr ${yd}` : 'Decline starts')}</span>` : p.regressionAge ? `<span class="muted">${ev(p, 'reg', `Prime to ${p.regressionAge}`)}</span>` : '') : '',
   ].filter(Boolean);
   return `<div class="pl-facts">${f.map(x => `<span>${x}</span>`).join('')}</div>`;
@@ -11994,7 +12013,7 @@ function oldPlayerScreen(args) {
   const hist = [...(p.history?.injuries || [])].filter(i => i.gamesOut > 0 || i.majorSeverity || i.minorSeverity).sort((a, b) => b.yr - a.yr);
   const trainer = `<fieldset class="frame"><legend>Trainer</legend>
         <div class="stack">
-          <p class="note small">Health: ${hurt ? `<span class="down">Out: ${esc(injuryName(hurt))}, ${hurt.gamesOut} game${hurt.gamesOut === 1 ? '' : 's'} left</span>` : '<span class="up">Healthy</span>'}${injuryText(p)}</p>
+          <p class="note small">Health: ${hurt ? `<span class="down">Out: ${esc(injuryName(hurt))}, ${injLong(p)}</span>` : '<span class="up">Healthy</span>'}${injuryText(p)}</p>
           <div class="pts-row">
             <span class="grow">Regression age<br><span class="muted small">${regressionText(p)}</span></span>
             <button class="btn square" data-act="regAge" data-dir="-1" aria-label="Earlier regression">−</button>
@@ -12098,7 +12117,7 @@ function newPlayerScreen(args) {
   const hist = [...(p.history?.injuries || [])].filter(i => i.gamesOut > 0 || i.majorSeverity || i.minorSeverity).sort((a, b) => b.yr - a.yr);
   const trainer = `<fieldset class="frame"><legend>Trainer</legend>
         <div class="stack">
-          <p class="note small">Health: ${hurt ? `<span class="down">Out: ${esc(injuryName(hurt))}, ${hurt.gamesOut} game${hurt.gamesOut === 1 ? '' : 's'} left</span>` : '<span class="up">Healthy</span>'}${injuryText(p)}</p>
+          <p class="note small">Health: ${hurt ? `<span class="down">Out: ${esc(injuryName(hurt))}, ${injLong(p)}</span>` : '<span class="up">Healthy</span>'}${injuryText(p)}</p>
           <div class="pts-row">
             <span class="grow">Regression age<br><span class="muted small">${regressionText(p)}</span></span>
             <button class="btn square" data-act="regAge" data-dir="-1" aria-label="Earlier regression">−</button>

@@ -2357,3 +2357,8 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .trade-cap-room:not(.up):not(.down) { color: var(--dim, #b9c8e8); }
 .trade-cap-bar { margin-top: 6px; }
 .trade-cap-bar + .trade-cap-room { margin-top: -6px; }
+
+/* Injury report: games out on the team's schedule, the game he's back for under it. */
+.ir-out { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
+.ir-out small { font-size: 10px; font-weight: 700; color: var(--dim, #b9c8e8); }
+.ir-tr { grid-template-columns: minmax(0, 1.3fr) 34px 58px minmax(0, 1.2fr) 44px; }
