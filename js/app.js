@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.12';
+const APP_VERSION = '0.365.14';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -92,6 +92,16 @@ const DEVLOG = [
       'Improved nicknames and naming in Hoop Gram rumors',
       'Career Arc added to the player profile (shows a player\'s peak)',
       'Summer League is back, right after Contracts',
+      'Hoop Gram rebuilt like the game\'s: Feed, Team (every final and roster move) and Mentions (what people say about you)',
+      'Media Availability: the beat reporters ask about your team each new day, and every answer has a cost',
+      'Hoop Gram button in the top corner with a red dot when someone mentions you',
+      'My League: stats, standings, team stats, award races, the Record Book, the injury report and league history',
+      'Team page shows points for, points against and margin with league ranks',
+      'Trade machine: team logos, live cap bars, record and team tag, and a trade recap',
+      'Lineup editor like the game\'s: swap players, set minutes by position, Optimize Lineup and Optimize Minutes',
+      'Injuries show in games, with the game number a player is back for',
+      'League ticker along the bottom with scores and the stat leaders',
+      'Team logos saved in the app',
     ]],
     ['CPU Logic', [
       'Rotations built from real NBA minutes',
@@ -102,6 +112,7 @@ const DEVLOG = [
       'Draft classes reworked with higher prospect levels',
       'Less dated player comparisons for prospects',
       'Future draft prospects are assigned schools',
+      'CPU teams use the game\'s Optimized lineups so players return from injury on their own',
     ]],
     ['Bug Fixes', [
       'Season files with stray characters now load',
@@ -110,6 +121,11 @@ const DEVLOG = [
       'Free throws top out at 15 (based on the roster file)',
       'Rookie of the Year only counts true rookies',
       'Player gear (sleeves and bands) stays white unless the jersey is black',
+      'Aging players now decline on the same schedule as the game',
+      'Sending a player to the G League opens his roster spot',
+      'Importing a save no longer changes your lineup',
+      'Trades made in Hoop Land show as trades',
+      'Loading a new Start Today file clears the moves from your last start',
     ]],
   ] },
 ];
@@ -699,28 +715,11 @@ function tickerBar() {
       const done = (s.schedule[d]?.results || []).filter(g => g.winner != null && g.winner >= 0 && (g.homeScore || g.awayScore));
       if (!done.length) continue;
       items.push('<b class="tk-h">Final</b>');
-      // Each team's top performer: the player of the game for the winner when the game named one, otherwise the team's
-      // best healthy player by this season's production. No box score comes with the file, so his line is made up:
-      // his averages, nudged up or down a little (steady for the same game every time).
-      const yr = s.currentYear;
-      const star = (tid, potg) => {
-        const tm = L.teams.find(x => x.id === tid);
-        if (!tm) return null;
-        const pot = tm.roster.find(p => p.id === potg);
-        if (pot) return pot;
-        return tm.roster.filter(p => !(p.season?.injury?.gamesOut > 0)).map(p => ({ p, l: seasonLine(p, state.leagueIdx, yr) })).filter(x => x.l).sort((a, b) => b.l.gs - a.l.gs)[0]?.p || null;
-      };
-      const line = (p, salt, won) => {
-        const l = seasonLine(p, state.leagueIdx, yr) || seasonLine(p, state.leagueIdx, yr - 1);
-        if (!l) return '';
-        const r = mulberry32(((p.id * 7919) ^ salt) >>> 0), f = (won ? 1.12 : 1) * (0.85 + r() * 0.4);
-        const n = (v, min = 0) => Math.max(min, Math.round(v * f + (r() - 0.5) * 2));
-        return `${esc(p.ln || playerName(p))} ${n(l.ppg, 8)}-${n(l.rpg)}-${n(l.apg)}`;
-      };
+      // Each side's top scorer from the box score the save keeps (every team's latest game is this day's).
+      const best = tid => { const tm = L.teams.find(x => x.id === tid); const b = (tm?.roster || []).filter(p => p.gameStats?.GP > 0 && (p.gameStats.tid ?? tid) === tid).sort((x, y) => (y.gameStats.PTS || 0) - (x.gameStats.PTS || 0))[0]; return b ? `${esc(b.ln || playerName(b))} ${b.gameStats.PTS || 0}-${b.gameStats.REB || 0}-${b.gameStats.AST || 0}` : ''; };
       for (const g of done) {
         const hw = g.winner === g.homeTeam;
-        const a = star(g.awayTeam, g.potg), h = star(g.homeTeam, g.potg);
-        const lines = [a && line(a, g.gId * 31 + 1, !hw), h && line(h, g.gId * 31 + 2, hw)].filter(Boolean);
+        const lines = [best(g.awayTeam), best(g.homeTeam)].filter(Boolean);
         items.push(`<span class="${hw ? '' : 'tk-w'}">${esc(ab(g.awayTeam))} ${g.awayScore}</span> <i class="tk-at">@</i> <span class="${hw ? 'tk-w' : ''}">${esc(ab(g.homeTeam))} ${g.homeScore}</span>${lines.length ? ` <span class="tk-ln">${lines.join(' · ')}</span>` : ''}`);
       }
       break;
@@ -11395,7 +11394,7 @@ function teamPostsOf(tm) {
   let lastG = null, n = 0, wins = 0, roadWins = 0;
   for (let d = 0; d < Math.min(sched.length, now); d++) for (const g of sched[d]?.results || []) if ((g.homeTeam === tm.id || g.awayTeam === tm.id) && g.winner >= 0 && (g.homeScore || g.awayScore)) lastG = g;
   // The newest game: the Player of the Game's box score is still in the save, so a big night gets noted for good.
-  if (lastG?.potg > 0 && nights[lastG.gId] == null) { const star = findPlayer(lastG.potg)?.p; nights[lastG.gId] = star && (star.tid === tm.id || tm.roster.includes(star)) ? bigNight(star.gameStats) : ''; lsSet(`hlc:bigNights:${saveTag()}:${yr}`, nights); }
+  if (lastG?.potg > 0 && nights[lastG.gId] == null) { const star = findPlayer(lastG.potg)?.p; nights[lastG.gId] = star && tm.roster.includes(star) && star.gameStats?.tid === tm.id ? bigNight(star.gameStats) : ''; lsSet(`hlc:bigNights:${saveTag()}:${yr}`, nights); }
   for (let d = 0; d < Math.min(sched.length, now); d++) for (const g of sched[d]?.results || []) {
     if (g.homeTeam !== tm.id && g.awayTeam !== tm.id) continue;
     if (!(g.winner >= 0) || !(g.homeScore || g.awayScore)) continue;
