@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.9';
+const APP_VERSION = '0.365.10';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3279,8 +3279,9 @@ function mediaQuestions(L, t) {
   for (const p of top.slice(0, 6)) {
     const l = line(p), b = last(p);
     if (fresh(`hot:${p.id}`) && l && b && l.gp >= 8 && l.ppg >= 18 && l.ppg >= b.ppg + 5) {
-      add({ key: `hot:${p.id}`, q: `${playerName(p)} is putting up ${l.ppg.toFixed(1)} a night, up from ${b.ppg.toFixed(1)}. Is he an All-Star this year?`, options: [
-        ['yes', 'Absolutely. He\'s been our best player.', [['m', p.id, 5], ['trait', p.id, EGO_KEY, 1], ['m', top.filter(q => q !== p).slice(0, 3).map(q => q.id), -2]]],
+      const mvp = shownLevel(p) >= 93;
+      add({ key: `hot:${p.id}`, q: `${playerName(p)} is putting up ${l.ppg.toFixed(1)} a night, up from ${b.ppg.toFixed(1)}. ${mvp ? 'Should he be in the MVP conversation?' : 'Is he an All-Star this year?'}`, options: [
+        ['yes', mvp ? 'He\'s the MVP. Nobody means more to his team.' : 'Absolutely. He\'s been our best player.', [['m', p.id, 5], ['trait', p.id, EGO_KEY, 1], ['m', top.filter(q => q !== p).slice(0, 3).map(q => q.id), -2]]],
         ['team', 'It\'s about how the team plays.', [['m', p.id, -3], ['m', 'all', 1]]]] });
       break;
     }
@@ -3290,7 +3291,19 @@ function mediaQuestions(L, t) {
   if (need && fresh('need') && gp >= 5) {
     const inGrp = { 'Rim protection': 'b', Rebounding: 'b', 'Frontcourt depth': 'b', 'Guard playmaking': 'g', 'Backcourt depth': 'g', 'Shot creation': 'g', 'Wing playmaking': 'w', '3-point shooting': 'w', 'Perimeter defense': 'w' }[need];
     const mates = top.filter(q => !inGrp || grp(q) === inGrp).slice(0, 3).map(q => q.id);
-    add({ key: 'need', q: `Everyone's talking about ${need.toLowerCase()}. Are you looking to add someone?`, options: [
+    // The team stat behind the need, ranked against the league (the bottom half reads as the question).
+    const NEED_STAT = {
+      'Guard playmaking': ['assists', 'a playmaker', s => s.AST / s.GP], 'Wing playmaking': ['assists', 'a playmaker', s => s.AST / s.GP],
+      '3-point shooting': ['3-point percentage', 'a shooter', s => (s.TPA ? s.TPM / s.TPA : 0)], 'Rim protection': ['blocks', 'a rim protector', s => s.BLK / s.GP],
+      Rebounding: ['rebounding', 'a rebounder', s => s.REB / s.GP], 'Perimeter defense': ['steals', 'a perimeter defender', s => s.STL / s.GP], 'Shot creation': ['scoring', 'a scorer', s => s.PTS / s.GP],
+    }[need];
+    let needQ = `Everyone's talking about ${need.toLowerCase()}. Are you looking to add someone?`;
+    if (NEED_STAT) {
+      const rows = L.teams.map(x => ({ x, s: x.season?.find(r => r.yr === yr)?.seasonStats })).filter(o => o.s?.GP > 0);
+      const rk = [...rows].sort((a, b) => NEED_STAT[2](b.s) - NEED_STAT[2](a.s)).findIndex(o => o.x === t) + 1;
+      if (rk > rows.length / 2) needQ = `Your team ranks ${rk === rows.length ? 'dead last' : ordinal(rk)} in ${NEED_STAT[0]} this year. Are you looking to add ${NEED_STAT[1]}?`;
+    }
+    add({ key: 'need', q: needQ, options: [
       ['shop', 'We\'re actively looking.', [['fans', 2], ['m', mates, -3], ['promise', { kind: 'add', roster: t.roster.map(q => q.id), lvl: shownLevel(top[7] || top[top.length - 1] || {}), due: deadline, win: [['fans', 3]], lose: [['fans', -4], ['trust', -2]], text: 'If you add a rotation player by the deadline' }]]],
       ['internal', 'The answer is in this locker room.', [['m', mates, 3], ['fans', -2]]]] });
   }
