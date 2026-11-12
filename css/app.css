@@ -2396,3 +2396,9 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .trade-rec { margin: 2px 0 0; }
 .trade-rec + .trade-need { margin-top: 0; }
 .stack > .trade-rec + .trade-need { margin-top: -8px; }
+
+/* Trade machine: record • tag and the need as one tight block; the cap change slides and blends, never blinks. */
+.trade-info { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 14px; line-height: 1.25; color: var(--text); text-align: center; }
+.trade-cap-bar .cb-delta { animation: none; opacity: 1; }
+.trade-cap-bar .cb-delta.cb-seg { animation: cbSeg 0.45s ease-out; }
+@keyframes cbSeg { from { left: var(--fl); width: var(--fw); background: var(--fc); } }

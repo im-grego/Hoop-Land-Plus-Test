@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.6';
+const APP_VERSION = '0.365.7';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -16123,8 +16123,9 @@ function teamNeed(t) {
 }
 const needLine = t => {
   if (!t || isCollege()) return '';
-  const r = t.season?.find(x => x.yr === league().season.currentYear)?.seasonStats || {}, tag = ED_TAGS[t.status ?? 0] || '';
-  return `<p class="note small center trade-rec"><b>${r.W || 0}-${r.L || 0}</b>${tag ? ` • ${esc(tag)}` : ''}</p><p class="note small center trade-need">Need: <b>${esc(teamNeed(t))}</b></p>`;
+  const L = league(), r = t.season?.find(x => x.yr === L.season.currentYear)?.seasonStats || {}, tag = ED_TAGS[t.status ?? 0] || '';
+  const rec = (r.W || 0) + (r.L || 0) > 0 && L.season.phase >= 9 && L.season.phase <= 11 ? `<b>${r.W}-${r.L}</b>` : '';
+  return `<div class="trade-info"><span>${rec}${rec && tag ? ' • ' : ''}${esc(tag)}</span><span>Need: <b>${esc(teamNeed(t))}</b></span></div>`;
 };
 const showVals = () => !!state.params.tradeValues;
 const valTag = v => showVals() ? `<span class="muted small">${Math.round(v)}</span>` : '';
@@ -16257,11 +16258,14 @@ function capRoomLine(t, outP = [], inP = []) {
     const w = +(bar.match(/class="cb-pay" style="width:([\d.]+)%"/)?.[1] ?? 0), prev = (state.capPrev ||= {})[t.id] ?? w;
     state.capPrev[t.id] = w;
     bar = bar.replace(/class="cb-pay" style="width:([\d.]+)%"/, `class="cb-pay${prev !== w ? ' cb-slide' : ''}" style="width:$1%;--from:${prev}%"`);    // The change in color: red for salary coming in, green for salary going out (from today's payroll to after).
-    if (d) {
-      const w0 = +(capBarOf(pay, deadFor(t.id), true).match(/class="cb-pay" style="width:([\d.]+)%"/)?.[1] ?? w);
-      const lo = Math.min(w0, w), hi = Math.max(w0, w);
-      bar = bar.replace('<span class="cb-dead"', `<span class="cb-delta ${d > 0 ? 'in' : 'out'}" style="left:${lo}%;width:${hi - lo}%"></span><span class="cb-dead"`);
-    }
+    // The change: one solid piece that slides and grows from where it was (green coming in, red going out, the color
+    // easing from one to the other), and shrinks away when the deal evens out.
+    const w0 = +(capBarOf(pay, deadFor(t.id), true).match(/class="cb-pay" style="width:([\d.]+)%"/)?.[1] ?? w);
+    const seg = d ? { l: Math.min(w0, w), w: Math.abs(w - w0), c: d > 0 ? '#3ddc84' : '#e5484d' } : { l: w, w: 0, c: (state.capSeg ||= {})[t.id]?.c || '#3ddc84' };
+    const ps = (state.capSeg ||= {})[t.id] || seg;
+    state.capSeg[t.id] = seg;
+    const moved = ps.l !== seg.l || ps.w !== seg.w || ps.c !== seg.c;
+    bar = bar.replace('<span class="cb-dead"', `<span class="cb-delta${moved ? ' cb-seg' : ''}" style="left:${seg.l}%;width:${seg.w}%;background:${seg.c};--fl:${ps.l}%;--fw:${ps.w}%;--fc:${ps.c}"></span><span class="cb-dead"`);
   }
   // Under the logo: the bar, then where the payroll lands after the deal (it changes as you add and take off assets).
   if (!bar) return `<p class="small muted trade-cap-line">${room ? `${room} · ` : ''}${payTxt}</p>`;
