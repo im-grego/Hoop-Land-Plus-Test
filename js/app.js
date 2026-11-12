@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.364.2';
+const APP_VERSION = '0.364.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -8809,7 +8809,7 @@ screens.lineup = (args = {}) => {
     const sv = sug.get(p.id) ?? 0, diff = sv - r.minutes[0];
     return `<div class="lu-tr ${r.linePos < 5 ? 'lu-st' : ''} ${inRot ? '' : 'out'} ${args.sel != null && +args.sel === p.id ? 'lu-sel' : ''}">
       <button class="lu-c-slot lu-pick" data-act="luTap" data-id="${p.id}" aria-label="Select to swap">${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? r.linePos + 1 : '—'}</button>
-      <span class="lu-c-name tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln || playerName(p))}</b>${r.hand ? ' ✋' : ''}${split}
+      <span class="lu-c-name tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln || playerName(p))}</b>${split}
         <span class="lu-bar2"><i style="width:${(r.minutes[0] / game * 100).toFixed(1)}%"></i></span></span>
       <span class="lu-c-ovr">${shownLevel(p)}</span>
       <span class="lu-c-min"><button class="lu-step" data-hold="luMin" data-id="${p.id}" data-d="-${step}" aria-label="Fewer minutes" ${inRot || r.hand ? '' : 'disabled'}>−</button><b>${r.minutes[0]}</b><button class="lu-step" data-hold="luMin" data-id="${p.id}" data-d="${step}" aria-label="More minutes">+</button></span>
