@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.0';
+const APP_VERSION = '0.365.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -1480,7 +1480,7 @@ function proLeagueFlags(L) {
 }
 function fixLineups(L) {
   let n = 0;
-  for (const t of L.teams) if (!lineupOk(t)) { LU.applyLineup(t, defaultPlan(t)); n++; }
+  for (const t of L.teams) if (!lineupOk(t)) { applyLu(t, defaultPlan(t)); n++; }
   return n;
 }
 // Late in free agency the teams at the top of the cap (over the 1st apron, or over the tax and not contending) move
@@ -1664,7 +1664,7 @@ function buildExport() {
     if (s.phase === 6) s.currentDay = s.signingDays || 3;
   }
   if (!isCollege()) settleRetirees(league(), true);   // anyone still retiring off a roster (yours included) goes now
-  if (!isCollege() && league().season.phase === 6) { exportCuts(league()); cutWeakSeconds(league()); floorFill(league()); gameCapCheck(league(), league().season.salaryCap); rebuildBlock(league()); for (const t of league().teams) if (!isUserTeam(t) && t.roster.length) LU.applyLineup(t, defaultPlan(t)); }
+  if (!isCollege() && league().season.phase === 6) { exportCuts(league()); cutWeakSeconds(league()); floorFill(league()); gameCapCheck(league(), league().season.salaryCap); rebuildBlock(league()); for (const t of league().teams) if (!isUserTeam(t) && t.roster.length) applyLu(t, defaultPlan(t)); }
   if (!isCollege()) { fixLineups(league()); pruneStaleNews(league()); proLeagueFlags(league()); }
   if (!isCollege()) pickWindow(league());
   // The game made the season's schedule before the expansion draft: new teams would have no games. Rebuild it.
@@ -3487,7 +3487,7 @@ actions.startTeam = async d => {
   state.dirty = false;
   await loadFile(file);
   // Every team's rotation from the real season so far (starters, minutes, who's hurt).
-  for (const tt of league().teams) if (tt.roster.length) LU.applyLineup(tt, defaultPlan(tt));
+  for (const tt of league().teams) if (tt.roster.length) applyLu(tt, defaultPlan(tt));
   try { localStorage.setItem(START_KEY(), JSON.stringify({ season: P.season, date: P.date, day: league().season.currentDay })); } catch { /* ignore */ }
   state.dirty = true;
   goHome();
@@ -7873,7 +7873,7 @@ actions.expFinish = () => {
   const o = expOrder(x), hi = L.teams.find(t => t.id === o.high), lo = L.teams.find(t => t.id === x.ids.find(id => id !== o.high));
   const placed = EXP.placeDraftSlots(L, draftYear(L), [{ team: hi, slot1: x.slots[0] }, { team: lo, slot1: x.slots[1] }]);
   if (!placed) toast('⚠️ No draft order yet', 'The lottery hasn\'t numbered this year\'s picks, so the new teams\' picks were added without a slot.', 5000, true);
-  for (const t of [hi, lo]) if (t.roster.length) LU.applyLineup(t, defaultPlan(t));
+  for (const t of [hi, lo]) if (t.roster.length) applyLu(t, defaultPlan(t));
   for (const id of x.ids) (x.capTeams ||= {})[id] = x.yr;
   x.status = 'done';
   saveExp(x); state.dirty = true; render();
@@ -8338,7 +8338,7 @@ actions.fanFinish = async () => {
     recordDraftPick(L, p, { tid: to.id, pk: x.n, rd: x.rd, field: 'fantasyDrafts' });
   }
   resetPicksNow();
-  for (const t of L.teams) if (t.roster.length) LU.applyLineup(t, defaultPlan(t));
+  for (const t of L.teams) if (t.roster.length) applyLu(t, defaultPlan(t));
   f.status = 'done'; f.fa = fa;
   saveFan(f);
   state.dirty = true;
@@ -8875,7 +8875,7 @@ function applyRealLineups() {
   if (isCollege() || CAR.isCareer(L) || L.season.phase !== 9) return 0;
   try { if (localStorage.getItem(realLuKey())) return 0; } catch { /* ignore */ }
   let n = 0;
-  for (const t of L.teams) if (t.roster.length && realMinutes(t)) { LU.applyLineup(t, defaultPlan(t)); n++; }
+  for (const t of L.teams) if (t.roster.length && realMinutes(t)) { applyLu(t, defaultPlan(t)); n++; }
   try { localStorage.setItem(realLuKey(), '1'); } catch { /* ignore */ }
   return n;
 }
@@ -9110,7 +9110,7 @@ actions.luApply = async () => {
   const tot = plan.rows.reduce((s, r) => s + r.minutes[0], 0), full = 5 * gameMinutes();
   if (a.lock && tot < full) { toast(`${full - tot} minutes still to hand out`, 'Give them to someone before you set it.', 2600, true); return; }
   if (plan.short.length && !(await confirmBox('Some positions are short of a full game. Set it anyway?', 'Set it'))) return;
-  LU.applyLineup(t, plan);
+  applyLu(t, plan);
   state.dirty = true;
   toast('🔁 Lineup set', `${t.shortName}: ${plan.rot.length}-man rotation, ${(LU_TABS[a.mode || luDefault(t)] || 'normal').toLowerCase()}.`);
   // On the rotation day, setting your (last) team's lineup finishes the step.
@@ -9130,7 +9130,10 @@ const dlKey = () => `hlc:deadline:${saveTag()}:${league().season.currentYear}`;
 function dlState() { try { return JSON.parse(localStorage.getItem(dlKey())) || {}; } catch { return {}; } }
 function dlSave(s) { try { localStorage.setItem(dlKey(), JSON.stringify(s)); } catch { /* ignore */ } }
 // A rotation that fits after players come and go mid-season.
-function resetRotation(t) { LU.applyLineup(t, defaultPlan(t)); state.dirty = true; }
+// Every lineup the app writes: a CPU team goes on the game's Optimized setting, so the game keeps managing it (a player
+// back from injury goes back in without a trip through the app); yours keeps the setting you chose in Hoop Land.
+const applyLu = (t, plan) => LU.applyLineup(t, plan, { optimized: !isUserTeam(t) });
+function resetRotation(t) { applyLu(t, defaultPlan(t)); state.dirty = true; }
 const dlPct = t => { const r = t.season?.find(x => x.yr === league().season.currentYear)?.seasonStats || {}; return { w: r.W || 0, l: r.L || 0, pct: r.GP ? r.W / r.GP : 0.5, gp: r.GP || 0 }; };
 const dlRole = t => { const { pct, gp } = dlPct(t); return gp < 15 ? 'bubble' : pct >= 0.56 ? 'buyer' : pct <= 0.44 ? 'seller' : 'bubble'; };
 // Just traded (a fresh stint with no games yet): not flipped again the same deadline.
@@ -9687,7 +9690,7 @@ function playoffRotations() {
   let n = 0;
   for (const t of L.teams.filter(t => t.roster.length)) {
     if (isUserTeam(t)) (s.rot ||= {})[t.id] = { sl: cloneData(t.startingLineup || []), ps: t.roster.map(p => [p.id, p.linePos, [...(p.minutes || [])], p.teamPos, p.posRnk]) };
-    LU.applyLineup(t, defaultPlan(t, true)); n++;
+    applyLu(t, defaultPlan(t, true)); n++;
   }
   poSave(s);
   return n;
@@ -9891,10 +9894,10 @@ function ciApply(t, k) {
   if (k === 'meeting') morale(dlPct(t).pct < 0.5 ? 5 : 3);
   // A day off: minor injuries (not the serious ones) heal two games sooner, and a small lift for everyone.
   if (k === 'dayoff') { for (const p of t.roster) { const i = p.season?.injury; if (i && (i.gamesOut || 0) > 1 && !(i.majorSeverity > 0)) i.gamesOut = Math.max(1, i.gamesOut - 2); } morale(1); }
-  if (k === 'shake') LU.applyLineup(t, LU.planLineup(t, { mode: dlPct(t).pct >= 0.5 ? 'compete' : 'develop', size: 9, game }));
-  if (k === 'push') { const plan = LU.planLineup(t, { mode: 'compete', size: 8, game }); LU.applyLineup(t, plan); for (const p of plan.starters) if (p.season) p.season.morale = Math.min(100, (p.season.morale ?? 60) + 3); }
-  if (k === 'rest') { const top = FA.signedRoster(t).sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 3); LU.applyLineup(t, LU.planLineup(t, { mode: 'normal', size: 10, game, over: Object.fromEntries(top.map(p => [p.id, Math.round(game * 0.62)])) })); }
-  if (k === 'kids') LU.applyLineup(t, LU.planLineup(t, { mode: 'develop', size: 10, game }));
+  if (k === 'shake') applyLu(t, LU.planLineup(t, { mode: dlPct(t).pct >= 0.5 ? 'compete' : 'develop', size: 9, game }));
+  if (k === 'push') { const plan = LU.planLineup(t, { mode: 'compete', size: 8, game }); applyLu(t, plan); for (const p of plan.starters) if (p.season) p.season.morale = Math.min(100, (p.season.morale ?? 60) + 3); }
+  if (k === 'rest') { const top = FA.signedRoster(t).sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 3); applyLu(t, LU.planLineup(t, { mode: 'normal', size: 10, game, over: Object.fromEntries(top.map(p => [p.id, Math.round(game * 0.62)])) })); }
+  if (k === 'kids') applyLu(t, LU.planLineup(t, { mode: 'develop', size: 10, game }));
   state.dirty = true;
 }
 // Career: one call of your own each stretch.
@@ -10002,7 +10005,7 @@ function rotCheck(t) {
 }
 actions.ciRot = d => {
   const t = league().teams.find(x => x.id === +d.t); if (!t || !isUserTeam(t)) return;
-  LU.applyLineup(t, defaultPlan(t)); state.dirty = true; render();
+  applyLu(t, defaultPlan(t)); state.dirty = true; render();
   toast('🔁 Rotation reset', `${t.shortName}: the suggested rotation`);
 };
 actions.ciPick = d => {
@@ -10099,7 +10102,7 @@ actions.poRot = d => {
   if (d.v === 'set') {
     (s.rot ||= {})[t.id] = { sl: cloneData(t.startingLineup || []), ps: t.roster.map(p => [p.id, p.linePos, [...(p.minutes || [])], p.teamPos, p.posRnk]) };
     const r = coachRot(t, true);
-    LU.applyLineup(t, defaultPlan(t, true));
+    applyLu(t, defaultPlan(t, true));
     toast('🔒 Playoff rotation set', `${r.size} men, ${Math.round(r.share * 100)}/${Math.round(100 - r.share * 100)} starters to bench.`);
   } else {
     const r = (s.rot || {})[t.id]; if (!r) return;
@@ -21614,7 +21617,7 @@ function rotationMorale(t) {
 // The rotation day's one-tap option: every team you run gets the suggested rotation.
 actions.rotSuggest = () => {
   const mine = league().teams.filter(isUserTeam);
-  for (const t of mine) LU.applyLineup(t, defaultPlan(t));
+  for (const t of mine) applyLu(t, defaultPlan(t));
   const mood = mine.flatMap(rotationMorale);
   calFlags().rotation = true; state.dirty = true; render();
   toast('🔁 Rotations set', `${mine.map(t => t.shortName).join(', ')}${mood.length ? ` · morale: ${mood.join(', ')}` : ''}`, 5000);

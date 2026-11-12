@@ -318,7 +318,11 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
 }
 const nearestSlot = p => [0, 1, 2, 3, 4].sort((a, b) => dist(p, a) - dist(p, b))[0];
 // Write it into the save: the starting lineup entries, each player's linePos, minutes, teamPos and posRnk.
-export function applyLineup(team, plan) {
+// The game's lineup setting (team.currentLineup): 0 Default, 1 Optimized, 2 Custom (read off a save with one team on each).
+export const LINEUP_DEFAULT = 0, LINEUP_OPTIMIZED = 1, LINEUP_CUSTOM = 2;
+export function applyLineup(team, plan, { optimized = false } = {}) {
+  // A CPU team goes on Optimized: the game keeps managing it (a player back from injury goes straight back in).
+  if (optimized) team.currentLineup = LINEUP_OPTIMIZED;
   const depth = [0, 0, 0, 0, 0];
   team.startingLineup = plan.rows.map(r => ({ linePos: r.linePos, pid: r.p.id, minutes: [...r.minutes] }));
   for (const r of plan.rows) {
