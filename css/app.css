@@ -2313,3 +2313,15 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .stand-row > span:first-child { width: 1.6em; flex: none; text-align: right; }
 /* Team stats: the sorted column in gold, no arrow, no underline. */
 .ts-col.on { color: var(--gold); text-decoration: none; font-weight: 800; }
+
+/* Trade machine: the logo of the team you're scrolling through. */
+.tsel-team .tsel-logo { width: 40px !important; height: 40px !important; }
+/* Trade recap: each side's haul under its logo. */
+.tr-box { text-align: left; max-height: 80vh; overflow-y: auto; }
+.tr-side { margin-top: 10px; }
+.tr-head { display: flex; align-items: center; gap: 8px; padding-bottom: 6px; border-bottom: 2px solid var(--btn-edge); margin-bottom: 4px; }
+.tr-head .tr-logo-big { width: 36px !important; height: 36px !important; }
+.tr-item { display: flex; align-items: center; gap: 10px; padding: 6px 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.tr-item .tr-logo { width: 28px !important; height: 28px !important; flex: none; }
+.tr-item .grow, .tr-box .tr-item { text-align: left; }
+.tr-side > .note { text-align: left; }

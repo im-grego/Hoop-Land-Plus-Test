@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.363.1';
+const APP_VERSION = '0.363.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -15948,7 +15948,7 @@ screens.liveTrade = (args) => {
     const T = L.teams.find(t => t.id === cur);
     const many = side === 'b' || left.length > 1;
     const arrow = (dir, ch) => many ? `<button class="tsel-arrow" data-act="liveCycle" data-side="${side}" data-dir="${dir}" aria-label="${dir < 0 ? 'Previous' : 'Next'} team">${ch}</button>` : `<span class="tsel-arrow off" aria-hidden="true"></span>`;
-    return `<div class="tsel">${arrow(-1, '◀')}<span class="tsel-team"><span class="tsel-name"><b>${esc(T.shortName)}</b></span></span>${arrow(1, '▶')}</div>`;
+    return `<div class="tsel">${arrow(-1, '◀')}<span class="tsel-team">${logoImg(T, 'logo-sm tsel-logo')}<span class="tsel-name"><b>${esc(T.shortName)}</b></span></span>${arrow(1, '▶')}</div>`;
   };
   // Step by step: what you want from them, then what you'll give. The deal and the bar stay pinned on top.
   const step = args.step === 'them' ? 'them' : 'you';
@@ -16265,10 +16265,22 @@ actions.liveTradeGo = async d => {
     saveSwaps(sl);
     if (!sa.items.length && !sb.items.length) { toast('⇄ Swap set', `${A.shortName} get the ${swapMode === 'best' ? 'better' : 'worse'} of the two ${(swapOut.xa.pick.yr)} R${swapOut.xa.pick.rd} picks`); back(); return; }
   }
+  const recap = tradeRecap(A, B, sa.items, sb.items);
   const entry = liveExecute(sa, sb);
   entry.protAdded = led.filter(e => !e.done && (sa.items.concat(sb.items)).some(x => x.pick && x.pick.otid === e.otid && x.pick.yr === e.yr && prot[x.key]));
   back();
+  setTimeout(recap, 120);
 };
+// The trade recap: each side's haul under its logo, every player and pick with the logo of the team he goes to.
+function tradeRecap(A, B, itemsA, itemsB) {
+  const L = league();
+  const name = x => (x.player ? `<b>${esc(playerName(x.player))}</b> ${lvTag(x.player)}` : x.pick ? `<b>${esc(pickLabel(x.pick))}</b>${x.pick.otid !== A.id && x.pick.otid !== B.id ? '' : ''}` : `<b>${String(x.label || '').replace(/<[^>]+>/g, '')}</b>`);
+  const sub = x => (x.player ? `${esc(posName(x.player))} · ${x.player.age}y${x.player.contract?.sal ? ` · $${x.player.contract.sal}M × ${x.player.contract.yrs}` : ''}` : x.pick ? (() => { const o = L.teams.find(q => q.id === x.pick.otid); return o ? `Draft pick · ${esc(o.shortName)}'s` : 'Draft pick'; })() : 'Draft rights');
+  const side = (to, items) => `<div class="tr-side"><div class="tr-head">${logoImg(to, 'logo-sm tr-logo-big')}<b>${esc(to.city)} ${esc(to.name)}</b><span class="small muted">get</span></div>
+    ${items.length ? items.map(x => `<div class="tr-item">${logoImg(to, 'logo-sm tr-logo')}<span class="grow">${name(x)}<br><span class="small muted">${sub(x)}</span></span></div>`).join('') : '<p class="note small muted">Nothing</p>'}</div>`;
+  const html = `<div class="info-head">Trade Recap</div>${side(B, itemsA)}${side(A, itemsB)}<button class="btn focus" data-close style="margin-top:10px">Done</button>`;
+  return () => { const o = overlay(html); o.querySelector('.box')?.classList.add('tr-box'); o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-close]')) o.remove(); }); };
+}
 
 // ---- Pick trades
 
