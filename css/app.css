@@ -2457,3 +2457,5 @@ h2.pl-name { white-space: nowrap; overflow: hidden; }
 .lu-tr { grid-template-columns: 22px minmax(0, 1fr) 28px 66px 26px; gap: 3px; }
 .lu-step { width: 19px; }
 .lu-nm .hc { font-size: 10px; }
+
+.g-frame .temp-note { margin: 2px 0 10px; }

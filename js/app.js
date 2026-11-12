@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.21';
+const APP_VERSION = '0.365.22';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -1155,7 +1155,7 @@ async function loadFile(file) {
     const planned = !isCollege() && applyClassPlan();
     if (!isCollege() && settleRetirees(league())) state.dirty = true;
     if (!isCollege() && playoffRotations()) state.dirty = true;
-    if (!isCollege() && labOn() && applyStreaks()) state.dirty = true;   // hot and cold streaks: test site only for now
+    if (!isCollege() && applyStreaks()) state.dirty = true;   // hot and cold streaks
     if (!isCollege() && applyFatigue()) state.dirty = true;
     if (!isCollege()) cupKnockout();
     if (!isCollege()) glCatchUp();
@@ -3559,7 +3559,7 @@ function muKeys(me, opp) {
   const a = muFive(me), b = muFive(opp);
   const edge = [0, 1, 2, 3, 4].map(s => a[s] && b[s] ? [s, shownLevel(a[s]) - shownLevel(b[s])] : null).filter(Boolean).sort((x, y) => y[1] - x[1])[0];
   if (edge && edge[1] >= 4) keys.push(['💪', `Your edge at ${LU.SLOTS[edge[0]]}: ${nm(a[edge[0]])} (${shownLevel(a[edge[0]])}) on ${nm(b[edge[0]])} (${shownLevel(b[edge[0]])}). Go at it.`]);
-  else { const hot = healthy(me).filter(p => (p.gameStatus?.streak || 0) >= 5).sort((x, y) => shownLevel(y) - shownLevel(x))[0]; if (hot) keys.push(['🔥', `Ride the hot hand: ${nm(hot)}.`]); }
+  else { const hot = healthy(me).filter(p => streakOf(p.id) === 'hot').sort((x, y) => shownLevel(y) - shownLevel(x))[0]; if (hot) keys.push(['🔥', `Ride the hot hand: ${nm(hot)}.`]); }
   return keys;
 }
 // How a team plays, in a few words: tempo, threes, defense.
@@ -3598,7 +3598,7 @@ screens.matchup = () => {
   const mRow = s => { const x = a[s], y = b[s]; if (!x || !y) return ''; const d = shownLevel(x) - shownLevel(y);
     return `<div class="mu-tr"><span class="tap ${d >= 4 ? 'up' : ''}" data-act="openPlayer" data-id="${x.id}">${esc(x.ln)}${hotCold(x)} <small>${shownLevel(x)}</small></span><span class="mu-lbl">${LU.SLOTS[s]}</span><span class="tap ${d <= -4 ? 'down' : ''}" data-act="openPlayer" data-id="${y.id}">${esc(y.ln)}${hotCold(y)} <small>${shownLevel(y)}</small></span></div>`; };
   const hurt = tm => { const h = muHurt(tm); return h.length ? h.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln)}</b> <small class="muted">${shownLevel(p)} · ${esc(injShort(p))}</small></span>`).join('') : '<span class="up small">Healthy</span>'; };
-  const streak = (tm, hot) => { const l = tm.roster.filter(p => hot ? (p.gameStatus?.streak || 0) >= 5 : (p.gameStatus?.streak || 0) <= -5).sort((x, y) => shownLevel(y) - shownLevel(x)); return l.length ? l.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(p.ln)}</span>`).join(', ') : '<span class="muted">None</span>'; };
+  const streak = (tm, hot) => { const l = tm.roster.filter(p => streakOf(p.id) === (hot ? 'hot' : 'cold')).sort((x, y) => shownLevel(y) - shownLevel(x)); return l.length ? l.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(p.ln)}</span>`).join(', ') : '<span class="muted">None</span>'; };
   layout({
     title: 'Scouting Report',
     body: `<div class="mu-vs big"><span class="mu-tm">${logoImg(me)}<b>${esc(me.shortName)}</b><small>${rec(me)}</small><small class="muted">${l10(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(opp)}<b>${esc(opp.shortName)}</b><small>${rec(opp)}</small><small class="muted">${l10(opp)}</small></span></div>
@@ -3608,7 +3608,7 @@ screens.matchup = () => {
       <fieldset class="frame mu-frame"><legend>Team Stats</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${MU_STATS.map(statRow).join('')}</fieldset>
       <fieldset class="frame mu-frame"><legend>Matchups</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${[0, 1, 2, 3, 4].map(mRow).join('')}</fieldset>
       <fieldset class="frame"><legend>Injury Report</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b>${hurt(me)}</div><div><b class="small">${esc(opp.shortName)}</b>${hurt(opp)}</div></div></fieldset>
-      <fieldset class="frame"><legend>Hot &amp; Cold</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b><span>🔥 ${streak(me, true)}</span><span>🧊 ${streak(me, false)}</span></div><div><b class="small">${esc(opp.shortName)}</b><span>🔥 ${streak(opp, true)}</span><span>🧊 ${streak(opp, false)}</span></div></div></fieldset>`,
+      <fieldset class="frame"><legend>Hot &amp; Cold</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b><span>🔥 ${streak(me, true)}</span><span>❄️ ${streak(me, false)}</span></div><div><b class="small">${esc(opp.shortName)}</b><span>🔥 ${streak(opp, true)}</span><span>❄️ ${streak(opp, false)}</span></div></div></fieldset>`,
   });
 };
 function mediaCard() {
@@ -9300,7 +9300,7 @@ screens.lineup = (args = {}) => {
 };
 const luArgs = () => state.stack[state.stack.length - 1].args || {};
 // The game's own hot and cold streaks (gameStatus.streak).
-const hotCold = p => { const s = p?.gameStatus?.streak || 0; return s >= 5 ? ' <span class="hc" title="Hot">🔥</span>' : s <= -5 ? ' <span class="hc" title="Cold">🧊</span>' : ''; };
+const hotCold = p => { const k = p ? streakOf(p.id) : null; return k === 'hot' ? ' <span class="hc" title="Hot streak">🔥</span>' : k === 'cold' ? ' <span class="hc" title="Cold streak">❄️</span>' : ''; };
 const luTeam = a => league().teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
 const luHealthyKey = t => `hlc:luHealthy:${saveTag()}:${t.id}`;
 // The lineup the save holds right now, as the screen's settings (every minute by position, the five where they start).
@@ -9383,11 +9383,7 @@ actions.luTap = d => {
   luCommit(a);
 };
 actions.luEdit = d => { const a = { ...luArgs(), edit: +d.id }; delete a.sel; replace('lineup', a); };
-actions.luEditDone = () => {
-  const a = { ...luArgs() }, t = luTeam(a), plan = luPlan(t, a), left = 5 * gameMinutes() - plan.rows.reduce((s, r) => s + r.minutes[0], 0);
-  if (left > 0) { toast(`${left} minute${left === 1 ? '' : 's'} still to hand out`, 'Give them to someone before you save.', 2200, true); return; }
-  delete a.edit; luCommit(a);
-};
+actions.luEditDone = () => { const a = { ...luArgs() }; delete a.edit; luCommit(a); };
 // One player's minutes at one position: they come from (and go back to) the minutes still to hand out.
 actions.luSlot = d => {
   const a = { ...luArgs() }, L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
@@ -10326,17 +10322,17 @@ screens.checkin = () => {
   const me = CAR.isCareer(L) ? CAR.careerPlayer(L) : null;
   const teams = me ? (me.team ? [me.team] : []) : L.teams.filter(isUserTeam);
   const box = t => {
-    const x = ciStanding(L, t), [v, vc] = ciVerdict(x), form = ciForm(L, t);
+    const x = ciStanding(L, t), [v, vc] = ciVerdict(x);
     const hurt = t.roster.filter(p => (p.season?.injury?.gamesOut || 0) > 0).sort((a, b) => b.season.injury.gamesOut - a.season.injury.gamesOut);
     const calls = CI_CALLS[w], pick = st[w]?.[t.id];
     return `<fieldset class="frame"><legend>${esc(teamFull(t))}</legend>
       ${x.w + x.l ? `<p class="note"><b>${x.w}-${x.l}</b> · Currently the ${ordinal(x.seed)} seed${x.w + x.l >= 10 ? ` · On pace for ${x.pace}-${x.games - x.pace}` : ''}</p>
       <p class="note small"><span class="${vc}">${v}</span>` : `<p class="note"><b>0-0</b> · the season hasn't tipped off</p>
       <p class="note small muted">Projected as the ${ordinal(x.want)} seed`}${w === 'stretch' ? ` · ${x.seed <= 6 ? 'in the playoffs' : x.seed <= 10 ? 'in the play-in' : `${x.seed - 10} spot${x.seed - 10 === 1 ? '' : 's'} out of the play-in`}` : ''}</p>
-      ${(() => { const hot = form.slice(0, 2).filter(f => f.d > 1), cold = form.slice(-2).filter(f => f.d < -1).filter(f => !hot.includes(f));
-        return `<div class="ci-form">${infoBtn('ciForm', '<p class="small"><b>Hot and cold</b> compare a player\'s production this season (points, rebounds, assists, steals and blocks against his misses and turnovers, per game) with his own last season. Ten games or more in both seasons count. Hot is clearly better than last year, cold clearly worse.</p>')}
-          <p class="note small">🔥 ${hot.length ? hot.map(f => `<b>${esc(shortName(f.p))}</b>`).join(', ') : 'Nobody is on a hot streak'}</p>
-          <p class="note small">🧊 ${cold.length ? cold.map(f => `<b>${esc(shortName(f.p))}</b>`).join(', ') : 'Nobody is on a cold streak'}</p></div>`; })()}
+      ${(() => { const mine = k => FA.signedRoster(t).filter(p => streakOf(p.id) === k).sort((a, b) => shownLevel(b) - shownLevel(a)), hot = mine('hot'), cold = mine('cold');
+        return `<div class="ci-form">${infoBtn('ciForm', '<p class="small"><b>Hot and cold streaks</b>: a player on a streak of 5+ games who is producing at or above players his age at his position heats up (+0.5 to layup, inside, mid-range, three, dribbling, passing, offensive rebounding and steals). A cold streak of 3+ while producing at or below them cools him off (-0.5 to layup, inside, mid-range, three, dribbling and offensive rebounding). It lasts until the next file you load.</p>')}
+          <p class="note small">🔥 ${hot.length ? hot.map(p => `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(shortName(p))}</b>`).join(', ') : 'Nobody is on a hot streak'}</p>
+          <p class="note small">❄️ ${cold.length ? cold.map(p => `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(shortName(p))}</b>`).join(', ') : 'Nobody is on a cold streak'}</p></div>`; })()}
       ${hurt.length ? `<p class="note small">🩹 ${hurt.slice(0, 4).map(p => `<b>${esc(p.ln)}</b> ${injShort(p)}`).join(' · ')}</p>` : '<p class="note small up">🩹 Healthy.</p>'}
       ${me ? '' : pick ? `<p class="note small up">✓ ${calls[pick].icon} ${esc(calls[pick].label)}</p>` : `<div class="stack">${Object.entries(calls).filter(([k]) => !(k === 'rest' && x.seed > 8) && !(k === 'kids' && x.seed <= 6)).map(([k, c]) => `<button class="btn left small ci-call" data-act="ciPick" data-t="${t.id}" data-k="${k}"><span class="grow"><b>${c.icon} ${esc(c.label)}</b><span class="ci-says">${esc(c.says)}</span></span></button>`).join('')}</div>`}
       ${me ? '' : rotCheck(t)}
@@ -10580,6 +10576,17 @@ function tempDelta(p) {
   if (fx) out = out ? { src: out.src, also: fx.src, add: { ...out.add, ...fx.add } } : { src: fx.src, add: { ...fx.add } };
   return out;
 }
+// What a temporary change does, in a line over the ratings (hot or cold streak, playoff riser, tired legs).
+function tempLine(p) {
+  const tmp = tempDelta(p); if (!tmp) return '';
+  const all = Object.entries(tmp.add || {}).filter(([, d]) => d);
+  const by = src => all.filter(([k]) => (src === tmp.also) === ['SPD', 'STM'].includes(k) || !tmp.also);
+  const icon = { 'Hot streak': '🔥', 'Cold streak': '❄️', 'Playoff riser': '📈' };
+  return [tmp.src, tmp.also].filter(Boolean).map(src => { const ks = (tmp.also ? by(src) : all);
+    const parts = ks.map(([k, d]) => `<span class="${d > 0 ? 'up' : 'down'}">${esc(G_NAMES[k] || k)} ${d > 0 ? '+' : '−'}${gVal(Math.abs(d))}</span>`).join(', ');
+    const d = ks[0]?.[1] || 0, amt = ks.length ? `${d > 0 ? '+' : '−'}${gVal(Math.abs(d))} on the marked ratings` : '';
+    return `<p class="note small temp-note">${icon[src] || '💤'} <b>${esc(src)}</b>${amt ? `: <span class="${d > 0 ? 'up' : 'down'}">${amt}</span>` : ''}<span class="muted"> · ${src === 'Playoff riser' ? 'for the playoffs' : 'until the next file'}</span></p>`; }).join('');
+}
 const streakIcon = p => { const k = streakOf(p.id), f = fxOf(p.id); return (k === 'hot' ? ' <span title="Hot streak">🔥</span>' : k === 'cold' ? ' <span title="Cold streak">❄️</span>' : '') + (f ? ` <span title="${esc(f.src)}">💤</span>` : ''); };
 function applyStreaks() {
   const L = league(), st = streakStore();
@@ -10597,9 +10604,9 @@ function applyStreaks() {
     }
   }
   const fresh = { list: {}, day: L.season.currentDay, yr: L.season.currentYear };
-  if (labOn() && L.season.phase === 9) {
+  if (L.season.phase === 9) {
     const ps = L.teams.flatMap(t => FA.signedRoster(t));
-    const prod = productionScores(ps, state.leagueIdx, L.season.currentYear, state.params);
+    const prod = productionScores(ps, state.leagueIdx, L.season.currentYear, { ...state.params, trainerMinGames: 5 });   // a streak needs 5 games, not a full sample
     const risen = riseStore()[L.season.currentYear]?.list || {};
     for (const p of ps) {
       if (risen[p.id]) continue;   // a playoff riser's boost and a streak never stack
@@ -12859,6 +12866,7 @@ function newPlayerScreen(args) {
   // compare him with the league on that rating.
   const ratingsView = `<fieldset class="frame g-frame"><legend>Ratings</legend>${edit ? infoBtn('ratings', RATINGS_HELP) : ''}
       <div class="g-pot"><span>Potential</span>${ev(p, 'pot', potStars(p))}${declining(p) ? ' <span class="small down">Declining</span>' : ''}${edit ? `<span class="muted small"> ${capLeft > 0 ? `${capLeft} pts of room` : capLeft === 0 ? 'ceilings at potential' : `${-capLeft} pts over`}</span>` : ''}</div>
+      ${tempLine(p)}
       ${gAllLines(p, snap, false, false)}
       ${skillsChips(p)}</fieldset>`;
   const content = `${edit ? '' : newsBox(p)}${rankBox(p, mpg)}${ratingsView}${edit ? `${trainer}${apCard}${skills}` : ''}${plOutlookBox(p, team)}${milestonesBox(p, true)}${arcBox(p)}
