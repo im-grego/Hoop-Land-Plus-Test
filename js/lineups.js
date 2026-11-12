@@ -210,7 +210,7 @@ const offMinutes = (rot, g) => rot.reduce((a, q) => a + g.slots.get(q).reduce((b
 // order, a player with no games yet (back from injury, just signed) slots in by his level next to the teammate
 // closest to it; the rotation runs 9 to 12 deep and stops where the talent drops off (4+ levels below the man
 // before), and the minutes follow what each has been playing.
-export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = {}, share = null, promised = {}, real = null, sizeSet = false } = {}) {
+export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = {}, share = null, promised = {}, real = null, sizeSet = false, locked = false } = {}) {
   const roster = team.roster.filter(p => p.status === 3 || p.status === 2), deep = isDeep(roster);
   const top5 = [...roster].map(levelOf).sort((a, b) => b - a).slice(0, 5), awful = top5.reduce((a, v) => a + v, 0) / Math.max(1, top5.length) < 80;
   const lowCap = mode === 'develop' || awful ? 0 : 20;
@@ -218,6 +218,8 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
   const realOn = known.length >= 5;
   const estMpg = p => { if (real?.[p.id]) return real[p.id].mpg + real[p.id].start * 10; const lv = levelOf(p); const near = [...known].sort((a, b) => Math.abs(levelOf(a) - lv) - Math.abs(levelOf(b) - lv))[0]; return near ? real[near.id].mpg + real[near.id].start * 10 + (lv - levelOf(near)) * 0.5 : 0; };
   const score = p => (realOn ? estMpg(p) * 3 + playScore(p, mode, deep) * 0.1 : playScore(p, mode, deep)) + (promised[p.id]?.start ? 25 : promised[p.id]?.min ? 8 : 0);
+  // Real minutes: a player the coach hasn't been playing (under 8 a game) never comes in to fix a position.
+  const plays = q => !realOn || !real[q.id] || real[q.id].mpg >= 8 || over[q.id] > 0;
   // Set to 0 by hand: out of the rotation. Set above 0: in it, whoever else gets squeezed.
   const cands = roster.filter(p => healthy(p) && over[p.id] !== 0).sort((a, b) => score(b) - score(a));
   const starters = pickStarters(cands, score);
@@ -233,9 +235,9 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
   const picks = bench.filter(p => over[p.id] > 0).slice(0, nBench);
   // Prospects where they're meant to play come next (at most two), then the position needs.
   for (const p of bench.filter(q => promised[q.id] && over[q.id] == null && !picks.includes(q))) if (picks.length < nBench) picks.push(p);
-  if (prospectsPlay(mode, deep)) for (const p of bench.filter(q => isProspect(q) && over[q.id] == null && !picks.includes(q)).slice(0, 2)) if (picks.length < nBench) picks.push(p);
-  for (const g of [2, 0, 1]) { const b = bench.find(p => grp(p) === g && !picks.includes(p)); if (b && picks.length < nBench && (g !== 1 || score(b) >= score(bench[0]) - 10)) picks.push(b); }
-  for (const p of bench) if (picks.length < nBench && !picks.includes(p)) picks.push(p);
+  if (!realOn && prospectsPlay(mode, deep)) for (const p of bench.filter(q => isProspect(q) && over[q.id] == null && !picks.includes(q)).slice(0, 2)) if (picks.length < nBench) picks.push(p);
+  if (!realOn) for (const g of [2, 0, 1]) { const b = bench.find(p => grp(p) === g && !picks.includes(p)); if (b && picks.length < nBench && (g !== 1 || score(b) >= score(bench[0]) - 10)) picks.push(b); }
+  if (!locked) for (const p of bench) if (picks.length < nBench && !picks.includes(p)) picks.push(p);   // minutes set by hand: only who you gave minutes
   picks.sort((a, b) => score(b) - score(a));
   let rot = [...starters, ...picks];
   // Real minutes: each player's minutes this season (on this game length), scaled so the five spots fill; anyone
@@ -267,10 +269,10 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
   // worst player in the rotation, in place of the last man whose spots are covered without him. Kept only if it
   // cuts the out-of-position minutes.
   const tried = new Set();
-  for (let it = 0; it < 8 && offMinutes(rot, got) > 0; it++) {
+  for (let it = 0; !locked && it < 8 && offMinutes(rot, got) > 0; it++) {
     const holes = [0, 1, 2, 3, 4].filter(s => rot.some(q => got.slots.get(q)[s] > 0 && !inPos(q, s)));
     const worst = Math.min(...rot.map(levelOf));
-    const add = cands.find(q => !rot.includes(q) && !tried.has(q) && holes.some(s => inPos(q, s)) && levelOf(q) >= worst - POS_GAP);
+    const add = cands.find(q => !rot.includes(q) && !tried.has(q) && plays(q) && holes.some(s => inPos(q, s)) && levelOf(q) >= worst - POS_GAP);
     if (!add) break;
     tried.add(add);
     const covered = q => [0, 1, 2, 3, 4].every(t => !inPos(q, t) || rot.filter(r => r !== q && inPos(r, t)).length >= 2);
@@ -282,11 +284,11 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
     if (offMinutes(nextRot, g2) < offMinutes(rot, got)) { rot = nextRot; want = m2.want; hi = m2.hi; cap = m2.cap; got = g2; }
   }
   // A rotation spot that ends up with no minutes (a third center behind two) goes to the next man who can play.
-  for (let it = 0; it < 4; it++) {
+  for (let it = 0; !locked && it < 4; it++) {
     const idle = rot.slice(5).find(q => over[q.id] == null && !got.slots.get(q).some(v => v > 0));
     if (!idle) break;
     let swapped = false;
-    for (const add of cands.filter(q => !rot.includes(q) && !tried.has(q)).slice(0, 4)) {
+    for (const add of cands.filter(q => !rot.includes(q) && !tried.has(q) && plays(q)).slice(0, 4)) {
       tried.add(add);
       const nextRot = [...starters, ...[...rot.slice(5).filter(q => q !== idle), add].sort((a, b) => score(b) - score(a))];
       const m2 = minutesFor(nextRot, mode, game, over, share, deep, promised, lowCap), g2 = assign(nextRot, starters, m2.want, m2.hi, game, over, m2.cap);

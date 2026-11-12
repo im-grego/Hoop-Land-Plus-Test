@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.360.1';
+const APP_VERSION = '0.360.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -8703,7 +8703,7 @@ const defaultPlan = (t, po = false) => LU.planLineup(t, { mode: po ? 'playoffs' 
 function realMinutes(t) {
   const L = league();
   if (L.season.phase !== 9) return null;
-  const now = dlPct(t).gp >= 5, y = now ? L.season.currentYear : L.season.currentYear - 1, min = now ? 3 : 10;
+  const now = dlPct(t).gp >= 5, y = now ? L.season.currentYear : L.season.currentYear - 1, min = now ? 1 : 10;
   const k = 48 / gameMinutes(), out = {};
   for (const p of t.roster) {
     const rows = (p.stats || []).filter(s => (s.league ?? 0) === state.leagueIdx && s.yr === y).flatMap(s => s.season || []);
@@ -8789,10 +8789,10 @@ screens.lineup = (args = {}) => {
     title: 'Lineup & Minutes',
     body: `<p class="note small">${logoImg(t)} <b>${esc(teamFull(t))}</b></p>
       <div class="tabs fa-tabs">${tabs.map(k => `<button class="btn small ${k === mode ? 'on focus' : 'off'}" data-act="luSet" data-k="mode" data-v="${k}">${LU_TABS[k]}</button>`).join('')}</div>
-      <div class="grid2 lu-acts"><button class="btn off" data-act="luSet" data-k="over" data-v="">↩ Clear edits</button><button class="btn focus" data-act="luApply">✅ Set lineup</button></div>
+      <div class="grid2 lu-acts"><button class="btn off" data-act="luSet" data-k="over" data-v="">↩ Reset minutes</button><button class="btn focus" data-act="luApply">✅ Set lineup</button></div>
       <div class="drill-row"><span class="grow small">Players in the rotation</span><span class="trait-ctl"><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.max(5, plan.rot.length - 1)}" ${plan.rot.length <= 5 ? 'disabled' : ''}>−</button><b class="small" style="min-width:2em;text-align:center">${plan.rot.length}</b><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.min(12, plan.rot.length + 1)}" ${plan.rot.length >= 12 ? 'disabled' : ''}>+</button></span></div>
-      <fieldset class="frame lu-frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend><div class="lu-list">${head}${plan.rows.map(row).join('')}</div>
-        ${plan.short.length ? `<p class="note small down">Short at ${plan.short.map(x => `${x.slot} (${x.v})`).join(', ')}: add a player or minutes.</p>` : ''}</fieldset>`,
+      <fieldset class="frame lu-frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend>${args.lock && total < 5 * game ? `<p class="note small gold lu-free">${5 * game - total} minute${5 * game - total === 1 ? '' : 's'} to hand out: tap + on anyone.</p>` : ''}<div class="lu-list">${head}${plan.rows.map(row).join('')}</div>
+        ${plan.short.length && !(args.lock && total < 5 * game) ? `<p class="note small down">Short at ${plan.short.map(x => `${x.slot} (${x.v})`).join(', ')}: add a player or minutes.</p>` : ''}</fieldset>`,
   });
 };
 const luArgs = () => state.stack[state.stack.length - 1].args || {};
@@ -8817,21 +8817,34 @@ function luPlan(t, a) {
   const real = mode === 'real' ? realMinutes(t) : null;
   if (mode === 'real') mode = real ? 'normal' : lineupMode(t);
   const cr = coachRot(t, mode === 'playoffs');
-  return LU.planLineup(t, { mode, size: a.size || cr.size, sizeSet: !!a.size, share: real ? null : cr.share, game: gameMinutes(), over: a.over || {}, promised: promisedMinutes(t), real });
+  return LU.planLineup(t, { mode, size: a.size || cr.size, sizeSet: !!a.size, locked: !!a.lock, share: real ? null : cr.share, game: gameMinutes(), over: a.over || {}, promised: promisedMinutes(t), real });
 }
-actions.luSet = d => { const a = { ...luArgs() }; if (d.k === 'over') a.over = {}; else a[d.k] = d.k === 'size' ? +d.v : d.v; replace('lineup', a); };
+actions.luSet = d => {
+  const a = { ...luArgs() };
+  if (d.k === 'over' || d.k === 'mode') { a.over = {}; a.lock = false; delete a.size; }   // reset: back to the suggestion
+  if (d.k !== 'over') a[d.k] = d.k === 'size' ? +d.v : d.v;
+  replace('lineup', a);
+};
 actions.luMin = d => {
   const a = { ...luArgs() }, L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
   const game = gameMinutes(), plan = luPlan(t, a);
   const r = plan.rows.find(x => x.p.id === +d.id); if (!r) return;
-  a.over = { ...(a.over || {}), [d.id]: Math.max(0, Math.min(game, r.minutes[0] + +d.d)) };
-  const sz = a.size || plan.rot.length;
-  if (r.linePos >= sz && +d.d > 0) a.size = Math.min(12, sz + 1);   // "Play him": he joins the rotation
+  if (+d.d > 0 && !(r.minutes[0] > 0) && (r.p.season?.injury?.gamesOut || 0) > 0) { toast('He\'s hurt', `${r.p.ln} is out ${r.p.season.injury.gamesOut} more game${r.p.season.injury.gamesOut === 1 ? '' : 's'}.`, 1800, true); return; }
+  if (!a.lock) { a.over = Object.fromEntries(plan.rows.filter(x => x.minutes[0] > 0).map(x => [x.p.id, x.minutes[0]])); a.lock = true; a.mode = a.mode || luDefault(t); }
+  const over = { ...a.over }, cur = over[d.id] ?? 0, free = 5 * game - Object.values(over).reduce((s, v) => s + v, 0);
+  const v = Math.max(0, Math.min(game, cur + +d.d, cur + Math.max(0, free)));
+  if (v === cur) { if (+d.d > 0 && free <= 0) toast('No free minutes', 'Take minutes from someone first.', 1800, true); return; }
+  if (v > 0 && Object.values(over).filter(x => x > 0).length >= 12 && !(cur > 0)) { toast('Twelve is the most', 'Take someone out of the rotation first.', 1800, true); return; }
+  over[d.id] = v;
+  a.over = over;
+  a.size = Math.max(5, Object.values(over).filter(x => x > 0).length);
   replace('lineup', a);
 };
 actions.luApply = async () => {
   const a = luArgs(), L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
   const plan = luPlan(t, a);
+  const tot = plan.rows.reduce((s, r) => s + r.minutes[0], 0), full = 5 * gameMinutes();
+  if (a.lock && tot < full) { toast(`${full - tot} minutes still to hand out`, 'Give them to someone before you set it.', 2600, true); return; }
   if (plan.short.length && !(await confirmBox('Some positions are short of a full game. Set it anyway?', 'Set it'))) return;
   LU.applyLineup(t, plan);
   state.dirty = true;
