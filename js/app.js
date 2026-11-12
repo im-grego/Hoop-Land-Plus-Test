@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.10';
+const APP_VERSION = '0.365.11';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -11369,35 +11369,68 @@ function tradeBlocks(L) {
 // Rumors around the league: disgruntled stars, vets on sinking teams, tax pressure and players being shopped.
 // Team: what your team's own account posts this season, newest first: every final (the winner first, with the Player
 // of the Game) and the roster moves since last season (signings, trades, draft picks, goodbyes).
+// Team: your team's own account. Short and in its voice: a win gets a line ("Another dub."), a loss just the final.
+// The Player of the Game only comes up for a truly big night (the game keeps the last game's box score, so the app
+// notes it the day it sees it). Roster moves land in order with the games, newest first.
+const WIN_LINES = ['Another dub.', 'Business handled.', 'That\'s a W.', 'Ball game.', 'Mission passed. Respect earned.', 'On to the next.', 'Good win. Better team.', 'We take that one.'];
+const ROAD_WIN_LINES = ['Flying home happy.', 'Road dub.', 'Took care of business on the road.'];
+const bigNight = s => {
+  if (!s?.GP) return '';
+  const pts = s.PTS || 0, reb = s.REB || 0, ast = s.AST || 0, blk = s.BLK || 0, stl = s.STL || 0;
+  if ((s.TD || 0) > 0 || (pts >= 10 && reb >= 10 && ast >= 10)) return `a triple-double (${pts}-${reb}-${ast})`;
+  if (pts >= 40) return `${pts} points`;
+  if (pts >= 30 && reb >= 15) return `${pts} and ${reb}`;
+  if (pts >= 25 && ast >= 12) return `${pts} and ${ast} assists`;
+  if (reb >= 20) return `${reb} rebounds`;
+  if (ast >= 16) return `${ast} assists`;
+  if (blk >= 7) return `${blk} blocks`;
+  if (stl >= 6) return `${stl} steals`;
+  return '';
+};
 function teamPostsOf(tm) {
   if (!tm) return [];
-  const L = league(), out = [], full = x => `${x.city} ${x.name}`, by = id => L.teams.find(x => x.id === id);
-  const sched = L.season.schedule || [];
-  let n = 0;
-  for (let d = 0; d < Math.min(sched.length, L.season.currentDay ?? sched.length); d++) for (const g of sched[d]?.results || []) {
+  const L = league(), out = [], by = id => L.teams.find(x => x.id === id), yr = L.season.currentYear;
+  const sched = L.season.schedule || [], now = L.season.currentDay ?? sched.length;
+  const nights = lsGet(`hlc:bigNights:${saveTag()}:${yr}`, {});
+  let lastG = null, n = 0, wins = 0, roadWins = 0;
+  for (let d = 0; d < Math.min(sched.length, now); d++) for (const g of sched[d]?.results || []) if ((g.homeTeam === tm.id || g.awayTeam === tm.id) && g.winner >= 0 && (g.homeScore || g.awayScore)) lastG = g;
+  // The newest game: the Player of the Game's box score is still in the save, so a big night gets noted for good.
+  if (lastG?.potg > 0 && nights[lastG.gId] == null) { const star = findPlayer(lastG.potg)?.p; nights[lastG.gId] = star && (star.tid === tm.id || tm.roster.includes(star)) ? bigNight(star.gameStats) : ''; lsSet(`hlc:bigNights:${saveTag()}:${yr}`, nights); }
+  for (let d = 0; d < Math.min(sched.length, now); d++) for (const g of sched[d]?.results || []) {
     if (g.homeTeam !== tm.id && g.awayTeam !== tm.id) continue;
     if (!(g.winner >= 0) || !(g.homeScore || g.awayScore)) continue;
     n++;
-    const w = by(g.winner), l = by(g.winner === g.homeTeam ? g.awayTeam : g.homeTeam), ws = g.winner === g.homeTeam ? g.homeScore : g.awayScore, ls = g.winner === g.homeTeam ? g.awayScore : g.homeScore;
-    const star = g.potg > 0 ? findPlayer(g.potg)?.p : null;
-    out.push({ k: `t:g:${L.season.currentYear}:${g.gId}`, d, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: full(tm), handle: tTag(tm), text: `FINAL: ${esc(full(w))} ${ws}, ${esc(full(l))} ${ls}${star ? `<br>Player of the Game goes to <span class="hg-at">@${esc(pTag(star))}</span>!` : ''}`, foot: `Game ${n} · ${g.winner === tm.id ? '<span class="up">W</span>' : '<span class="down">L</span>'}`, act: star ? `data-act="openPlayer" data-id="${star.id}"` : '' }) });
+    const won = g.winner === tm.id, home = g.homeTeam === tm.id, opp = by(home ? g.awayTeam : g.homeTeam);
+    const my = home ? g.homeScore : g.awayScore, their = home ? g.awayScore : g.homeScore;
+    const star = g.potg > 0 ? findPlayer(g.potg)?.p : null, big = star && tm.roster.includes(star) ? nights[g.gId] : '';
+    let text;
+    if (won) {
+      const line = !home && roadWins % 2 === 0 ? ROAD_WIN_LINES[(roadWins / 2) % ROAD_WIN_LINES.length] : WIN_LINES[wins % WIN_LINES.length];
+      if (!home) roadWins++; wins++;
+      text = `${esc(line)}<br>${esc(tm.shortName)} ${my}, ${esc(opp?.shortName || '')} ${their}${big ? `<br>${esc(gram(shortName(star)))} with ${esc(big)}.` : ''}`;
+    } else text = `Final. ${esc(opp?.shortName || '')} ${their}, ${esc(tm.shortName)} ${my}`;
+    out.push({ k: `t:g:${yr}:${g.gId}`, d, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text, foot: `Game ${n} · ${won ? '<span class="up">W</span>' : '<span class="down">L</span>'}`, act: big ? `data-act="openPlayer" data-id="${star.id}"` : '' }) });
   }
-  out.reverse();
-  // The roster moves (no dates on these: they sit under the games).
+  // Roster moves: dated the day the app first sees them (before the season: under every game).
   try {
-    const mv = teamMoves(L, tm), at = p => `<span class="hg-at">@${esc(pTag(p))}</span>`;
+    const stampK = `hlc:moveDay:${saveTag()}:${yr}`, stamps = lsGet(stampK, {});
+    let changed = false;
+    const when = k => { if (stamps[k] == null) { stamps[k] = L.season.phase >= 9 && L.season.phase <= 11 ? now - 0.5 : -1; changed = true; } return stamps[k]; };
+    const mv = teamMoves(L, tm), nm = q => esc(gram(shortName(q)));
     for (const m of mv.ins.filter(x => !x.back)) {
-      const from = m.from.replace(/^Trade · /, '');
-      const text = m.from.startsWith('Trade') ? `We've acquired ${at(m.p)} from ${esc(from)}. Welcome to the ${esc(tm.name)}!` : m.from === 'Draft' ? `Welcome to the ${esc(tm.name)}, ${at(m.p)}! Our newest draft pick is officially on the roster.` : `Welcome to ${esc(tm.city)}, ${at(m.p)}! ${m.p.contract?.sal ? `($${m.p.contract.sal}M × ${m.p.contract.yrs})` : ''}`;
-      out.push({ k: `t:in:${L.season.currentYear}:${m.p.id}`, d: -1, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: full(tm), handle: tTag(tm), text, foot: 'Roster move', act: `data-act="openPlayer" data-id="${m.p.id}"` }) });
+      const from = m.from.replace(/^Trade · /, '').replace(/^FA · /, '');
+      const text = m.from.startsWith('Trade') ? `Welcome to the ${esc(tm.name)}, ${nm(m.p)}.` : m.from === 'Draft' ? `Welcome to the family, ${nm(m.p)}.` : `Welcome to ${esc(tm.city)}, ${nm(m.p)}.`;
+      const k = `t:in:${yr}:${m.p.id}`;
+      out.push({ k, d: when(k), html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text, foot: m.from.startsWith('Trade') ? `Trade · from ${esc(from)}` : m.from === 'Draft' ? 'Draft' : 'Signing', act: `data-act="openPlayer" data-id="${m.p.id}"` }) });
     }
     for (const m of mv.outs || []) {
-      const to = String(m.to || '').replace(/^Trade · /, '');
-      const text = String(m.to || '').startsWith('Trade') ? `We've traded ${at(m.p)} to ${esc(to)}. Thank you for everything!` : /retir/i.test(m.to || '') ? `Congratulations on a great career, ${at(m.p)}. Thank you!` : `Thank you, ${at(m.p)}. Best of luck in what's next!`;
-      out.push({ k: `t:out:${L.season.currentYear}:${m.p.id}`, d: -1, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: full(tm), handle: tTag(tm), text, foot: 'Roster move', act: `data-act="openPlayer" data-id="${m.p.id}"` }) });
+      const text = /retir/i.test(m.to || '') ? `Congrats on a great career, ${nm(m.p)}.` : `Thank you, ${nm(m.p)}.`;
+      const k = `t:out:${yr}:${m.p.id}`;
+      out.push({ k, d: when(k), html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text, foot: String(m.to || '').startsWith('Trade') ? 'Trade' : 'Roster move', act: `data-act="openPlayer" data-id="${m.p.id}"` }) });
     }
+    if (changed) lsSet(stampK, stamps);
   } catch { /* the moves are a bonus */ }
-  return out;
+  return out.sort((a, b) => b.d - a.d);
 }
 // Mentions: what others say about your team and players, kept from the start of the season (offseason included)
 // through the playoffs: rumors and trending posts that name you, opponents tipping their cap to your Player of the
@@ -11450,7 +11483,7 @@ function syncMentions() {
   // Your best players in the last year of their deals (from the regular season on): one post for all of them.
   const expiring = L.season.phase >= 9 ? FA.signedRoster(me).filter(q => (q.contract?.yrs || 0) <= 1 && shownLevel(q) >= 78).sort((a, b) => shownLevel(b) - shownLevel(a)) : [];
   if (expiring.length) {
-    const names = andList(expiring.map(q => `${nick(q)} (${at(q)})`));
+    const names = andList(expiring.map(q => nick(q)));
     const text = expiring.length === 1 ? `${names} is playing out the final year of his deal. ${esc(me.city)} has a big call to make this summer.`
       : `${names} are all in the last year of their deals. ${esc(me.city)}'s summer is going to be busy.`;
     add(`m:fa2:${L.season.currentYear}:${expiring.map(q => q.id).join('-')}`, day, gpost({ name: 'CapSpaceGuy', handle: 'capspaceguy', text, act: `data-act="openPlayer" data-id="${expiring[0].id}"`, ver: false }));
@@ -11460,18 +11493,19 @@ function syncMentions() {
     const rows = [];
     for (const tm of L.teams) { const gp = dlPct(tm).gp; for (const q of tm.roster) { const l = seasonLine(q, state.leagueIdx, L.season.currentYear); if (l && gp >= 10 && l.gp >= gp / 2) rows.push({ q, l, tm }); } }
     const ranks = new Map();
-    for (const [k, lbl] of [['ppg', 'scoring'], ['rpg', 'rebounding'], ['apg', 'assists'], ['spg', 'steals'], ['bpg', 'blocks']]) {
+    for (const [k, lbl] of [['ppg', 'scoring'], ['rpg', 'rebounds'], ['apg', 'assists'], ['spg', 'steals'], ['bpg', 'blocks']]) {
       const top = [...rows].sort((a, b) => b.l[k] - a.l[k]).slice(0, 5);
       top.forEach((x, i) => { if (x.tm === me) (ranks.get(x.q) || ranks.set(x.q, []).get(x.q)).push(`${['1st', '2nd', '3rd', '4th', '5th'][i]} in ${lbl} (${x.l[k].toFixed(1)})`); });
     }
     const forms = [
-      (q, r) => `${at(q)} right now: ${andList(r)} in the league.`,
+      (q, r) => `${nick(q)} right now: ${andList(r)} in the league.`,
       (q, r) => `Where ${nick(q)} ranks this season: ${andList(r)}.`,
-      (q, r) => `League leaderboard check. ${at(q)} is ${andList(r)}.`,
+      (q, r) => `League leaderboard check: ${nick(q)} is ${andList(r)}.`,
       (q, r) => `${nick(q)} is putting together a season: ${andList(r)}.`,
     ];
-    [...ranks].forEach(([q, r], i) => add(`m:lead2:${L.season.currentYear}:${q.id}:${r.join('|')}`, day, gpost({ name: 'StatMuse Land', handle: 'statmuseland', text: forms[(i + (L.season.currentDay || 0)) % forms.length](q, r), act: `data-act="openPlayer" data-id="${q.id}"`, ver: false })));
+    [...ranks].filter(([, r]) => r.length >= 2).forEach(([q, r], i) => add(`m:lead2:${L.season.currentYear}:${q.id}:${r.join('|')}`, day, gpost({ name: 'StatMuse Land', handle: 'statmuseland', text: forms[(i + (L.season.currentDay || 0)) % forms.length](q, r), act: `data-act="openPlayer" data-id="${q.id}"`, ver: false })));
     // A player's older leaderboard post makes way for his new one.
+    for (let i = list.length - 1; i >= 0; i--) { const m = /^m:lead2:\d+:(\d+):(.*)$/.exec(list[i].k); if (m && (m[2].split('|').length < 2)) list.splice(i, 1); }
     for (const [q] of ranks) { const mineK = list.filter(x => x.k.startsWith(`m:lead2:${L.season.currentYear}:${q.id}:`)); for (const x of mineK.slice(0, -1)) list.splice(list.indexOf(x), 1); }
   }
   offSet('hgMentions', { list: list.slice(-300) });
