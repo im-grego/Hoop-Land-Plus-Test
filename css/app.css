@@ -2246,3 +2246,7 @@ body:has(.ticker) { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)
 #app > .header:has(.qtabs) { margin-bottom: 10px; }
 #app > .header:has(.qtabs) + main.panel { margin-top: 0; }
 #app > .header:has(.qtabs) ~ main.panel ~ * { margin-top: 14px; }
+
+/* Team page: PPG · Opp PPG · Diff boxes with league ranks, like the Season in Review. */
+.stat-grid.th-stats { grid-template-columns: repeat(3, 1fr); margin: 6px 0 10px; }
+.th-last { text-align: center; margin: -4px 0 8px; }

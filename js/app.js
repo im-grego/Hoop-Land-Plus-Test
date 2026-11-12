@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.360.2';
+const APP_VERSION = '0.360.3';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -11593,13 +11593,31 @@ function teamRatings() {
   }
   return cache.get('teamRatings');
 }
+// Every team's points a game, allowed and the margin, ranked: this season once anyone has played, else last season's.
+function teamPoints(L) {
+  const k = `${state.leagueIdx}|${L.season.currentYear}|${L.season.currentDay ?? ''}|${L.season.phase}`;
+  if (state.teamPtsK === k) return state.teamPts;
+  const row = (tm, y) => tm.season?.find(x => x.yr === y)?.seasonStats;
+  let y = L.season.currentYear, last = false;
+  if (!L.teams.some(tm => row(tm, y)?.GP > 0)) { y -= 1; last = true; }
+  const list = L.teams.map(tm => { const s = row(tm, y); return s?.GP > 0 ? { id: tm.id, ppg: s.PTS / s.GP, opp: s.OPP / s.GP } : null; }).filter(Boolean);
+  for (const x of list) x.diff = x.ppg - x.opp;
+  const rank = (key, asc) => new Map([...list].sort((a, b) => (asc ? a[key] - b[key] : b[key] - a[key])).map((x, i) => [x.id, i + 1]));
+  const rp = rank('ppg'), ro = rank('opp', true), rd = rank('diff');
+  state.teamPtsK = k;
+  return (state.teamPts = { last, rows: new Map(list.map(x => [x.id, { ...x, ppgRk: rp.get(x.id), oppRk: ro.get(x.id), diffRk: rd.get(x.id) }])) });
+}
 function teamHeader(t) {
   if (isCollege()) return '';
   const L = league(), r = teamRatings().get(t.id), n = FA.signedRoster(t).length, pay = FA.payroll(t), cap = FA.capLines(L).cap || 1;
   const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
   const st = (lv, rk) => `${stars(levelStarsOf(Math.round(lv)))}<span class="th-rk">${ord(rk)}</span>`;
   const pct = Math.min(100, pay / cap * 100), over = pay > cap;
-  return `${r ? `<div class="th-grades"><span><span class="glbl">Offense</span>${st(r.off, r.offRk)}</span><span><span class="glbl">Defense</span>${st(r.def, r.defRk)}</span><span><span class="glbl">Overall</span>${st(r.all, r.allRk)}</span></div>` : ''}
+  // What the games say, not a formula: points scored and allowed a game and the margin, each with its league rank
+  // (this season once there are games, last season before then).
+  const pts = teamPoints(L), mine = pts.rows.get(t.id);
+  const box = (v, lbl, rk, cls = '') => `<div><b class="${cls}">${v}</b><span>${lbl}</span><span class="rk-of">${ord(rk)}</span></div>`;
+  return `${mine ? `<div class="stat-grid th-stats">${box(mine.ppg.toFixed(1), 'PPG', mine.ppgRk)}${box(mine.opp.toFixed(1), 'Opp PPG', mine.oppRk)}${box(`${mine.diff >= 0 ? '+' : ''}${mine.diff.toFixed(1)}`, 'Diff', mine.diffRk, mine.diff >= 0 ? 'up' : 'down')}</div>${pts.last ? '<p class="note small muted th-last">Last season</p>' : ''}` : ''}
     ${FA.capSystemOn() ? capBar(t) : ''}`;
 }
 
