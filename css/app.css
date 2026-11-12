@@ -2184,3 +2184,4 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 @media (prefers-reduced-motion: reduce) { .tk-track { animation-duration: 120s !important; } }
 body:has(.ticker) #app, body:has(.ticker) { padding-bottom: 40px; }
 .tk-track .tk-at { font-style: normal; color: var(--dim, #b9c8e8); opacity: 0.6; }
+.tk-track .tk-gap { display: inline-block; width: 18px; }

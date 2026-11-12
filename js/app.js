@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.357.0';
+const APP_VERSION = '0.357.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -715,9 +715,10 @@ function tickerBar() {
       const gp = dlPct(tm).gp;
       for (const p of tm.roster) { const l = seasonLine(p, state.leagueIdx, s.currentYear); if (l && l.gp >= Math.max(3, gp / 2)) rows.push({ p, l }); }
     }
-    for (const [k, lbl] of [['ppg', 'PPG'], ['rpg', 'RPG'], ['apg', 'APG']]) {
-      const top = rows.sort((a, b) => b.l[k] - a.l[k])[0];
-      if (top) items.push(`${lbl}: ${esc(top.p.ln || playerName(top.p))} ${top.l[k].toFixed(1)}`);
+    // The top ten in each of the five big categories.
+    for (const [k, lbl] of [['ppg', 'Points'], ['rpg', 'Rebounds'], ['apg', 'Assists'], ['spg', 'Steals'], ['bpg', 'Blocks']]) {
+      const top = [...rows].sort((a, b) => b.l[k] - a.l[k]).slice(0, 10);
+      if (top.length) items.push(`<b class="tk-h">${lbl}</b>${top.map((x, i) => `${i + 1}. ${esc(x.p.ln || playerName(x.p))} ${x.l[k].toFixed(1)}`).join('<i class="tk-gap"></i>')}`);
     }
     if (!items.length) { tickerCache.key = key; tickerCache.html = ''; return ''; }
     const run = items.join('<i class="tk-dot">•</i>');
