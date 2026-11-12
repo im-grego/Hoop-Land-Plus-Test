@@ -2186,3 +2186,8 @@ body:has(.ticker) #app, body:has(.ticker) { padding-bottom: 40px; }
 .tk-track .tk-at { font-style: normal; color: var(--dim, #b9c8e8); opacity: 0.6; }
 .tk-track .tk-gap { display: inline-block; width: 18px; }
 .tk-track .tk-ln { font-weight: 600; color: var(--cyan); margin-left: 4px; }
+/* iPhone home-indicator area: the bar grows by it (the text keeps its 32px line above it) instead of losing it. */
+.ticker { height: calc(32px + env(safe-area-inset-bottom, 0px)); align-items: flex-start; padding-bottom: 0; box-sizing: border-box; }
+.tk-track { height: 32px; align-items: center; }
+.tk-track > span { line-height: 32px; }
+body:has(.ticker) { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
