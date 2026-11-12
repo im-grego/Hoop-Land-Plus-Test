@@ -2229,3 +2229,20 @@ body:has(.ticker) { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)
 .qtab .qt-l { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1; }
 .qtab.on { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 0 2px var(--cyan) inset; }
 .header:has(.qtabs) .back { width: 52px; height: auto; min-height: 52px; align-self: stretch; }
+
+/* Quick tabs, round 2: icons only, the app's regular button look (Home/Back too), set tight over the screen. */
+.header { gap: 5px; margin-bottom: 4px; align-items: stretch; }
+.qtabs { gap: 5px; }
+.header .btn.qtab, .header .btn.back {
+  background: var(--btn); border: 4px solid var(--btn-edge); box-shadow: 0 4px 0 var(--btn-shadow); border-radius: 2px; clip-path: none;
+  min-height: 48px; height: 48px; padding: 0; }
+.header .btn.qtab:active, .header .btn.back:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--btn-shadow); filter: none; }
+.header .btn.qtab.focus { border-color: var(--cyan); }
+.header:has(.qtabs) .back { width: 52px; min-height: 48px; height: 48px; }
+.qtab .qt-ico { font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.qtab .qt-ico .px, .qtab .qt-ico img, .qtab .qt-ico svg { width: 26px; height: 26px; }
+.header + main.panel, .header + .panel { margin-top: 4px; }
+#app:has(> .header .qtabs) { gap: 0; }
+#app > .header:has(.qtabs) { margin-bottom: 10px; }
+#app > .header:has(.qtabs) + main.panel { margin-top: 0; }
+#app > .header:has(.qtabs) ~ main.panel ~ * { margin-top: 14px; }

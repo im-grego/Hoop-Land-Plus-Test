@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.360.0';
+const APP_VERSION = '0.360.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -756,7 +756,7 @@ function quickTabs() {
   try {
     if (!state.data || isCollege() || CAR.isCareer(league()) || !myTeam()) return '';
     const cur = state.stack[state.stack.length - 1]?.name;
-    return `<nav class="qtabs" aria-label="Quick tabs">${QUICK_TABS.map(q => `<button class="btn qtab ${q.on.includes(cur) ? 'on' : ''}" data-act="qtab" data-k="${q.k}"><span class="qt-ico">${q.ico}</span><span class="qt-l">${q.l}</span></button>`).join('')}</nav>`;
+    return `<nav class="qtabs" aria-label="Quick tabs">${QUICK_TABS.map(q => `<button class="btn qtab ${q.on.includes(cur) ? 'on focus' : ''}" data-act="qtab" data-k="${q.k}" aria-label="${q.l}" title="${q.l}"><span class="qt-ico">${q.ico}</span></button>`).join('')}</nav>`;
   } catch { return ''; }
 }
 function layout({ title, left = '', right = '', body, action = null, actionLeft = null, bare = false }) {
@@ -3224,7 +3224,32 @@ function rumorTop() {
   return state.rumorTop;
 }
 const rumorSeen = () => new Set(offGet('hgSeen').ids || []);
-const rumorUnread = () => { const s = rumorSeen(); return rumorTop().filter(k => !s.has(k)).length; };
+// Does a post involve you: your team (city, name or abbreviation) or one of your players by name?
+function mentionsMe(text, team = null, pid = null) {
+  if (team && isUserTeam(team)) return true;
+  const L = league(), mine = L.teams.filter(isUserTeam);
+  if (!mine.length) return false;
+  if (pid != null && mine.some(x => x.roster.some(q => q.id === pid))) return true;
+  const s = String(text || '').replace(/<[^>]+>/g, ' ');
+  const words = [];
+  for (const x of mine) {
+    words.push(x.city, x.name, x.shortName);
+    for (const q of x.roster) { words.push(playerName(q)); try { const sn = shortName(q); if (sn && sn.length >= 4) words.push(sn); } catch { /* fine */ } }
+  }
+  return words.filter(w => w && w.length >= 3).some(w => new RegExp(`(^|[^A-Za-z])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Za-z]|$)`).test(s));
+}
+// Your posts on the two feeds (rumors and the Hoop Gram feed), keyed, worked out once a day.
+function myGramKeys() {
+  const L = league(), k = `${state.leagueIdx}|${L.season.phase}|${L.season.day ?? ''}|${L.season.currentDay ?? ''}|${L.season.currentYear}`;
+  if (state.myGramK === k) return state.myGram;
+  state.myGramK = k;
+  const out = { rumors: [], gram: [] };
+  try { out.rumors = rumorPosts(L).filter(x => x.mine).map(x => x.key); } catch { /* fine */ }
+  try { out.gram = gramPosts().filter(x => x.mine).map(x => x.key); } catch { /* fine */ }
+  return (state.myGram = out);
+}
+const rumorUnread = () => { const s = rumorSeen(), m = myGramKeys(); return [...m.rumors, ...m.gram].filter(k => !s.has(k)).length; };
+const markGramSeen = keys => { if (keys.length) offSet('hgSeen', { ids: [...new Set([...rumorSeen(), ...keys])].slice(-300) }); };
 // A facility upgrade the coins already cover.
 const facReady = t => !!t && isComplete() && !isCollege() && FX.FACILITIES.some(f => { const cur = FX.tierIn(t, f.k); return cur < f.tiers.length && coinsOf(t) >= FX.upgradeCost(cur); });
 // ---------------------------------------------------------------------------
@@ -10931,8 +10956,8 @@ function tradeBlocks(L) {
   return `<div class="stack">${list.map(d => `<div class="tx-block"><div class="tx-head"><b>${esc(nameOf(d.A))} ⇄ ${esc(nameOf(d.B))}</b><span class="small muted">best Lv ${d.best}</span></div>${side(d.A, d.pa_, d.pa)}${side(d.B, d.pb_, d.pb)}</div>`).join('') || '<p class="note small muted">No trades yet.</p>'}</div>`;
 }
 // Rumors around the league: disgruntled stars, vets on sinking teams, tax pressure and players being shopped.
-screens.rumors = () => {
-  const L = league();
+// The rumors as posts (the top ten), the ones involving you first.
+function rumorPosts(L) {
   const list = rumorMill(L, { level: shownLevel, li: state.leagueIdx, skip: isUserTeam });
   // One rumor per team: a team with nothing in the mill gets its best trade-block name.
   const seen = new Set(list.map(r => r.p.id)), teams = new Set(list.map(r => r.team));
@@ -10940,11 +10965,18 @@ screens.rumors = () => {
     if (!teams.has(t) && p.season?.onTradeBlock === 1 && !seen.has(p.id) && shownLevel(p) >= 76 && (p.contract?.sal || 0) >= 5 && teams.add(t)) list.push({ kind: 'block', p, team: t, heat: 1, why: [], level: shownLevel(p), morale: p.season?.morale ?? 70 });
   }
   list.sort((x, y) => y.heat - x.heat || y.level - x.level);
-  offSet('hgSeen', { ids: [...rumorSeen(), ...rumorTop()].slice(-300) });
+  const top = list.slice(0, 16), posts = [];
+  for (const r of top) { const html = rumorPost(r, 0, top); if (html) posts.push({ html, key: `r:${rumorKey(r)}`, mine: mentionsMe(html) }); }
+  return [...posts.filter(x => x.mine), ...posts.filter(x => !x.mine)].slice(0, 10);
+}
+screens.rumors = () => {
+  const L = league();
+  const posts = rumorPosts(L);
+  markGramSeen(posts.filter(x => x.mine).map(x => x.key));
   layout({
     title: 'Hoop Gram',
     body: `${newsTabs('rumors')}${(() => { const cpu = Object.entries(shiftStore()).filter(([, r]) => r.cpu).map(([pid, r]) => ({ pid: +pid, ...r })); return cpu.length ? `<fieldset class="frame"><legend>🏀 From Camp</legend><div class="stack">${cpu.map(shiftRumor).join('')}</div></fieldset>` : ''; })()}<p class="note small muted">Whispers about who could be on the move. Some of it comes true, some doesn't.</p>
-      <div class="stack">${list.slice(0, 16).map(rumorPost).filter(Boolean).slice(0, 10).join('') || '<p class="note small muted">Quiet around the league.</p>'}</div>${hotSeatBox(L)}`,
+      <div class="stack">${posts.map(x => x.html).join('') || '<p class="note small muted">Quiet around the league.</p>'}</div>${hotSeatBox(L)}`,
   });
 };
 actions.txTab = d => replace('transactions', { tab: d.v });
@@ -18393,8 +18425,15 @@ actions.presserAnswer = d => {
   render();
 };
 
+// The Hoop Gram feed (twelve posts), the ones involving you first.
+function gramPosts() {
+  const posts = [...(isCollege() ? [] : [...cupPosts(), ...olyPosts(), ...comebackPosts(), ...numberPosts(), ...jerseyPosts(), ...dramaPosts(), ...traitPosts()]), ...leagueGram(league(), isUserTeam, state.leagueIdx)].slice(0, 12)
+    .map(x => ({ ...x, key: `g:${x.team?.id ?? ''}:${x.pid ?? ''}:${String(x.text).slice(0, 40)}`, mine: mentionsMe(x.text, x.team, x.pid) }));
+  return [...posts.filter(x => x.mine), ...posts.filter(x => !x.mine)];
+}
 function leagueGramCard() {
-  const posts = [...(isCollege() ? [] : [...cupPosts(), ...olyPosts(), ...comebackPosts(), ...numberPosts(), ...jerseyPosts(), ...dramaPosts(), ...traitPosts()]), ...leagueGram(league(), isUserTeam, state.leagueIdx)].slice(0, 12);
+  const posts = gramPosts();
+  markGramSeen(posts.filter(x => x.mine).map(x => x.key));
   if (!posts.length) return '';
   return `<h2 class="team-title">Trending on Hoop Gram</h2>
     <div class="stack">${posts.map(x => `<${x.pid ? `button data-act="openPlayer" data-id="${x.pid}"` : 'div'} class="hg-post ${x.pid ? 'tap' : ''}">
