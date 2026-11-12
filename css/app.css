@@ -2250,3 +2250,13 @@ body:has(.ticker) { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)
 /* Team page: PPG · Opp PPG · Diff boxes with league ranks, like the Season in Review. */
 .stat-grid.th-stats { grid-template-columns: repeat(3, 1fr); margin: 6px 0 10px; }
 .th-last { text-align: center; margin: -4px 0 8px; }
+
+/* Top bar: Home/Back on the left, the Hoop Gram box on the right, in the regular button look. */
+.header { justify-content: space-between; }
+.header .btn.gram-box { margin-left: auto; position: relative; width: 52px; min-height: 48px; height: 48px; padding: 0; flex: 0 0 auto;
+  background: var(--btn); border: 4px solid var(--btn-edge); box-shadow: 0 4px 0 var(--btn-shadow); border-radius: 2px; clip-path: none; }
+.header .btn.gram-box.focus { border-color: var(--cyan); }
+.header .btn.gram-box .px-gram { width: 26px; height: 26px; display: inline-block; background: #fff; }
+.header .btn.gram-box .ndot { position: absolute; top: -8px; right: -8px; }
+.ts-team { display: flex; align-items: center; gap: 4px; }
+.ts-team .ts-logo { width: 18px !important; height: 18px !important; }

@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.360.3';
+const APP_VERSION = '0.361.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -744,30 +744,24 @@ function tickerBar() {
     return tickerCache.html;
   } catch { return ''; }
 }
-// Quick tabs along the top: four boxes (an emoji over a small word) that jump straight to the screens you go back and
-// forth between, from anywhere, the offseason and drafts included. The one you're in is lit.
-const QUICK_TABS = [
-  { k: 'team', ico: '👥', l: 'Team', to: 'roster', on: ['roster', 'lineup', 'payroll', 'capital', 'checkin'] },
-  { k: 'coach', ico: '🧑‍🏫', l: 'Coach', to: 'coaching', on: ['coaching', 'coachtree', 'facilities', 'gameplan', 'playbook', 'playbookEdit', 'scoring', 'coaches', 'coach'] },
-  { k: 'trade', ico: '🔁', l: 'Trade', to: 'liveTrade', on: ['liveTrade', 'market', 'transactions'] },
-  { k: 'stats', ico: '📊', l: 'Stats', to: 'leaders', on: ['leaders'] },
-];
-function quickTabs() {
+// The top bar: Home/Back on the left and the Hoop Gram box on the right (its logo and the red dot when something is
+// about you). On the main menu the left button goes back to the title screen.
+function gramBox() {
   try {
-    if (!state.data || isCollege() || CAR.isCareer(league()) || !myTeam()) return '';
+    if (!state.data || isCollege() || CAR.isCareer(league())) return '';
     const cur = state.stack[state.stack.length - 1]?.name;
-    return `<nav class="qtabs" aria-label="Quick tabs">${QUICK_TABS.map(q => `<button class="btn qtab ${q.on.includes(cur) ? 'on focus' : ''}" data-act="qtab" data-k="${q.k}" aria-label="${q.l}" title="${q.l}"><span class="qt-ico">${q.ico}</span></button>`).join('')}</nav>`;
+    return `<button class="btn gram-box ${['rumors', 'news', 'injuries', 'transactions'].includes(cur) ? 'focus' : ''}" data-act="gramBox" aria-label="Hoop Gram"><i class="px px-gram" aria-hidden="true"></i>${ndot(rumorUnread())}</button>`;
   } catch { return ''; }
 }
 function layout({ title, left = '', right = '', body, action = null, actionLeft = null, bare = false }) {
   const t = esc(title);
   keepLogos(() => { $app.innerHTML = `
     ${bare ? `<h1 class="sr-only">${t}</h1>` : `<div class="header">
-      ${state.stack.length === 2 ? `<button class="btn back home-btn" data-act="back" aria-label="Main menu">${HOME_ICON}</button>` : state.stack.length > 2 ? `<button class="btn back" data-act="back" aria-label="Back">${BACK_ARROW}</button>` : ''}
-      ${quickTabs()}
+      ${state.stack.length === 2 ? `<button class="btn back home-btn" data-act="back" aria-label="Main menu">${HOME_ICON}</button>` : state.stack.length > 2 ? `<button class="btn back" data-act="back" aria-label="Back">${BACK_ARROW}</button>` : state.data ? `<button class="btn back home-btn" data-act="toTitle" aria-label="Title screen">${HOME_ICON}</button>` : ''}
       ${left}
       <h1 class="sr-only">${t}</h1><div class="marquee" hidden aria-label="${t}"></div>
       ${right}
+      ${gramBox()}
     </div>`}
     <main class="panel ${bare ? 'bare' : ''}">${body}</main>
     ${tickerBar()}
@@ -882,7 +876,6 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 window.addEventListener('popstate', () => {
   if (state.stack.length < 2) return;
   if (state.goHome) { state.goHome = false; state.stack.splice(1); render(); return; }
-  if (state.qtabTo) { state.stack.splice(2); state.stack[1] = state.qtabTo; state.qtabTo = null; window.scrollTo(0, 0); render(); return; }
   state.stack.pop();
   render();
 });
@@ -2928,7 +2921,7 @@ const STEP_SCREENS = {
   dev: ['staff', 'meeting', 'offseason', 'report', 'mentor', 'rookies', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'teamBooks', 'coaches', 'coach'], media: ['storylines', 'survey', 'mediaRumors'], cuts: ['cuts', 'latefa', 'liveTrade'], rotation: ['lineup', 'player'], export: ['export'],
   review: ['review', 'teamStats', 'player'], waters: ['waters', 'player'], nil: ['nil', 'player'], retention: ['retention', 'player'], carousel: ['carousel'], camps: ['camps', 'recruitee'], legacy: ['legacy', 'player'], schedule: ['schedule'], tour: ['tour', 'player'], walkons: ['walkons', 'player'], redshirt: ['redshirt', 'player'], madness: ['madness'], mediaday: ['mediaday', 'player'], departures: ['departures'], seniors: ['seniors'], portal: ['portal'], showcase: ['showcase', 'recruitee'], rw1: ['recruit', 'recruitee', 'recruitweek'], rw2: ['recruit', 'recruitee', 'recruitweek'], rw3: ['recruit', 'recruitee', 'recruitweek'], rw4: ['recruit', 'recruitee', 'recruitweek'], signing: ['signing'], preseason: ['preseason'], rosterlock: ['rosterlock'], practice: ['practice'], summer: ['offseason', 'report', 'mentor', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook'],
 };
-const ALWAYS = ['start', 'startTeam', 'startFA', 'market', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks', 'injuries'];
+const ALWAYS = ['start', 'startTeam', 'startFA', 'market', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks', 'injuries', 'teamStats'];
 function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
@@ -3453,7 +3446,7 @@ screens.main = () => {
         ${L.teams.some(isUserTeam) ? '<button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button>' : ''}
         ${!isCollege() && myTeam() ? '<button class="btn left" data-act="nav" data-to="coaching"><span class="ico">🧑‍🏫</span> My Coach</button>' : ''}
         <button class="btn left" data-act="nav" data-to="editor"><span class="ico">🏀</span> My League</button>
-        ${isCollege() ? '' : `<button class="btn left" data-act="nav" data-to="rumors"><span class="ico">📸${ndot(rumorUnread())}</span> Hoop Gram</button>`}
+        ${isCollege() ? '' : `<button class="btn left" data-act="gramBox"><span class="ico">📸${ndot(rumorUnread())}</span> Hoop Gram</button>`}
       </div>
       ${!isCollege() && !isFranchise() && !CAR.isCareer(L) && state.userTeams.size ? `<div class="grid2"><button class="btn left" data-act="nav" data-to="myteams"><span class="ico">🗂️</span> My Teams <span class="note small">${state.userTeams.size}${state.autoTeams.size ? ` · ${state.autoTeams.size} on autopilot` : ''}</span></button></div>` : ''}
       <div class="grid3 menu-sys">
@@ -10727,18 +10720,17 @@ actions.medPick = d => {
 // ---- League News: rumors, transactions, coaching moves, CPU trades and (at Opening Night) the report card, as tabs.
 const NEWS_TABS = [['rumors', 'Rumors'], ['block', 'Trade Block'], ['gram', 'Hoop Gram'], ['injuries', 'Injuries'], ['report', 'Report Card']];
 const newsTabs = cur => `<div class="tabs fa-tabs news-tabs">${NEWS_TABS.filter(([k]) => k !== 'report' || league().season.phase === 6).map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="newsTab" data-t="${k}">${l}</button>`).join('')}</div>`;
-// A quick tab sits one level under the main menu, whatever screen you tapped it from (Home still goes home).
-actions.qtab = d => {
-  const q = QUICK_TABS.find(x => x.k === d.k), me = myTeam();
-  if (!q || !me) return;
-  let to = q.to, args = {};
-  if (q.k === 'trade') { if (screenAllowed('liveTrade')) args = { a: me.id }; else to = 'market'; }
-  if (!screenAllowed(to)) { toast('Finish the current step on the calendar first', '', 2400, true); return; }
-  const n = state.stack.length;
-  if (n === 1) { go(to, args); return; }
-  if (n === 2) { state.stack[1] = { name: to, args }; window.scrollTo(0, 0); render(); return; }
-  state.qtabTo = { name: to, args };
-  history.go(-(n - 2));
+actions.gramBox = () => {
+  if (['rumors', 'news', 'injuries', 'transactions'].includes(state.stack[state.stack.length - 1]?.name)) return;
+  // Straight to the tab with the post about you that you haven't seen.
+  const s = rumorSeen(), m = myGramKeys(), to = !m.rumors.some(k => !s.has(k)) && m.gram.some(k => !s.has(k)) ? ['news', { tab: 'gram' }] : ['rumors', {}];
+  if (state.stack.length === 1) go(...to); else { state.stack[state.stack.length - 1].y = window.scrollY; state.stack.push({ name: to[0], args: to[1] }); history.pushState({ depth: state.stack.length }, ''); render(); }
+};
+// Back to the title screen (the save closes; export first to keep today's changes).
+actions.toTitle = async () => {
+  if (!(await confirmBox(`Return to the title screen?${state.dirty ? ' Changes you haven\'t exported will be lost.' : ''}`, 'Return', 'Stay'))) return;
+  state.data = null; state.dirty = false; state.stack = [{ name: 'main', args: {} }];
+  window.scrollTo(0, 0); render();
 };
 actions.newsTab = d => (d.t === 'rumors' ? replace('rumors', {}) : d.t === 'block' ? replace('transactions', { tab: 'block', only: true }) : d.t === 'injuries' ? replace('injuries', {}) : replace('news', { tab: d.t }));
 
@@ -11616,8 +11608,8 @@ function teamHeader(t) {
   // What the games say, not a formula: points scored and allowed a game and the margin, each with its league rank
   // (this season once there are games, last season before then).
   const pts = teamPoints(L), mine = pts.rows.get(t.id);
-  const box = (v, lbl, rk, cls = '') => `<div><b class="${cls}">${v}</b><span>${lbl}</span><span class="rk-of">${ord(rk)}</span></div>`;
-  return `${mine ? `<div class="stat-grid th-stats">${box(mine.ppg.toFixed(1), 'PPG', mine.ppgRk)}${box(mine.opp.toFixed(1), 'Opp PPG', mine.oppRk)}${box(`${mine.diff >= 0 ? '+' : ''}${mine.diff.toFixed(1)}`, 'Diff', mine.diffRk, mine.diff >= 0 ? 'up' : 'down')}</div>${pts.last ? '<p class="note small muted th-last">Last season</p>' : ''}` : ''}
+  const box = (v, lbl, rk, cls = '', k = '') => `<div class="tap" data-act="teamStats" data-k="${k}"${pts.last ? ` data-yr="${L.season.currentYear - 1}"` : ''}><b class="${cls}">${v}</b><span>${lbl}</span><span class="rk-of">${ord(rk)}</span></div>`;
+  return `${mine ? `<div class="stat-grid th-stats">${box(mine.ppg.toFixed(1), 'PPG', mine.ppgRk, '', 'ppg')}${box(mine.opp.toFixed(1), 'Opp PPG', mine.oppRk, '', 'opp')}${box(`${mine.diff >= 0 ? '+' : ''}${mine.diff.toFixed(1)}`, 'Diff', mine.diffRk, mine.diff >= 0 ? 'up' : 'down', 'margin')}</div>${pts.last ? '<p class="note small muted th-last">Last season</p>' : ''}` : ''}
     ${FA.capSystemOn() ? capBar(t) : ''}`;
 }
 
@@ -19623,13 +19615,13 @@ screens.teamStats = (args) => {
   const yr = years.includes(+args.yr) ? +args.yr : years[0];
   const col = TEAM_STAT_COLS.find(c => c[0] === args.k) || TEAM_STAT_COLS[0];
   const rows = L.teams.map(t => ({ t, r: (t.season || []).find(s => s.yr === yr)?.seasonStats })).filter(x => x.r?.GP)
-    .sort((a, b) => (col[3] ? col[2](a.r) - col[2](b.r) : col[2](b.r) - col[2](a.r)));
+    .sort((a, b) => (col[3] !== !!args.flip ? col[2](a.r) - col[2](b.r) : col[2](b.r) - col[2](a.r)));
   const fmt = (c, v) => (c[0] === 'margin' ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}` : v.toFixed(1));
   layout({
     title: 'League Team Stats',
     body: `<div class="row" style="margin-bottom:8px"><span class="grow note small">Every team, sorted by the column you tap</span><select class="sel-team ts-yr" data-change="teamStatsYr">${years.map(y => `<option value="${y}" ${y === yr ? 'selected' : ''}>${y}</option>`).join('')}</select></div>
-      <div class="ts-table"><div class="ts-row ts-head"><span>#</span><span class="grow">Team</span>${TEAM_STAT_COLS.map(c => `<button class="ts-col ${c === col ? 'on' : ''}" data-act="teamStatsSort" data-k="${c[0]}">${c[1]}</button>`).join('')}</div>
-      ${rows.map((x, i) => `<div class="ts-row ${isUserTeam(x.t) ? 'mine' : ''}"><span class="muted">${i + 1}</span><span class="grow"><b>${esc(x.t.shortName)}</b></span>${TEAM_STAT_COLS.map(c => `<span class="${c === col ? 'on' : ''}">${fmt(c, c[2](x.r))}</span>`).join('')}</div>`).join('')}</div>`,
+      <div class="ts-table"><div class="ts-row ts-head"><span>#</span><span class="grow">Team</span>${TEAM_STAT_COLS.map(c => `<button class="ts-col ${c === col ? 'on' : ''}" data-act="teamStatsSort" data-k="${c[0]}">${c[1]}${c === col ? (col[3] !== !!args.flip ? ' ▴' : ' ▾') : ''}</button>`).join('')}</div>
+      ${rows.map((x, i) => `<div class="ts-row ${isUserTeam(x.t) ? 'mine' : ''}"><span class="muted">${i + 1}</span><span class="grow ts-team">${logoImg(x.t, 'logo-sm ts-logo')}<b>${esc(x.t.shortName)}</b></span>${TEAM_STAT_COLS.map(c => `<span class="${c === col ? 'on' : ''}">${fmt(c, c[2](x.r))}</span>`).join('')}</div>`).join('')}</div>`,
   });
 };
 actions.infoPop = (d, el) => {
@@ -19641,8 +19633,8 @@ actions.infoPop = (d, el) => {
   o.querySelector('.cg-lv.here')?.scrollIntoView({ block: 'center' });   // the salary guide opens on your level
   o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-close]')) o.remove(); });
 };
-actions.teamStats = d => go('teamStats', { k: d.k });
-actions.teamStatsSort = d => replace('teamStats', { ...(state.stack[state.stack.length - 1].args || {}), k: d.k });
+actions.teamStats = d => go('teamStats', { k: d.k, ...(d.yr ? { yr: +d.yr } : {}) });
+actions.teamStatsSort = d => { const a = state.stack[state.stack.length - 1].args || {}; replace('teamStats', { ...a, k: d.k, flip: (a.k || 'ppg') === d.k ? !a.flip : false }); };
 $app.addEventListener('change', e => {
   if (e.target.dataset?.change === 'teamStatsYr') replace('teamStats', { ...(state.stack[state.stack.length - 1].args || {}), yr: +e.target.value });
 });
