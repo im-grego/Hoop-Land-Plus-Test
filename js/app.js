@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.364.1';
+const APP_VERSION = '0.364.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -15983,12 +15983,19 @@ function liveAssets(team) {
 
 // One line on a team's cap after the deal: room under the next line that matters, and the payroll.
 // "$56M space · Payroll $119M", "$18M to the tax", "$9M to the 2nd apron", "Over the 2nd apron".
+function capStanding(com, C = FA.capLines(league())) {
+  const lines = [['the cap', C.cap], ['the tax line', C.tax], ['the 1st apron', C.apron1], ['the 2nd apron', C.apron2]];
+  if (com < C.cap) return `$${C.cap - com}M space`;
+  const at = lines.find(([, v]) => v === com);
+  if (at) return `At ${at[0]}`;
+  const past = [...lines].reverse().find(([, v]) => com > v);
+  return `$${com - past[1]}M over ${past[0].replace('the tax line', 'the tax')}`;
+}
 function capRoomLine(t, outP = [], inP = []) {
   const sal = ps => ps.reduce((s, p) => s + (p.contract?.sal || 0), 0);
   const pay = FA.payroll(t), after = pay - sal(outP) + sal(inP), d = after - pay;
   const C = FA.capLines(league()), com = FA.teamCommitted(t) - pay + after;
-  const room = C.off ? '' : com <= C.cap ? `$${C.cap - com}M space` : com <= C.tax ? `$${C.tax - com}M to the tax`
-    : com <= C.apron1 ? `$${C.apron1 - com}M to the 1st apron` : com <= C.apron2 ? `$${C.apron2 - com}M to the 2nd apron` : '<span class="down">Over the 2nd apron</span>';
+  const room = C.off ? '' : capStanding(com, C);
   const payTxt = d ? `Payroll $${pay}M → <b class="${d > 0 ? 'down' : 'up'}">$${after}M</b>` : `Payroll $${pay}M`;
   // The cap bar under it, at the payroll after the deal: it slides from where it was to where the trade puts it.
   let bar = '';
@@ -16095,8 +16102,8 @@ screens.liveTrade = (args) => {
     body: `
       <div class="trade-top">
         <div class="grid2 trade">
-          <div class="stack">${select('a', aId)}${FA.capSystemOn() ? '' : needLine(A)}${capRoomLine(A, playersOf(sentA), playersOf(sentB))}${sendingLine(sentA, vA)}</div>
-          <div class="stack">${select('b', bId)}${FA.capSystemOn() ? '' : needLine(B)}${capRoomLine(B, playersOf(sentB), playersOf(sentA))}${sendingLine(sentB, vB)}</div>
+          <div class="stack">${select('a', aId)}${needLine(A)}${capRoomLine(A, playersOf(sentA), playersOf(sentB))}${sendingLine(sentA, vA)}</div>
+          <div class="stack">${select('b', bId)}${needLine(B)}${capRoomLine(B, playersOf(sentB), playersOf(sentA))}${sendingLine(sentB, vB)}</div>
         </div>
         ${tradeBar(A, B, vA, vB)}
         <div class="seg trade-tabs">${[['you', A, sentA], ['them', B, sentB]].map(([k, t, sent]) => `<button class="btn small ${step === k ? 'on focus' : 'off'}" data-act="liveStep" data-s="${k}">${esc(t.shortName)} Assets${sent.length ? ` · ${sent.length}` : ''}</button>`).join('')}</div>
