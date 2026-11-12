@@ -2308,3 +2308,8 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .stand-row .st-m { width: 3.2em; text-align: right; }
 /* The lineup's spot cell is a button (pick a starting spot). */
 .lu-c-slot.lu-pick { background: none; border: 1px dashed rgba(130, 236, 249, 0.45); padding: 3px 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 800; color: inherit; }
+
+/* Standings: the rank in a fixed-width column so every logo lines up (1-9 and 10-15 alike). */
+.stand-row > span:first-child { width: 1.6em; flex: none; text-align: right; }
+/* Team stats: the sorted column in gold, no arrow, no underline. */
+.ts-col.on { color: var(--gold); text-decoration: none; font-weight: 800; }

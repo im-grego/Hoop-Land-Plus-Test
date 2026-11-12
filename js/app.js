@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.363.0';
+const APP_VERSION = '0.363.1';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -11766,7 +11766,7 @@ screens.records = (args = {}) => {
   const list = cache.get(ck).filter(([, rows]) => rows.length).map(([name, rows]) => {
     const key = `rec-${kind}-${name}`, open = !!state.recOpen?.[key];
     const tri = rows.length > 3 ? `<button class="rec-tri ${open ? 'open' : ''}" data-act="recMore" data-k="${esc(key)}" aria-label="${open ? 'Show fewer' : 'Show 4-10'}">▾</button>` : '';
-    return `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.slice(0, 3).map((r, i) => recRow(r, i)).join('')}${open ? rows.slice(3).map((r, i) => recRow(r, i + 3)).join('') : ''}${tri ? `<div class="rec-tri-row">${tri}</div>` : ''}</div></fieldset>`;
+    return `<fieldset class="frame" data-anchor="${esc(key)}"><legend>${esc(name)}</legend><div class="stack">${rows.slice(0, 3).map((r, i) => recRow(r, i)).join('')}${open ? rows.slice(3).map((r, i) => recRow(r, i + 3)).join('') : ''}${tri ? `<div class="rec-tri-row">${tri}</div>` : ''}</div></fieldset>`;
   }).join('');
   layout({ title: 'Record Book', body: `${tabs}<p class="note small muted">${{ season: 'Single-game bests, all time', playoffs: 'Playoff single-game bests, all time', career: 'Career totals, all time' }[kind]}. Tap ▾ to see 4-10.</p>${list || `<p class="note muted">No ${kind === 'playoffs' ? 'playoff ' : ''}games on record yet.</p>`}` });
 };
@@ -19782,7 +19782,7 @@ screens.teamStats = (args) => {
   layout({
     title: 'League Team Stats',
     body: `<div class="row" style="margin-bottom:8px"><span class="grow note small">Every team, sorted by the column you tap</span><select class="sel-team ts-yr" data-change="teamStatsYr">${years.map(y => `<option value="${y}" ${y === yr ? 'selected' : ''}>${y}</option>`).join('')}</select></div>
-      <div class="ts-table"><div class="ts-row ts-head"><span>#</span><span class="grow">Team</span>${TEAM_STAT_COLS.map(c => `<button class="ts-col ${c === col ? 'on' : ''}" data-act="teamStatsSort" data-k="${c[0]}">${c[1]}${c === col ? (col[3] !== !!args.flip ? ' ▴' : ' ▾') : ''}</button>`).join('')}</div>
+      <div class="ts-table"><div class="ts-row ts-head"><span>#</span><span class="grow">Team</span>${TEAM_STAT_COLS.map(c => `<button class="ts-col ${c === col ? 'on' : ''}" data-act="teamStatsSort" data-k="${c[0]}">${c[1]}</button>`).join('')}</div>
       ${rows.map((x, i) => `<div class="ts-row ${isUserTeam(x.t) ? 'mine' : ''}"><span class="muted">${i + 1}</span><span class="grow ts-team">${logoImg(x.t, 'logo-sm ts-logo')}<b>${esc(x.t.shortName)}</b></span>${TEAM_STAT_COLS.map(c => `<span class="${c === col ? 'on' : ''}">${fmt(c, c[2](x.r))}</span>`).join('')}</div>`).join('')}</div>`,
   });
 };
