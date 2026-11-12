@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.357.3';
+const APP_VERSION = '0.357.4';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -15613,9 +15613,8 @@ function liveAssets(team) {
   // Players whose contracts are up (pending free agents) can't be traded:
   // they're listed last, greyed out.
   const pending = p => p.status === 4 || !p.contract?.yrs;
-  // Tradeable players by level, then everyone who can't be moved (pending free agents, fresh signings), also by level.
-  const stuck = p => pending(p) || !!tradeLock(p);
-  const roster = [...team.roster].sort((a, b) => stuck(a) - stuck(b) || shownLevel(b) - shownLevel(a) || playerValue(b, state.leagueIdx, ly) - playerValue(a, state.leagueIdx, ly));
+  // Every player by level, the ones who can't be moved (pending free agents, fresh signings) in their place, marked.
+  const roster = [...team.roster].sort((a, b) => shownLevel(b) - shownLevel(a) || playerValue(b, state.leagueIdx, ly) - playerValue(a, state.leagueIdx, ly));
   for (const p of roster) {
     const l = seasonLine(p, state.leagueIdx, ly);
     const ct = contractText(p);
