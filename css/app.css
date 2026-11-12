@@ -2385,3 +2385,8 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .lu-strip .lu-sb.wide, .lu-strip .lu-sb:nth-child(2) { grid-column: span 3; }
 .lu-strip .lu-sb b { font-size: 12px; }
 .lu-strip .lu-sb:last-child b { font-size: 10.5px; letter-spacing: -0.2px; }
+
+/* Media answers: the answer, and what it costs right under it. */
+.pq-opts .btn { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 3px; }
+.pq-opt-fx { font-size: 11.5px; font-weight: 700; line-height: 1.3; }
+.pq-stakes { display: block; font-size: 11px; color: var(--dim, #b9c8e8); font-weight: 600; }
