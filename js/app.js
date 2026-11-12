@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.363.5';
+const APP_VERSION = '0.363.6';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -15877,7 +15877,12 @@ function capRoomLine(t, outP = [], inP = []) {
     bar = capBarOf(after, deadFor(t.id), true);
     const w = +(bar.match(/class="cb-pay" style="width:([\d.]+)%"/)?.[1] ?? 0), prev = (state.capPrev ||= {})[t.id] ?? w;
     state.capPrev[t.id] = w;
-    bar = bar.replace(/class="cb-pay" style="width:([\d.]+)%"/, `class="cb-pay${prev !== w ? ' cb-slide' : ''}" style="width:$1%;--from:${prev}%"`);
+    bar = bar.replace(/class="cb-pay" style="width:([\d.]+)%"/, `class="cb-pay${prev !== w ? ' cb-slide' : ''}" style="width:$1%;--from:${prev}%"`);    // The change in color: red for salary coming in, green for salary going out (from today's payroll to after).
+    if (d) {
+      const w0 = +(capBarOf(pay, deadFor(t.id), true).match(/class="cb-pay" style="width:([\d.]+)%"/)?.[1] ?? w);
+      const lo = Math.min(w0, w), hi = Math.max(w0, w);
+      bar = bar.replace('<span class="cb-dead"', `<span class="cb-delta ${d > 0 ? 'in' : 'out'}" style="left:${lo}%;width:${hi - lo}%"></span><span class="cb-dead"`);
+    }
   }
   return `<p class="small muted trade-cap-line">${room ? `${room} · ` : ''}${payTxt}</p>${bar ? `<div class="trade-cap-bar">${bar}</div>` : ''}`;
 }

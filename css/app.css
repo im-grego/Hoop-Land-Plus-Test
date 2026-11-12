@@ -2342,3 +2342,10 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .cb-pay.cb-slide { animation: cbSlide 0.45s ease-out; }
 @keyframes cbSlide { from { width: var(--from); } }
 .trade-cap-bar .cap-legend { display: none; }
+
+/* The trade's change on the cap bar: red for salary coming in, green for salary going out. */
+.trade-cap-bar .cap-bar { position: relative; }
+.trade-cap-bar .cb-delta { position: absolute; top: 0; bottom: 0; z-index: 1; animation: cbFade 0.45s ease-out; }
+.trade-cap-bar .cb-delta.in { background: #e5484d; }
+.trade-cap-bar .cb-delta.out { background: #3ddc84; }
+@keyframes cbFade { from { opacity: 0; } }
