@@ -2443,3 +2443,17 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .mu-two > div { display: flex; flex-direction: column; gap: 4px; font-size: 13px; min-width: 0; }
 
 .mu-tr > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* Team picker: logo with offense and defense stacked beside it */
+.sd-head { display: flex; align-items: center; gap: 12px; }
+.sd-head img { width: 56px !important; height: 56px !important; flex: none; }
+.sd-ranks { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.sd-line { display: block; white-space: nowrap; overflow: hidden; font-size: 15px; }
+/* Names fit on one line (the font shrinks to fit instead) */
+h2.pl-name { white-space: nowrap; overflow: hidden; }
+.ir-name, .lu-c-name > b, .lu-nm b, .lu-cycle b, .prow .name, .ts-team b { text-overflow: clip; }
+.mu-tr > span { text-overflow: clip; }
+/* More room for names in the rotation table */
+.lu-tr { grid-template-columns: 22px minmax(0, 1fr) 28px 66px 26px; gap: 3px; }
+.lu-step { width: 19px; }
+.lu-nm .hc { font-size: 10px; }

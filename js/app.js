@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.20';
+const APP_VERSION = '0.365.21';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -877,7 +877,19 @@ function render() {
     if (ts.length) target = ts.reduce((a, b) => (Math.abs(b - y) < Math.abs(a - y) ? b : a));
   }
   state.anchor = null;
-  if (state.toTop) { target = 0; state.toTop = false; }   // an action that wants its results at the top of the page
+  fitText(); setTimeout(() => fitText(), 250);
+  if (state.toTop) { target = 0; state.toTop = false; }
+  // A screen that asks to glide to a section: a quick smooth scroll so it sits just under the header.
+  const glide = state.glideTo ? document.querySelector(state.glideTo) : null;
+  state.glideTo = null;
+  if (glide) {
+    window.scrollTo(0, target);
+    const go = () => { if (!glide.isConnected) return; const h = document.querySelector('.header'), hdr = h && ['fixed', 'sticky'].includes(getComputedStyle(h).position) ? h.offsetHeight : 0;
+      let y0 = 0; for (let e = glide; e; e = e.offsetParent) y0 += e.offsetTop;   // its place on the page (not on screen)
+      window.scrollTo({ top: Math.max(0, y0 - (hdr > 0 ? hdr : 0) - 12), behavior: 'smooth' }); };
+    requestAnimationFrame(() => requestAnimationFrame(go));
+    top.y = null; lastView = view; return;
+  }
   window.scrollTo(0, target);
   // iOS can drop a scroll made while it's still finishing a tap; put it
   // back once the redraw has settled.
@@ -887,6 +899,32 @@ function render() {
   top.y = null;
   lastView = view;
 }
+
+// Names never wrap or get cut off: a name too long for its spot gets a smaller font, as big as still fits.
+const FIT_NAMES = '.pl-name, .lu-nm b, .lu-c-name > b, .ir-name, .mu-tr > span, .prow .name, .lu-frame > legend, .lu-cycle b, .ts-team b, .start-detail .sd-line';
+function fitText(root = $app) {
+  try {
+    const els = new Set(root.querySelectorAll(FIT_NAMES));
+    // Anything else set to cut off with "…" that would: fit it too.
+    for (const el of root.querySelectorAll('b, strong, span, legend, h2, h3, h4, div.name')) {
+      if (els.has(el) || !el.clientWidth || el.scrollWidth <= el.clientWidth + 1) continue;
+      if (el.closest('.marquee, .ticker, .ticker-bar')) continue;
+      if (getComputedStyle(el).textOverflow === 'ellipsis') els.add(el);
+    }
+    for (const el of els) {
+      el.style.fontSize = '';
+      if (!el.clientWidth || el.scrollWidth <= el.clientWidth + 1) continue;
+      const base = parseFloat(getComputedStyle(el).fontSize) || 14;
+      let lo = Math.max(8, base * 0.5), hi = base;
+      el.style.fontSize = `${lo}px`;
+      if (el.scrollWidth > el.clientWidth + 1) continue;   // as small as it goes
+      for (let i = 0; i < 7; i++) { const mid = (lo + hi) / 2; el.style.fontSize = `${mid}px`; if (el.scrollWidth > el.clientWidth + 1) hi = mid; else lo = mid; }
+      el.style.fontSize = `${Math.max(8, Math.floor(lo * 4) / 4 - 0.5)}px`;
+    }
+  } catch { /* fitting is cosmetic */ }
+}
+document.fonts?.ready?.then(() => fitText());
+{ let rz = null; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => fitText(), 150); }); }
 
 // The app keeps its own scroll positions per screen.
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -3735,7 +3773,7 @@ screens.startTeam = () => {
     const r = rec(t);
     const top = [...t.roster].sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 3);
     return `<fieldset class="frame start-detail"><legend>${esc(teamFull(t))}</legend><div class="stack">
-      <p class="note">${logoImg(t)} <b>${r.W}-${r.L}</b> · Offense <b>${ord(offRank.get(t.id))}</b> <span class="small muted">(${per(t, 'PTS').toFixed(1)} ppg)</span> · Defense <b>${ord(defRank.get(t.id))}</b> <span class="small muted">(${per(t, 'OPP').toFixed(1)} allowed)</span></p>
+      <div class="sd-head">${logoImg(t)}<div class="sd-ranks"><span class="sd-line">Offense <b>${ord(offRank.get(t.id))}</b> <span class="small muted">(${per(t, 'PTS').toFixed(1)} ppg)</span></span><span class="sd-line">Defense <b>${ord(defRank.get(t.id))}</b> <span class="small muted">(${per(t, 'OPP').toFixed(1)} allowed)</span></span></div></div>
       ${top.map(p => { const l = seasonLine(p, 0, yr); const hurt = p.season?.injury?.gamesOut > 0;
         return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvTag(p)}</span><span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}${hurt ? ` · <span class="down">out ${injShort(p)}</span>` : ''}</span></div>`; }).join('')}
       <button class="btn focus" data-act="startTeam" data-id="${t.id}">🏀 Take over the ${esc(t.name || t.shortName)}</button></div></fieldset>`;
@@ -3743,11 +3781,11 @@ screens.startTeam = () => {
   layout({
     title: 'Pick Your Team',
     body: `<p class="note small">${esc(fmtDay(P.date))}: standings as they are today. Tap a team for a closer look.</p>
-      ${[0, 1].map(c => { const ts = conf(c); return `<fieldset class="frame"><legend>${esc(L.conferences?.[c] || (c ? 'West' : 'East'))}</legend><div class="team-grid">${ts.map(tile).join('')}</div></fieldset>${sel && ts.includes(sel) ? detail(sel) : ''}`; }).join('')}`,
+      ${[0, 1].map(c => { const ts = conf(c); return `${c === 1 && sel ? detail(sel) : ''}<fieldset class="frame"><legend>${esc(L.conferences?.[c] || (c ? 'West' : 'East'))}</legend><div class="team-grid">${ts.map(tile).join('')}</div></fieldset>`; }).join('')}`,
   });
-  if (sel) requestAnimationFrame(() => document.querySelector('.start-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+
 };
-actions.startSel = d => { state.startSel = state.startSel === +d.id ? null : +d.id; replace('startTeam'); };
+actions.startSel = d => { state.startSel = state.startSel === +d.id ? null : +d.id; if (state.startSel != null) state.glideTo = '.start-detail'; replace('startTeam'); };
 actions.startTeam = async d => {
   const P = state.startPack, L = P.parsed.seasonLeagues[0], t = L.teams.find(x => x.id === +d.id);
   if (!t) return;
@@ -9256,7 +9294,7 @@ screens.lineup = (args = {}) => {
       ${isStep('rotation') ? '<button class="btn focus" data-act="luApply" style="width:100%;margin-top:8px">✅ Done</button>' : ''}
       <p class="note small ${sel != null ? 'gold' : 'muted'}" style="margin-top:6px">${sel != null ? 'Tap another player to swap them, or Edit Minutes for his minutes by position.' : 'Tap a player to pick him, then another to swap them. Changes save as you go.'}</p>
       <div class="drill-row"><span class="grow small">Players in the rotation</span><span class="trait-ctl"><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.max(5, plan.rot.length - 1)}" ${plan.rot.length <= 5 ? 'disabled' : ''}>−</button><b class="small" style="min-width:2em;text-align:center">${plan.rot.length}</b><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.min(12, plan.rot.length + 1)}" ${plan.rot.length >= 12 ? 'disabled' : ''}>+</button></span></div>
-      ${strip}<fieldset class="frame lu-frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend>${args.lock && total < 5 * game ? `<p class="note small gold lu-free">${5 * game - total} minute${5 * game - total === 1 ? '' : 's'} to hand out: tap + on anyone. It saves once every minute is handed out.</p>` : ''}<div class="lu-list">${head}${plan.rows.map(row).join('')}</div>
+      ${strip}<fieldset class="frame lu-frame"><legend>Rotation · ${total}/${5 * game}</legend>${args.lock && total < 5 * game ? `<p class="note small gold lu-free">${5 * game - total} minute${5 * game - total === 1 ? '' : 's'} to hand out: tap + on anyone. It saves once every minute is handed out.</p>` : ''}<div class="lu-list">${head}${plan.rows.map(row).join('')}</div>
         ${plan.short.length && !(args.lock && total < 5 * game) ? `<p class="note small down">Short at ${plan.short.map(x => `${x.slot} (${x.v})`).join(', ')}: add a player or minutes.</p>` : ''}</fieldset>`,
   });
 };
