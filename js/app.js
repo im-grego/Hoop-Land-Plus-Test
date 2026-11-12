@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.363.10';
+const APP_VERSION = '0.363.11';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3354,6 +3354,13 @@ actions.startTeam = async d => {
   if (!t) return;
   L.season.teamId = t.id;
   for (const x of L.teams) x.isPlayer = x === t;
+  // A fresh start: everything the app kept for this save and team from an earlier start (trades, signings, the
+  // moves ledger, G League, Hoop Gram, lineups, check-ins, offseason steps) is cleared, so nothing carries over.
+  try {
+    const tag = saveTag(L);
+    if (tag && tag !== '#') for (const k of Object.keys(localStorage)) if (k.startsWith('hlc') && (k.includes(`:${tag}:`) || k.endsWith(`:${tag}`))) localStorage.removeItem(k);
+  } catch { /* storage off: nothing to clear */ }
+  for (const k of ['myGramK', 'rumorTopK', 'teamPtsK', 'capPrev', 'recOpen']) delete state[k];
   const name = `${L.leagueName ? L.shortName || 'NBA' : 'NBA'} ${P.season} · ${t.shortName} · ${P.date}.txt`;
   const file = new File([serializeSave(P.parsed)], name, { type: 'text/plain' });
   state.startPack = null;
@@ -8587,6 +8594,7 @@ const levelStarsOf = lv => Math.max(1, Math.min(10, Math.round((5 - (100 - lv) /
 function injOut(p) {
   const i = p?.season?.injury, days = i?.gamesOut || 0;
   if (!days) return null;
+  if (!state.data) return { games: days, back: null, season: false };   // a file not loaded yet (the Start Today picker)
   const L = league(), sched = L.season.schedule || [], d0 = L.season.currentDay ?? 0;
   const tm = L.teams.find(x => x.roster.includes(p));
   if (!tm || L.season.phase !== 9 || !sched.length) return { games: days, back: null, season: false };
