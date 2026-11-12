@@ -2266,3 +2266,10 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
   -webkit-mask-image: none; mask-image: none; }
 .header .marquee::after { display: block; content: ""; position: absolute; inset: 0; pointer-events: none;
   background-image: repeating-linear-gradient(90deg, rgba(20, 16, 30, 0.28) 0 1px, transparent 1px 3px), repeating-linear-gradient(0deg, rgba(20, 16, 30, 0.28) 0 1px, transparent 1px 3px); }
+
+/* Top bar in the game's button style: Home/Back, the title board and the Hoop Gram box all get the stepped corner
+   notches (and the drop under them notched too), like every other button. */
+.header .btn.back, .header .btn.gram-box { clip-path: var(--notch-drop); }
+.header .marquee { clip-path: var(--notch-drop); box-shadow: 0 4px 0 var(--btn-shadow); }
+.gram-wrap { position: relative; flex: 0 0 auto; display: flex; }
+.gram-wrap > .ndot { position: absolute; top: -8px; right: -8px; z-index: 2; pointer-events: none; }

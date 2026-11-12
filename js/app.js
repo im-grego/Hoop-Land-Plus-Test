@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.361.3';
+const APP_VERSION = '0.361.4';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -750,7 +750,7 @@ function gramBox() {
   try {
     if (!state.data || isCollege() || CAR.isCareer(league())) return '';
     const cur = state.stack[state.stack.length - 1]?.name;
-    return `<button class="btn gram-box ${['rumors', 'news', 'injuries', 'transactions'].includes(cur) ? 'focus' : ''}" data-act="gramBox" aria-label="Hoop Gram"><i class="px px-gram" aria-hidden="true"></i>${ndot(rumorUnread())}</button>`;
+    return `<span class="gram-wrap"><button class="btn gram-box ${['rumors', 'news', 'injuries', 'transactions'].includes(cur) ? 'focus' : ''}" data-act="gramBox" aria-label="Hoop Gram"><i class="px px-gram" aria-hidden="true"></i></button>${ndot(rumorUnread())}</span>`;
   } catch { return ''; }
 }
 function layout({ title, left = '', right = '', body, action = null, actionLeft = null, bare = false }) {
