@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.354.9';
+const APP_VERSION = '0.355.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.0';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -9538,11 +9538,13 @@ function myTeamCard(L) {
   const played = L.season.phase === 9 && x.w + x.l > 0;
   const last = teamRecord(t);
   const line = played ? `${x.w}-${x.l} · ${ordinal(x.seed)} in the ${conf}` : last.yr && last.W + last.L ? `Last season ${last.W}-${last.L}` : `${conf}ern Conference`;
-  const need = (() => { try { return teamNeed(t); } catch { return ''; } })();
+  // The last ten games (the game keeps them as 1 for a win, 0 for a loss).
+  const l10 = played ? (t.season?.find(x => x.yr === L.season.currentYear)?.seasonStats?.L10 || []) : [];
+  const w10 = l10.filter(x => x === 1).length;
   return `<div class="league-card compact">
       ${logoImg(t)}
       <div class="grow"><b>${esc(teamFull(t))}</b>
-        <span class="note small">${esc(line)}${need ? ` · Need: ${esc(need)}` : ''}</span></div>
+        <span class="note small">${esc(line)}${l10.length ? ` · Last ${l10.length}: ${w10}-${l10.length - w10}` : ''}</span></div>
     </div>`;
 }
 function checkinCard() {
