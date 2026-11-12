@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.24';
+const APP_VERSION = '0.365.25';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -884,13 +884,19 @@ function render() {
   state.glideTo = null;
   if (glide) {
     window.scrollTo(0, target);
-    const go = () => { if (!glide.isConnected) return; const h = document.querySelector('.header'), hdr = h && ['fixed', 'sticky'].includes(getComputedStyle(h).position) ? h.offsetHeight : 0;
+    // Where the card's middle sits in the middle of what you can see: under a fixed header, above the score ticker.
+    const want = () => {
+      const h = document.querySelector('.header'), hdr = h && ['fixed', 'sticky'].includes(getComputedStyle(h).position) ? h.offsetHeight : 0;
+      const tk = document.querySelector('.ticker'), tkH = tk && getComputedStyle(tk).position === 'fixed' ? tk.offsetHeight : 0;
+      const vh = window.visualViewport?.height || window.innerHeight, room = vh - hdr - tkH;
       let y0 = 0; for (let e = glide; e; e = e.offsetParent) y0 += e.offsetTop;   // its place on the page (not on screen)
-      // Centered on screen (a card taller than the screen starts at the top instead).
-      const gh = glide.offsetHeight, room = window.innerHeight - (hdr > 0 ? hdr : 0);
-      const to = gh < room - 24 ? y0 + gh / 2 - (hdr > 0 ? hdr : 0) - room / 2 : y0 - (hdr > 0 ? hdr : 0) - 12;
-      window.scrollTo({ top: Math.max(0, to), behavior: 'smooth' }); };
-    requestAnimationFrame(() => requestAnimationFrame(go));
+      const gh = glide.offsetHeight;
+      const to = gh < room - 24 ? y0 + gh / 2 - hdr - room / 2 : y0 - hdr - 12;   // too tall to center: its top
+      return Math.max(0, Math.min(to, document.documentElement.scrollHeight - vh));
+    };
+    // After the tap settles (iOS can drop a scroll made mid-tap), then once more if it didn't land.
+    setTimeout(() => { if (!glide.isConnected) return; window.scrollTo({ top: want(), behavior: 'smooth' });
+      setTimeout(() => { if (glide.isConnected && Math.abs(window.scrollY - want()) > 8) window.scrollTo({ top: want(), behavior: 'smooth' }); }, 650); }, 60);
     top.y = null; lastView = view; return;
   }
   window.scrollTo(0, target);
