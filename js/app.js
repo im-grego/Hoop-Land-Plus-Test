@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.23';
+const APP_VERSION = '0.365.24';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -9119,9 +9119,25 @@ function apSummary(d) {
     .filter(Boolean).join(' · ');
 }
 
+// A hot or cold streak's level change: his level now against his level without it.
+function streakLv(p) {
+  const st = streakStore().list?.[p.id];
+  if (!st?.add) return 0;
+  const base = Object.fromEntries(Object.entries(p.attributes).map(([k, a]) => [k, [a[0] - (st.add[k] || 0), ...a.slice(1)]]));
+  return levelOf(p) - levelOf({ ...p, attributes: base });
+}
 function playerRow(p, d) {
   const pos = POSITIONS[p.pos] ?? p.pos;
   const award = awardOf(p);
+  // A streak's boost isn't an upgrade: it stays off the change line and shows as the level's raised +/-.
+  const tmp = streakStore().list?.[p.id]?.add;
+  if (tmp && d?.attrs) {
+    const attrs = {};
+    for (const [k, v] of Object.entries(d.attrs)) { const r = v - (tmp[k] || 0); if (r) attrs[k] = r; }
+    d = { ...d, attrs, points: Object.keys(attrs).length };
+    d.changed = !!(d.points || apSummary(d) || d.added?.length || d.leveled?.length || d.removed?.length);
+  }
+  const sl = streakLv(p);
   const detail = [apSummary(d), d.points ? changeSummary(d) : ''].filter(Boolean).join(' · ');
   return `<button class="prow" data-act="openPlayer" data-id="${p.id}">
     <span class="name">${faceImg(p)}${esc(playerName(p))}${streakIcon(p)}</span>
@@ -9129,7 +9145,7 @@ function playerRow(p, d) {
       <span class="stars">${potStars(p)}</span><br>
       ${award ? `<span class="up">+${award}${state.params.bumpMode === 'train' ? '' : ' pts'}</span>` : '<span class="muted">—</span>'}
     </span>
-    <span class="meta">${lvRow(p)} · ${esc(pos)} · ${p.age}y · ${heightStr(p.ht)} · ${p.wt} lb</span>
+    <span class="meta">${lvRow(p)}${sl ? `<sup class="${sl > 0 ? 'up' : 'down'} lv-streak">${sl > 0 ? '+' : ''}${sl}</sup>` : ''} · ${esc(pos)} · ${p.age}y · ${heightStr(p.ht)} · ${p.wt} lb</span>
     ${d.changed ? `<span class="chg">${esc(detail)} ${skillBadges(d)}${longevityBadges(p, d)}</span>` : ''}
     ${glBumpLine(p) ? `<span class="chg">${glBumpLine(p)}</span>` : ''}
   </button>`;
