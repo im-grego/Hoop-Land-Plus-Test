@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.27';
+const APP_VERSION = '0.365.28';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3787,7 +3787,7 @@ screens.startTeam = () => {
       ${top.map(p => { const l = seasonLine(p, 0, yr); const hurt = p.season?.injury?.gamesOut > 0, sk = streaks.get(p.id);
         const lvS = sk ? `<sup class="${sk.lv > 0 ? 'up' : 'down'} lv-streak">${sk.lv > 0 ? '+' : ''}${sk.lv}</sup> ${sk.kind === 'hot' ? '🔥' : '❄️'}` : '';
         const lvNow = sk ? `<span class="${declining(p) ? 'small down' : 'gold small'}">Lv ${(declining(p) ? shownLevel(p) : levelOf(p)) + sk.lv}</span>` : lvTag(p);
-        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvNow}${lvS}${hurt ? ' <span class="down">Out</span>' : ''}</span><span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}</span></div>`; }).join('')}
+        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvNow}${lvS}${hurt ? ' <span class="down" title="Injured">🩹</span>' : ''}</span><span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}</span></div>`; }).join('')}
       <button class="btn focus" data-act="startTeam" data-id="${t.id}">🏀 Take over the ${esc(t.name || t.shortName)}</button></div></fieldset>`;
   };
   layout({
