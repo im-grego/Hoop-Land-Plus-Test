@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.16';
+const APP_VERSION = '0.365.17';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -11379,6 +11379,17 @@ function tradeBlocks(L) {
 // notes it the day it sees it). Roster moves land in order with the games, newest first.
 const WIN_LINES = ['Another dub.', 'Business handled.', 'That\'s a W.', 'Ball game.', 'Mission passed. Respect earned.', 'On to the next.', 'Good win. Better team.', 'We take that one.'];
 const ROAD_WIN_LINES = ['Flying home happy.', 'Road dub.', 'Took care of business on the road.'];
+// The hype line for a huge night, in the team account's voice.
+function hypeLine(nm, r, salt) {
+  const [pts, reb, ast, stl, blk, td] = r;
+  if (td || (pts >= 10 && reb >= 10 && ast >= 10)) return [`${nm}: ${pts}-${reb}-${ast}. Triple-double. Just another night.`, `Triple-double for ${nm}. ${pts} points, ${reb} boards, ${ast} assists.`][salt % 2];
+  if (blk >= 6) return [`${nm} had ${pts} points and ${blk} blocks. HE IS NOT HUMAN.`, `${blk} blocks. ${pts} points. ${nm} said not tonight.`][salt % 2];
+  if (pts >= 40) return [`${pts} PIECE. ${nm} was cooking.`, `${nm} dropped ${pts}. Somebody check on the rim.`, `${nm}. ${pts} points. That's it, that's the post.`][salt % 3];
+  if (reb >= 18) return [`${nm} grabbed ${reb} rebounds tonight. Every board was his.`, `${reb} rebounds for ${nm}. Glass cleaner.`][salt % 2];
+  if (ast >= 14) return [`${nm} with ${ast} assists. Point god behavior.`, `${ast} dimes from ${nm}. Everybody ate.`][salt % 2];
+  if (stl >= 5) return `${nm} had ${stl} steals. Pickpocket.`;
+  return `${nm}: ${pts} points, ${reb} rebounds, ${ast} assists. Big night.`;
+}
 const bigNight = s => {
   if (!s?.GP) return '';
   const pts = s.PTS || 0, reb = s.REB || 0, ast = s.AST || 0, blk = s.BLK || 0, stl = s.STL || 0;
@@ -11392,29 +11403,59 @@ const bigNight = s => {
   if (stl >= 6) return `${stl} steals`;
   return '';
 };
+// A welcome that fits the player: home state first, then his trophies.
+const TEAM_STATE = { ATL: 'GA', BOS: 'MA', BKN: 'NY', NYK: 'NY', CHA: 'NC', CHI: 'IL', CLE: 'OH', DAL: 'TX', HOU: 'TX', SAS: 'TX', DEN: 'CO', DET: 'MI', GSW: 'CA', LAC: 'CA', LAL: 'CA', SAC: 'CA', IND: 'IN', MEM: 'TN', MIA: 'FL', ORL: 'FL', MIL: 'WI', MIN: 'MN', NOP: 'LA', OKC: 'OK', PHI: 'PA', PHX: 'AZ', POR: 'OR', TOR: 'ON', UTA: 'UT', WAS: 'DC' };
+function welcomeLine(p, tm, name) {
+  const st = /,\s*([A-Z]{2})\s*$/.exec(p.home || '')?.[1], tst = TEAM_STATE[tm.shortName];
+  if (st && tst && (st === tst || (tst === 'DC' && ['MD', 'VA'].includes(st)))) return `Welcome home, ${name}.`;
+  const n = id => (p.awards || []).filter(a => a.id === id && (a.league ?? 0) === 0).reduce((s, a) => s + (a.yearsWon?.length || 0), 0);
+  const mvp = n(2), rings = n(0), as = n(101);
+  if (mvp) return `Welcome, ${mvp > 1 ? `${mvp}x ` : ''}MVP ${name}.`;
+  if (rings) return `Championship DNA. Welcome to ${esc(tm.city)}, ${name}.`;
+  if (as >= 2) return `Welcome, ${as}x All-Star ${name}.`;
+  if (as === 1) return `Welcome, All-Star ${name}.`;
+  return `Welcome to ${esc(tm.city)}, ${name}.`;
+}
 function teamPostsOf(tm) {
   if (!tm) return [];
   const L = league(), out = [], by = id => L.teams.find(x => x.id === id), yr = L.season.currentYear;
   const sched = L.season.schedule || [], now = L.season.currentDay ?? sched.length;
-  const nights = lsGet(`hlc:bigNights:${saveTag()}:${yr}`, {});
-  let lastG = null, n = 0, wins = 0, roadWins = 0;
-  for (let d = 0; d < Math.min(sched.length, now); d++) for (const g of sched[d]?.results || []) if ((g.homeTeam === tm.id || g.awayTeam === tm.id) && g.winner >= 0 && (g.homeScore || g.awayScore)) lastG = g;
-  // The newest game: the Player of the Game's box score is still in the save, so a big night gets noted for good.
-  if (lastG?.potg > 0 && nights[lastG.gId] == null) { const star = findPlayer(lastG.potg)?.p; nights[lastG.gId] = star && tm.roster.includes(star) && star.gameStats?.tid === tm.id ? bigNight(star.gameStats) : ''; lsSet(`hlc:bigNights:${saveTag()}:${yr}`, nights); }
+  const logK = `hlc:gameLog:${saveTag()}:${yr}:${tm.id}`, glog = lsGet(logK, {});
+  let lastG = null, lastD = -1, n = 0, wins = 0, roadWins = 0;
+  for (let d = 0; d < Math.min(sched.length, now); d++) for (const g of sched[d]?.results || []) if ((g.homeTeam === tm.id || g.awayTeam === tm.id) && g.winner >= 0 && (g.homeScore || g.awayScore)) { lastG = g; lastD = d; }
+  // The newest game: the box scores in the save are this game's, so they're logged for good.
+  if (lastG && !glog[lastG.gId]) {
+    const rows = {};
+    for (const q of tm.roster) { const s = q.gameStats; if (s?.GP > 0 && s.tid === tm.id) rows[q.id] = [s.PTS || 0, s.REB || 0, s.AST || 0, s.STL || 0, s.BLK || 0, s.TD || 0]; }
+    if (Object.keys(rows).length) { glog[lastG.gId] = { d: lastD, rows }; lsSet(logK, glog); }
+  }
+  const nights = {};
+  for (const [gId, e] of Object.entries(glog)) for (const [pid, r] of Object.entries(e.rows)) { const b = bigNight({ GP: 1, PTS: r[0], REB: r[1], AST: r[2], STL: r[3], BLK: r[4], TD: r[5] }); if (b && (!nights[gId] || r[0] > nights[gId].pts)) nights[gId] = { pid: +pid, pts: r[0], r }; }
   for (let d = 0; d < Math.min(sched.length, now); d++) for (const g of sched[d]?.results || []) {
     if (g.homeTeam !== tm.id && g.awayTeam !== tm.id) continue;
     if (!(g.winner >= 0) || !(g.homeScore || g.awayScore)) continue;
     n++;
     const won = g.winner === tm.id, home = g.homeTeam === tm.id, opp = by(home ? g.awayTeam : g.homeTeam);
     const my = home ? g.homeScore : g.awayScore, their = home ? g.awayScore : g.homeScore;
-    const star = g.potg > 0 ? findPlayer(g.potg)?.p : null, big = star && tm.roster.includes(star) ? nights[g.gId] : '';
+    const bn = nights[g.gId], star = bn ? tm.roster.find(q => q.id === bn.pid) : null;
     let text;
     if (won) {
       const line = !home && roadWins % 2 === 0 ? ROAD_WIN_LINES[(roadWins / 2) % ROAD_WIN_LINES.length] : WIN_LINES[wins % WIN_LINES.length];
       if (!home) roadWins++; wins++;
-      text = `${esc(line)}<br>${esc(tm.shortName)} ${my}, ${esc(opp?.shortName || '')} ${their}${big ? `<br>${esc(gram(shortName(star)))} with ${esc(big)}.` : ''}`;
+      text = `${esc(line)}<br>${esc(tm.shortName)} ${my}, ${esc(opp?.shortName || '')} ${their}`;
     } else text = `Final. ${esc(opp?.shortName || '')} ${their}, ${esc(tm.shortName)} ${my}`;
-    out.push({ k: `t:g:${yr}:${g.gId}`, d, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text, act: big ? `data-act="openPlayer" data-id="${star.id}"` : '' }) });
+    out.push({ k: `t:g:${yr}:${g.gId}`, d, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text }) });
+    // A huge night gets its own post, right after the final.
+    if (star) out.push({ k: `t:hype:${yr}:${g.gId}`, d: d + 0.2, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text: esc(hypeLine(gram(shortName(star)), bn.r, n)), act: `data-act="openPlayer" data-id="${star.id}"` }) });
+  }
+  // A hot streak: a player's last five logged games all 25+, posted once for that run.
+  const logged = Object.entries(glog).sort((a, b) => a[1].d - b[1].d);
+  if (logged.length >= 5) {
+    const last5 = logged.slice(-5);
+    for (const q of tm.roster) {
+      const pts = last5.map(([, e]) => e.rows[q.id]?.[0]);
+      if (pts.every(v => v != null && v >= 25)) out.push({ k: `t:streak:${yr}:${q.id}:${last5[4][0]}`, d: last5[4][1].d + 0.3, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text: `${esc(gram(shortName(q)))} over the last 5 games: ${pts.join(', ')}${Math.min(...pts) >= 30 ? '!!!' : '.'}`, act: `data-act="openPlayer" data-id="${q.id}"` }) });
+    }
   }
   // Roster moves: dated the day the app first sees them (before the season: under every game).
   try {
@@ -11424,7 +11465,7 @@ function teamPostsOf(tm) {
     const mv = teamMoves(L, tm), nm = q => esc(gram(shortName(q)));
     for (const m of mv.ins.filter(x => !x.back)) {
       const from = m.from.replace(/^Trade · /, '').replace(/^FA · /, '');
-      const text = m.from.startsWith('Trade') ? `Welcome to the ${esc(tm.name)}, ${nm(m.p)}. (via ${esc(from)})` : m.from === 'Draft' ? `Welcome to the family, ${nm(m.p)}.` : `Welcome to ${esc(tm.city)}, ${nm(m.p)}.`;
+      const text = m.from === 'Draft' ? `Welcome to the family, ${nm(m.p)}.` : `${welcomeLine(m.p, tm, nm(m.p))}${m.from.startsWith('Trade') ? ` (via ${esc(from)})` : ''}`;
       const k = `t:in:${yr}:${m.p.id}`;
       out.push({ k, d: when(k), html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: `${tm.city} ${tm.name}`, handle: tTag(tm), text, act: `data-act="openPlayer" data-id="${m.p.id}"` }) });
     }
@@ -11525,7 +11566,7 @@ screens.gramMine = (args = {}) => {
   state.myGramK = '';
   layout({
     title: 'Hoop Gram',
-    body: `${newsTabs(tab)}${tab === 'team' ? '' : '<p class="note small muted">What people are saying about your team and players this season.</p>'}
+    body: `${newsTabs(tab)}<p class="note small muted">${tab === 'team' ? 'Stats, scores, and team moves.' : 'What people are saying about your team and players this season.'}</p>
       <div class="stack hg-list">${html || `<p class="note small muted">${tab === 'team' ? 'No games or moves yet.' : 'Nobody is talking about you yet.'}</p>`}</div>`,
   });
 };
