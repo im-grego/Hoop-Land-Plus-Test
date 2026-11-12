@@ -210,7 +210,7 @@ const offMinutes = (rot, g) => rot.reduce((a, q) => a + g.slots.get(q).reduce((b
 // order, a player with no games yet (back from injury, just signed) slots in by his level next to the teammate
 // closest to it; the rotation runs 9 to 12 deep and stops where the talent drops off (4+ levels below the man
 // before), and the minutes follow what each has been playing.
-export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = {}, share = null, promised = {}, real = null, sizeSet = false, locked = false } = {}) {
+export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = {}, share = null, promised = {}, real = null, sizeSet = false, locked = false, start = {} } = {}) {
   const roster = team.roster.filter(p => p.status === 3 || p.status === 2), deep = isDeep(roster);
   const top5 = [...roster].map(levelOf).sort((a, b) => b - a).slice(0, 5), awful = top5.reduce((a, v) => a + v, 0) / Math.max(1, top5.length) < 80;
   const lowCap = mode === 'develop' || awful ? 0 : 20;
@@ -223,6 +223,15 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
   // Set to 0 by hand: out of the rotation. Set above 0: in it, whoever else gets squeezed.
   const cands = roster.filter(p => healthy(p) && over[p.id] !== 0).sort((a, b) => score(b) - score(a));
   const starters = pickStarters(cands, score);
+  // Starters you picked by hand go in at their spots (the one they push out takes the picked player's old spot).
+  for (const [s, pid] of Object.entries(start || {})) {
+    const p = cands.find(q => q.id === +pid), k = +s;
+    if (!p || !(k >= 0 && k < 5)) continue;
+    const was = starters.indexOf(p);
+    if (was === k) continue;
+    if (was >= 0) starters[was] = starters[k]; else starters.splice(k, 1, p);
+    starters[k] = p;
+  }
   const bench = cands.filter(p => !starters.includes(p));
   if (realOn) {
     // How deep: everyone healthy who really plays (8+ minutes a game), at least eight, never past twelve; a size you

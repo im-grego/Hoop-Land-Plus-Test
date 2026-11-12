@@ -2300,3 +2300,11 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 /* Hoop Gram: Feed · Team · Mentions (a fourth tab only for the Report Card). */
 .news-tabs { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
 .news-tabs .btn { font-size: 14px; }
+
+/* My League tabs: seven, in a 4 + 3 grid. */
+.lg-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 10px; }
+.lg-tabs .btn { padding: 8px 2px; font-size: 13px; min-height: 40px; }
+.stand-row .st-gb { width: 2.6em; text-align: right; }
+.stand-row .st-m { width: 3.2em; text-align: right; }
+/* The lineup's spot cell is a button (pick a starting spot). */
+.lu-c-slot.lu-pick { background: none; border: 1px dashed rgba(130, 236, 249, 0.45); padding: 3px 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 800; color: inherit; }

@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.362.1';
+const APP_VERSION = '0.363.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -753,8 +753,20 @@ function gramBox() {
     return `<span class="gram-wrap"><button class="btn gram-box ${['rumors', 'news', 'gramMine', 'transactions'].includes(cur) ? 'focus' : ''}" data-act="gramBox" aria-label="Hoop Gram"><i class="px px-gram" aria-hidden="true"></i></button>${ndot(rumorUnread())}</span>`;
   } catch { return ''; }
 }
+// My League: the league's numbers in one place, a tab row on top of each of its screens.
+const LEAGUE_TABS = [['leaders', 'Stats'], ['standings', 'Standings'], ['teamStats', 'Teams'], ['awards', 'Awards'], ['records', 'Records'], ['injuries', 'Injuries'], ['lgHistory', 'History']];
+function leagueTabs() {
+  try {
+    if (!state.data || isCollege()) return '';
+    const top = state.stack[state.stack.length - 1], n = top?.name;
+    let cur = n === 'leaders' && top.args?.m === 'rafters' ? 'lgHistory' : ['drafts', 'rankings'].includes(n) ? 'lgHistory' : n;
+    if (!LEAGUE_TABS.some(([k]) => k === cur)) return '';
+    return `<div class="tabs lg-tabs">${LEAGUE_TABS.map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="lgTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+  } catch { return ''; }
+}
 function layout({ title, left = '', right = '', body, action = null, actionLeft = null, bare = false }) {
   const t = esc(title);
+  body = leagueTabs() + body;
   keepLogos(() => { $app.innerHTML = `
     ${bare ? `<h1 class="sr-only">${t}</h1>` : `<div class="header">
       ${state.stack.length === 2 ? `<button class="btn back home-btn" data-act="back" aria-label="Main menu">${HOME_ICON}</button>` : state.stack.length > 2 ? `<button class="btn back" data-act="back" aria-label="Back">${BACK_ARROW}</button>` : state.data ? `<button class="btn back home-btn" data-act="toTitle" aria-label="Title screen">${HOME_ICON}</button>` : ''}
@@ -2923,7 +2935,7 @@ const STEP_SCREENS = {
   dev: ['staff', 'meeting', 'offseason', 'report', 'mentor', 'rookies', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'teamBooks', 'coaches', 'coach'], media: ['storylines', 'survey', 'mediaRumors'], cuts: ['cuts', 'latefa', 'liveTrade'], rotation: ['lineup', 'player'], export: ['export'],
   review: ['review', 'teamStats', 'player'], waters: ['waters', 'player'], nil: ['nil', 'player'], retention: ['retention', 'player'], carousel: ['carousel'], camps: ['camps', 'recruitee'], legacy: ['legacy', 'player'], schedule: ['schedule'], tour: ['tour', 'player'], walkons: ['walkons', 'player'], redshirt: ['redshirt', 'player'], madness: ['madness'], mediaday: ['mediaday', 'player'], departures: ['departures'], seniors: ['seniors'], portal: ['portal'], showcase: ['showcase', 'recruitee'], rw1: ['recruit', 'recruitee', 'recruitweek'], rw2: ['recruit', 'recruitee', 'recruitweek'], rw3: ['recruit', 'recruitee', 'recruitweek'], rw4: ['recruit', 'recruitee', 'recruitweek'], signing: ['signing'], preseason: ['preseason'], rosterlock: ['rosterlock'], practice: ['practice'], summer: ['offseason', 'report', 'mentor', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook'],
 };
-const ALWAYS = ['start', 'startTeam', 'startFA', 'market', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks', 'injuries', 'teamStats', 'gramMine'];
+const ALWAYS = ['start', 'startTeam', 'startFA', 'market', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks', 'injuries', 'teamStats', 'gramMine', 'standings', 'awards', 'lgHistory'];
 function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
@@ -3431,6 +3443,7 @@ screens.main = () => {
   const players = leaguePlayers(L, true).length;
   const auto = state.auto[state.leagueIdx];
   const yourTeams = L.teams.filter(isUserTeam).map(t => t.shortName).join(', ') || 'None picked';
+  const sCard = startCard();
   layout({
     title: 'Main Menu',
     body: `
@@ -3440,22 +3453,20 @@ screens.main = () => {
           <span class="note small">${CAR.isCareer(L) ? 'Career mode' : `Your ${isCollege() || isFranchise() ? (isCollege() ? 'school' : 'team') : 'teams'}: ${esc(yourTeams)}`}</span></div>
       </div>`}
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
-      ${startCard()}
+      ${sCard}
       ${marketCard()}
       ${retireeCard()}
       ${careerCard()}
       ${expAskCard()}
       ${calendarCard()}
       <div class="grid2">
-        ${L.teams.some(isUserTeam) ? '<button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button>' : ''}
-        ${!isCollege() && myTeam() ? '<button class="btn left" data-act="nav" data-to="coaching"><span class="ico">🧑‍🏫</span> My Coach</button>' : ''}
-        <button class="btn left" data-act="nav" data-to="editor"><span class="ico">🏀</span> My League</button>
-        ${isCollege() ? '' : `<button class="btn left" data-act="gramBox"><span class="ico">📸${ndot(rumorUnread())}</span> Hoop Gram</button>`}
+        ${L.teams.some(isUserTeam) && !/data-to="roster"/.test(sCard) ? '<button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button>' : ''}
+        <button class="btn left" data-act="nav" data-to="${isCollege() ? 'editor' : 'leaders'}"><span class="ico">🏀</span> My League</button>
+        ${isCollege() ? `<button class="btn left" data-act="nav" data-to="coaching"><span class="ico">🧑‍🏫</span> My Coach</button>` : ''}
       </div>
       ${!isCollege() && !isFranchise() && !CAR.isCareer(L) && state.userTeams.size ? `<div class="grid2"><button class="btn left" data-act="nav" data-to="myteams"><span class="ico">🗂️</span> My Teams <span class="note small">${state.userTeams.size}${state.autoTeams.size ? ` · ${state.autoTeams.size} on autopilot` : ''}</span></button></div>` : ''}
-      <div class="grid3 menu-sys">
+      <div class="grid2 menu-sys">
         <button class="btn left" data-act="nav" data-to="settings"><span class="ico">☰</span> Settings</button>
-        <label class="btn left"><span class="ico">📂</span> Load<input type="file" id="fileInput"></label>
         <button class="btn left" data-act="nav" data-to="export"><span class="ico">💾</span> Export</button>
       </div>
       ${communityRow()}`,
@@ -8771,7 +8782,7 @@ screens.lineup = (args = {}) => {
     const split = spots.length > 1 ? `<span class="lu-split">${spots.map(([s, v, ok]) => `<span class="${ok ? '' : 'down'}">${s} ${v}</span>`).join(' · ')}</span>` : spots.length && !spots[0][2] ? `<span class="lu-split down">at ${spots[0][0]}</span>` : '';
     const sv = sug.get(p.id) ?? 0, diff = sv - r.minutes[0];
     return `<div class="lu-tr ${r.linePos < 5 ? 'lu-st' : ''} ${inRot ? '' : 'out'}">
-      <span class="lu-c-slot">${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? r.linePos + 1 : '—'}</span>
+      <button class="lu-c-slot lu-pick" data-act="luStartPick" data-id="${p.id}" aria-label="Starting spot">${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? r.linePos + 1 : '—'}</button>
       <span class="lu-c-name tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln || playerName(p))}</b>${r.hand ? ' ✋' : ''}${split}
         <span class="lu-bar2"><i style="width:${(r.minutes[0] / game * 100).toFixed(1)}%"></i></span></span>
       <span class="lu-c-ovr">${shownLevel(p)}</span>
@@ -8814,11 +8825,30 @@ function luPlan(t, a) {
   const real = mode === 'real' ? realMinutes(t) : null;
   if (mode === 'real') mode = real ? 'normal' : lineupMode(t);
   const cr = coachRot(t, mode === 'playoffs');
-  return LU.planLineup(t, { mode, size: a.size || cr.size, sizeSet: !!a.size, locked: !!a.lock, share: real ? null : cr.share, game: gameMinutes(), over: a.over || {}, promised: promisedMinutes(t), real });
+  return LU.planLineup(t, { mode, size: a.size || cr.size, sizeSet: !!a.size, locked: !!a.lock, start: a.start || {}, share: real ? null : cr.share, game: gameMinutes(), over: a.over || {}, promised: promisedMinutes(t), real });
 }
+// Pick where a player starts (PG to C), or send a picked starter back to the bench.
+actions.luStartPick = d => {
+  const a = luArgs(), pid = +d.id, cur = Object.entries(a.start || {}).find(([, v]) => +v === pid);
+  const o = overlay(`<div class="info-head">Starting spot</div><p class="note small">Start him at:</p>
+    <div class="grid3">${LU.SLOTS.map((s, i) => `<button class="btn" data-s="${i}">${s}</button>`).join('')}</div>
+    ${cur ? '<button class="btn off" data-s="bench" style="margin-top:8px">Back to the bench</button>' : ''}<button class="btn off" data-close style="margin-top:8px">Cancel</button>`);
+  o.addEventListener('click', e => {
+    const b = e.target.closest('[data-s],[data-close]');
+    if (e.target === o || b?.dataset.close != null) { o.remove(); return; }
+    if (!b) return;
+    o.remove();
+    const n = { ...luArgs() }, st = Object.fromEntries(Object.entries(n.start || {}).filter(([, v]) => +v !== pid));
+    if (b.dataset.s !== 'bench') st[b.dataset.s] = pid;
+    n.start = st;
+    // Minutes set by hand start over around the new five.
+    if (n.lock) { n.over = {}; n.lock = false; delete n.size; toast('Minutes reset', 'Set around your new starting five.', 1800); }
+    replace('lineup', n);
+  });
+};
 actions.luSet = d => {
   const a = { ...luArgs() };
-  if (d.k === 'over' || d.k === 'mode') { a.over = {}; a.lock = false; delete a.size; }   // reset: back to the suggestion
+  if (d.k === 'over' || d.k === 'mode') { a.over = {}; a.lock = false; delete a.size; if (d.k === 'mode') delete a.start; }   // reset: back to the suggestion
   if (d.k !== 'over') a[d.k] = d.k === 'size' ? +d.v : d.v;
   replace('lineup', a);
 };
@@ -9505,14 +9535,6 @@ actions.glSend = async d => {
   if (!e?.team || !isUserTeam(e.team) || !glOpen(L)) return;
   const why = glWhyNot(e.p, e.team);
   if (why) { toast(`Can't send him down: ${why}`); return; }
-  if (!labOn()) {
-    const all = glStore(), y = L.season.currentYear;
-    (all[y] ||= {})[e.p.id] = { tid: e.team.id, day: L.season.currentDay || 0 };
-    glSave(all);
-    render();
-    toast(`🏀 ${playerName(e.p)} sent to the G League`, 'Keep him out of the rotation in Hoop Land.');
-    return;
-  }
   if (!(await confirmBox(`Send <b>${esc(playerName(e.p))}</b> to the G League?<br><br>He comes off your roster in the exported file, so <b>Hoop Land won't show him</b>: he's kept here in Hoop Land Plus, and his spot opens for a signing.<br><br>You can call him up any time this season in Hoop Land Plus, as long as you trim the active roster to make room (15 max).`, 'Send Down'))) return;
   const all = glStore(), y = L.season.currentYear, p = e.p, t = e.team;
   checkpoint(`Send ${playerName(p)} down`);
@@ -10124,7 +10146,7 @@ screens.roster = (args) => {
       </div>
       ${teamHeader(t)}
       ${rosterCoachLine(t)}
-      ${!isCollege() ? `<div class="grid2 team-links"><button class="btn small" data-act="nav" data-to="history" data-arg="${t.id}">📜 History</button><button class="btn small" data-act="nav" data-to="payroll" data-arg="${t.id}">🤝 Contracts</button></div>` : ''}
+      ${!isCollege() ? `<div class="${isUserTeam(t) ? 'grid3' : 'grid2'} team-links">${isUserTeam(t) ? '<button class="btn small" data-act="nav" data-to="coaching">🧑‍🏫 My Coach</button>' : ''}<button class="btn small" data-act="nav" data-to="history" data-arg="${t.id}">📜 History</button><button class="btn small" data-act="nav" data-to="payroll" data-arg="${t.id}">🤝 Contracts</button></div>` : ''}
       ${isUserTeam(t) && t.frontOffice && isComplete() && !isCollege() ? (() => { const ch = chemOf(t); return `<div class="grid2 team-mini">
         <button class="btn left small mini-box" data-act="nav" data-to="fanLog"><span class="ico">👥</span> <span>Fans <b>${t.frontOffice.fans ?? 50}</b><br>${(() => { const mv = fanLog().filter(x => x.tid === t.id && x.yr === league().season.currentYear); const up = mv.filter(x => x.d > 0).reduce((a, x) => a + x.d, 0), dn = mv.filter(x => x.d < 0).reduce((a, x) => a - x.d, 0); return mv.length ? `<span class="small"><span class="up">▲${up}</span> <span class="down">▼${dn}</span></span>` : '<span class="muted small">/ 100</span>'; })()}</span></button>
         <button class="btn left small mini-box" data-act="nav" data-to="chemistry" data-arg="${t.id}"><span class="ico">💙</span> <span>Chemistry <b>${ch.avg}</b><br><span class="small"><span class="up">▲${ch.up}</span> <span class="down">▼${ch.down}</span></span></span></button>
@@ -11185,7 +11207,7 @@ screens.leaders = (args) => {
   const barOf = x => (mode === 'stats' ? '' : `<span class="ld-bar">${gBar(G_CLS[gCat(k).key], gKinds(x.e.p, null, k).kinds)}</span>`);
   layout({
     title: 'League',
-    body: `<div class="tabs"><button class="btn ${mode === 'stats' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="stats" data-k="${mode === 'stats' ? k : 'PTS'}" data-r="1">Stats</button><button class="btn ${mode === 'ratings' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="ratings" data-k="${mode === 'ratings' ? k : 'LAY'}" data-r="1">Ratings</button>${isCollege() ? '' : `<button class="btn off" data-act="openLeaders" data-m="rafters" data-r="1">🏟️ Rafters</button>${labOn() ? '<button class="btn off" data-act="nav" data-to="records">📖 Records</button>' : ''}`}</div>${isCollege() || !labOn() ? '' : '<div class="grid2" style="margin-top:6px"><button class="btn small" data-act="nav" data-to="rankings">📊 Player Rankings</button><button class="btn small" data-act="nav" data-to="drafts">🎓 Draft History</button></div>'}${isCollege() ? '' : '<div class="grid2" style="margin-top:6px"><button class="btn small" data-act="nav" data-to="teamStats">📈 Team Stats</button><button class="btn small" data-act="nav" data-to="injuries">🩹 Injury Report</button></div>'}
+    body: `<div class="tabs"><button class="btn ${mode === 'stats' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="stats" data-k="${mode === 'stats' ? k : 'PTS'}" data-r="1">Stats</button><button class="btn ${mode === 'ratings' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="ratings" data-k="${mode === 'ratings' ? k : 'LAY'}" data-r="1">Ratings</button>${isCollege() ? '' : ``}</div>
       <div class="opts wrap ld-keys">${head}</div>
       ${groupChips}
       <p class="note muted small" style="margin:6px 0">${esc(note)}</p>
@@ -12621,6 +12643,7 @@ screens.settings = (args) => {
     title: 'Settings',
     body: `
       <div class="sv-tabs">${SETTINGS_TABS.map(([k, l]) => `<button class="btn ${k === tab ? 'on focus' : 'off'}" data-act="setTab" data-t="${k}">${l}${count(k) ? ` <span class="gold">•${count(k)}</span>` : ''}</button>`).join('')}</div>
+      ${state.data && !isCollege() && tab === 'basics' ? '<button class="btn left" data-act="nav" data-to="editor" style="margin:8px 0"><span class="ico">🛠️</span> League Editor &amp; Tools</button>' : ''}
       ${body}
       ${tab === 'dev' && state.auto[state.leagueIdx] ? '<p class="note gold small">The bump already ran. Changes apply the next time you run or re-roll it.</p>' : ''}`,
   });
@@ -19704,6 +19727,50 @@ const TEAM_STAT_COLS = [
   ['ppg', 'PPG', r => r.PTS / r.GP, false], ['opp', 'Opp', r => r.OPP / r.GP, true], ['margin', 'Margin', r => (r.PTS - r.OPP) / r.GP, false],
   ['fg', 'FG%', r => (r.FGA ? (r.FGM / r.FGA) * 100 : 0), false], ['tp', '3P%', r => (r.TPA ? (r.TPM / r.TPA) * 100 : 0), false], ['ft', 'FT%', r => (r.FTA ? (r.FTM / r.FTA) * 100 : 0), false],
 ];
+actions.lgHof = () => go('editor', { tab: 'hof' });
+actions.lgTab = d => (d.t === 'leaders' ? replace('leaders', { m: 'stats', k: 'PTS' }) : replace(d.t, {}));
+// Both conferences, best record first: W-L, games back and the point margin; your team boxed.
+screens.standings = () => {
+  const L = league(), yr = L.season.currentYear, half = Math.ceil((L.divisions || []).length / 2) || 3;
+  const rec = x => (x.season || []).find(s => s.yr === yr)?.seasonStats || {};
+  const conf = c => L.teams.filter(x => (L.conferences || []).length < 2 || (x.division < half ? 0 : 1) === c).map(x => { const r = rec(x); return { t: x, W: r.W || 0, L: r.L || 0, m: r.GP ? (r.PTS - r.OPP) / r.GP : 0 }; })
+    .sort((a, b) => b.W / Math.max(1, b.W + b.L) - a.W / Math.max(1, a.W + a.L) || b.W - a.W || b.m - a.m);
+  const table = (name, rows) => { const lead = rows[0] || { W: 0, L: 0 }; return `<fieldset class="frame"><legend>${esc(name)}</legend><div class="stack">${rows.map((x, i) => { const gb = ((lead.W - x.W) + (x.L - lead.L)) / 2; return `<div class="stand-row ${isUserTeam(x.t) ? 'mine boxed' : ''} ${i === 5 || i === 9 ? 'cut' : ''}"><span class="small muted">${i + 1}</span>${logoImg(x.t)}<span class="grow small"><b>${esc(x.t.shortName)}</b></span><span class="small">${x.W}-${x.L}</span><span class="small muted st-gb">${gb ? gb.toFixed(1) : '—'}</span><span class="small ${x.m >= 0 ? 'up' : 'down'} st-m">${x.m >= 0 ? '+' : ''}${x.m.toFixed(1)}</span></div>`; }).join('')}</div></fieldset>`; };
+  const confs = (L.conferences || []).length >= 2 ? [[L.conferences[0], conf(0)], [L.conferences[1], conf(1)]] : [['League', conf(0)]];
+  layout({ title: 'Standings', body: `<p class="note small muted">W-L · games back · point margin a game. The line marks the playoff and play-in spots.</p>${confs.map(([n, r]) => table(n, r)).join('')}` });
+};
+// The award races this season: MVP, Defensive Player, Rookie, Sixth Man and Most Improved, the top five in each.
+function awardRaces(L) {
+  const yr = L.season.currentYear, rows = [];
+  for (const tm of L.teams) {
+    const r = (tm.season || []).find(s => s.yr === yr)?.seasonStats || {}, gp = r.GP || 0, pct = gp ? (r.W || 0) / gp : 0;
+    for (const p of tm.roster) { const l = seasonLine(p, state.leagueIdx, yr); if (l && gp && l.gp >= Math.max(3, gp / 2)) rows.push({ p, tm, l, pct, prev: seasonLine(p, state.leagueIdx, yr - 1) }); }
+  }
+  const top = (list, f) => list.map(x => ({ ...x, v: f(x) })).filter(x => x.v > -1e8).sort((a, b) => b.v - a.v).slice(0, 5);
+  const line = x => `${x.l.ppg.toFixed(1)} pts · ${x.l.rpg.toFixed(1)} reb · ${x.l.apg.toFixed(1)} ast`;
+  return [
+    ['🏆', 'Most Valuable Player', top(rows, x => (x.l.ppg + 1.2 * x.l.rpg + 1.5 * x.l.apg + 2 * x.l.spg + 2 * x.l.bpg) * (0.6 + x.pct)), line],
+    ['🛡️', 'Defensive Player of the Year', top(rows, x => (2.5 * x.l.spg + 2.5 * x.l.bpg + 0.6 * x.l.rpg) * (0.7 + 0.6 * x.pct) + ['STL', 'BLK', 'DRE'].reduce((s, k) => s + (x.p.attributes?.[k]?.[0] || 0), 0) * 0.15), x => `${x.l.spg.toFixed(1)} stl · ${x.l.bpg.toFixed(1)} blk · ${x.l.rpg.toFixed(1)} reb`],
+    ['🌱', 'Rookie of the Year', top(rows.filter(x => (x.p.yrs ?? 0) === 0), x => x.l.ppg + 0.8 * x.l.rpg + x.l.apg + x.l.spg + x.l.bpg), line],
+    ['🪑', 'Sixth Man of the Year', top(rows.filter(x => x.l.starts / x.l.gp < 0.5), x => x.l.ppg + 0.5 * x.l.rpg + 0.7 * x.l.apg), line],
+    ['📈', 'Most Improved Player', top(rows.filter(x => x.prev && x.prev.gp >= 20), x => x.l.ppg - x.prev.ppg + 0.5 * (x.l.rpg - x.prev.rpg) + 0.5 * (x.l.apg - x.prev.apg)), x => `${x.l.ppg.toFixed(1)} pts (was ${x.prev.ppg.toFixed(1)})`],
+  ];
+}
+screens.awards = () => {
+  const L = league(), races = awardRaces(L);
+  const body = races.map(([ico, name, list, fmt]) => `<fieldset class="frame"><legend>${ico} ${esc(name)}</legend>${list.length ? `<div class="stack">${list.map((x, i) => `<div class="drill-row tap ${isUserTeam(x.tm) ? 'mine' : ''}" data-act="openPlayer" data-id="${x.p.id}"><span class="small muted" style="width:1.4em">${i + 1}</span><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)}<br><span class="small muted">${esc(x.tm.shortName)} · ${fmt(x)}</span></span></div>`).join('')}</div>` : '<p class="note small muted">Too early to call.</p>'}</fieldset>`).join('');
+  layout({ title: 'Award Races', body: `<p class="note small muted">Where the races stand today, from this season's numbers and team records (half the team's games played or more).</p>${body}` });
+};
+// History: the rafters, the Hall of Fame, every draft and the all-time rankings.
+screens.lgHistory = () => {
+  const L = league();
+  layout({ title: 'League History', body: `<div class="grid2">
+      <button class="btn left" data-act="openLeaders" data-m="rafters"><span class="ico">🏟️</span> Rafters</button>
+      ${(L.hallOfFame || []).length ? '<button class="btn left" data-act="lgHof"><span class="ico">🏛️</span> Hall of Fame</button>' : ''}
+      <button class="btn left" data-act="nav" data-to="drafts"><span class="ico">🎓</span> Draft History</button>
+      <button class="btn left" data-act="nav" data-to="rankings"><span class="ico">📊</span> Player Rankings</button>
+    </div>` });
+};
 screens.teamStats = (args) => {
   const L = league();
   const years = [...new Set(L.teams.flatMap(t => (t.season || []).filter(s => s.seasonStats?.GP > 0).map(s => s.yr)))].sort((a, b) => b - a);
@@ -22566,10 +22633,10 @@ const edStep = (label, val, act, data, note = '') => `<div class="pts-row"><span
 const edSeg = (opts, cur, act, data) => `<div class="tabs fa-tabs">${opts.map(([v, l]) => `<button class="btn small ${cur === v ? 'on focus' : 'off'}" data-act="${act}" ${data} data-v="${v}">${l}</button>`).join('')}</div>`;
 screens.editor = (args = {}) => {
   const L = league();
-  const tab = args.tab || 'teams';
+  const tab = args.tab || (isCollege() ? 'teams' : 'tools');
   const view = EDITOR_OFF();
-  const tabs = [['teams', 'Teams'], ...(view ? [] : [['picks', 'Picks'], ['coaches', 'Coaches']]), ...(isCollege() || !(L.hallOfFame || []).length ? [] : [['hof', 'Hall of Fame']]), ['tools', 'Tools']];
-  if (view && !tabs.some(([k]) => k === tab)) { replace('editor', { tab: 'teams' }); return; }
+  const tabs = [...(isCollege() ? [['teams', 'Teams']] : []), ...(view ? [] : [['picks', 'Picks'], ['coaches', 'Coaches']]), ...(isCollege() || !(L.hallOfFame || []).length ? [] : [['hof', 'Hall of Fame']]), ['tools', 'Tools']];
+  if (!tabs.some(([k]) => k === tab)) { replace('editor', { tab: 'tools' }); return; }
   const head = `<p class="note small">${esc(L.leagueName || L.shortName)} · ${state.leagueFile ? 'league file' : 'your save'} · ${L.teams.length} teams. ${state.leagueFile ? 'Edits are written into the file when you export.' : 'Edits change your save; Export League snapshots it.'}</p>
     <div class="tabs">${tabs.map(([k, l]) => `<button class="btn ${k === tab ? 'on focus' : 'off'}" data-act="edTab" data-t="${k}">${l}</button>`).join('')}</div>`;
   let body = '';
