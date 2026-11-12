@@ -2392,3 +2392,7 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .pq-stakes { display: block; font-size: 11px; color: var(--dim, #b9c8e8); font-weight: 600; }
 
 .pq-fx .pq-later { color: #fff; }
+
+.trade-rec { margin: 2px 0 0; }
+.trade-rec + .trade-need { margin-top: 0; }
+.stack > .trade-rec + .trade-need { margin-top: -8px; }

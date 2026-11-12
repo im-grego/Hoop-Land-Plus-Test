@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.5';
+const APP_VERSION = '0.365.6';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3367,6 +3367,8 @@ function mediaQuestions(L, t) {
       break;
     }
   }
+  // Answers are just their effects (no promises to keep).
+  for (const q of out) q.options = q.options.map(([v, lbl, fx]) => [v, lbl, fx.filter(([k]) => k !== 'promise')]);
   // At most three a day, a different mix each day.
   const seed = (day * 7 + t.id) >>> 0;
   return out.map((q, i) => ({ q, r: (seed * (i + 3) + i * 31) % 97 })).sort((a, b) => a.r - b.r).slice(0, 3).map(z => z.q);
@@ -16119,7 +16121,11 @@ function teamNeed(t) {
   }
   return cache.get('needs').get(t.id) || '';
 }
-const needLine = t => (t && !isCollege() ? `<p class="note small center trade-need">Need: <b>${esc(teamNeed(t))}</b></p>` : '');
+const needLine = t => {
+  if (!t || isCollege()) return '';
+  const r = t.season?.find(x => x.yr === league().season.currentYear)?.seasonStats || {}, tag = ED_TAGS[t.status ?? 0] || '';
+  return `<p class="note small center trade-rec"><b>${r.W || 0}-${r.L || 0}</b>${tag ? ` • ${esc(tag)}` : ''}</p><p class="note small center trade-need">Need: <b>${esc(teamNeed(t))}</b></p>`;
+};
 const showVals = () => !!state.params.tradeValues;
 const valTag = v => showVals() ? `<span class="muted small">${Math.round(v)}</span>` : '';
 // What a side is sending, by name, under its team at the top (so you can see it without scrolling the list).
