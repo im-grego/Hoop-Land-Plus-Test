@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.361.4';
+const APP_VERSION = '0.362.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -750,7 +750,7 @@ function gramBox() {
   try {
     if (!state.data || isCollege() || CAR.isCareer(league())) return '';
     const cur = state.stack[state.stack.length - 1]?.name;
-    return `<span class="gram-wrap"><button class="btn gram-box ${['rumors', 'news', 'injuries', 'transactions'].includes(cur) ? 'focus' : ''}" data-act="gramBox" aria-label="Hoop Gram"><i class="px px-gram" aria-hidden="true"></i></button>${ndot(rumorUnread())}</span>`;
+    return `<span class="gram-wrap"><button class="btn gram-box ${['rumors', 'news', 'gramMine', 'transactions'].includes(cur) ? 'focus' : ''}" data-act="gramBox" aria-label="Hoop Gram"><i class="px px-gram" aria-hidden="true"></i></button>${ndot(rumorUnread())}</span>`;
   } catch { return ''; }
 }
 function layout({ title, left = '', right = '', body, action = null, actionLeft = null, bare = false }) {
@@ -2923,7 +2923,7 @@ const STEP_SCREENS = {
   dev: ['staff', 'meeting', 'offseason', 'report', 'mentor', 'rookies', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'teamBooks', 'coaches', 'coach'], media: ['storylines', 'survey', 'mediaRumors'], cuts: ['cuts', 'latefa', 'liveTrade'], rotation: ['lineup', 'player'], export: ['export'],
   review: ['review', 'teamStats', 'player'], waters: ['waters', 'player'], nil: ['nil', 'player'], retention: ['retention', 'player'], carousel: ['carousel'], camps: ['camps', 'recruitee'], legacy: ['legacy', 'player'], schedule: ['schedule'], tour: ['tour', 'player'], walkons: ['walkons', 'player'], redshirt: ['redshirt', 'player'], madness: ['madness'], mediaday: ['mediaday', 'player'], departures: ['departures'], seniors: ['seniors'], portal: ['portal'], showcase: ['showcase', 'recruitee'], rw1: ['recruit', 'recruitee', 'recruitweek'], rw2: ['recruit', 'recruitee', 'recruitweek'], rw3: ['recruit', 'recruitee', 'recruitweek'], rw4: ['recruit', 'recruitee', 'recruitweek'], signing: ['signing'], preseason: ['preseason'], rosterlock: ['rosterlock'], practice: ['practice'], summer: ['offseason', 'report', 'mentor', 'trainer', 'strength', 'coachtree', 'tendencies', 'tendplayer', 'gameplan', 'playbook'],
 };
-const ALWAYS = ['start', 'startTeam', 'startFA', 'market', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks', 'injuries', 'teamStats'];
+const ALWAYS = ['start', 'startTeam', 'startFA', 'market', 'drafts', 'rankings', 'records', 'cup', 'olympics', 'chemistry', 'roadmap', 'grads', 'fantasy', 'expansion', 'history', 'faces', 'gleague', 'fanLog', 'nbaSetup', 'export', 'checkin', 'myteams', 'ledger', 'career', 'careerFA', 'lineup', 'deadline', 'playoffs', 'main', 'editor', 'settings', 'roster', 'payroll', 'capital', 'classLab', 'coaching', 'news', 'search', 'transactions', 'rumors', 'player', 'leaders', 'prospect', 'coachtree', 'facilities', 'gameplan', 'playbook', 'scoring', 'playbookEdit', 'coaches', 'coach', 'teamBooks', 'injuries', 'teamStats', 'gramMine'];
 function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
@@ -3238,12 +3238,14 @@ function myGramKeys() {
   const L = league(), k = `${state.leagueIdx}|${L.season.phase}|${L.season.day ?? ''}|${L.season.currentDay ?? ''}|${L.season.currentYear}`;
   if (state.myGramK === k) return state.myGram;
   state.myGramK = k;
-  const out = { rumors: [], gram: [] };
-  try { out.rumors = rumorPosts(L).filter(x => x.mine).map(x => x.key); } catch { /* fine */ }
-  try { out.gram = gramPosts().filter(x => x.mine).map(x => x.key); } catch { /* fine */ }
+  const out = { mentions: [], team: [] };
+  try { out.mentions = syncMentions().map(x => x.k); } catch { /* fine */ }
+  try { out.team = teamPostsOf(myTeam()).map(x => x.k); } catch { /* fine */ }
   return (state.myGram = out);
 }
-const rumorUnread = () => { const s = rumorSeen(), m = myGramKeys(); return [...m.rumors, ...m.gram].filter(k => !s.has(k)).length; };
+// New posts by tab (Mentions: what's said about you; Team: your team's own account).
+const gramUnseen = () => { try { const s = rumorSeen(), m = myGramKeys(); return { mentions: m.mentions.filter(k => !s.has(k)).length, team: m.team.filter(k => !s.has(k)).length }; } catch { return {}; } };
+const rumorUnread = () => gramUnseen().mentions || 0;
 const markGramSeen = keys => { if (keys.length) offSet('hgSeen', { ids: [...new Set([...rumorSeen(), ...keys])].slice(-300) }); };
 // A facility upgrade the coins already cover.
 const facReady = t => !!t && isComplete() && !isCollege() && FX.FACILITIES.some(f => { const cur = FX.tierIn(t, f.k); return cur < f.tiers.length && coinsOf(t) >= FX.upgradeCost(cur); });
@@ -10720,12 +10722,12 @@ actions.medPick = d => {
 };
 
 // ---- League News: rumors, transactions, coaching moves, CPU trades and (at Opening Night) the report card, as tabs.
-const NEWS_TABS = [['rumors', 'Rumors'], ['block', 'Trade Block'], ['gram', 'Hoop Gram'], ['injuries', 'Injuries'], ['report', 'Report Card']];
-const newsTabs = cur => `<div class="tabs fa-tabs news-tabs">${NEWS_TABS.filter(([k]) => k !== 'report' || league().season.phase === 6).map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="newsTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+const NEWS_TABS = [['rumors', 'Feed'], ['team', 'Team'], ['mentions', 'Mentions'], ['block', 'Trade Block'], ['report', 'Report Card']];
+const newsTabs = cur => { const u = gramUnseen(); return `<div class="tabs fa-tabs news-tabs">${NEWS_TABS.filter(([k]) => k !== 'report' || league().season.phase === 6).map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="newsTab" data-t="${k}">${l}${k !== cur && u[k] ? '<span class="tab-dot"></span>' : ''}</button>`).join('')}</div>`; };
 actions.gramBox = () => {
-  if (['rumors', 'news', 'injuries', 'transactions'].includes(state.stack[state.stack.length - 1]?.name)) return;
-  // Straight to the tab with the post about you that you haven't seen.
-  const s = rumorSeen(), m = myGramKeys(), to = !m.rumors.some(k => !s.has(k)) && m.gram.some(k => !s.has(k)) ? ['news', { tab: 'gram' }] : ['rumors', {}];
+  if (['rumors', 'news', 'gramMine', 'transactions'].includes(state.stack[state.stack.length - 1]?.name)) return;
+  // Straight to Mentions when something new is said about you, else the Feed.
+  const to = rumorUnread() ? ['gramMine', { tab: 'mentions' }] : ['rumors', {}];
   if (state.stack.length === 1) go(...to); else { state.stack[state.stack.length - 1].y = window.scrollY; state.stack.push({ name: to[0], args: to[1] }); history.pushState({ depth: state.stack.length }, ''); render(); }
 };
 // Back to the title screen (the save closes; export first to keep today's changes).
@@ -10734,7 +10736,7 @@ actions.toTitle = async () => {
   state.data = null; state.dirty = false; state.stack = [{ name: 'main', args: {} }];
   window.scrollTo(0, 0); render();
 };
-actions.newsTab = d => (d.t === 'rumors' ? replace('rumors', {}) : d.t === 'block' ? replace('transactions', { tab: 'block', only: true }) : d.t === 'injuries' ? replace('injuries', {}) : replace('news', { tab: d.t }));
+actions.newsTab = d => (d.t === 'rumors' ? replace('rumors', {}) : d.t === 'block' ? replace('transactions', { tab: 'block', only: true }) : d.t === 'team' || d.t === 'mentions' ? replace('gramMine', { tab: d.t }) : replace('news', { tab: d.t }));
 
 // The injury report: everyone in the league who's out right now, on one sheet. Tap a column to sort by it, tap it
 // again to flip it. Out: the longest first (major injuries ahead of minor ones at the same length).
@@ -10759,8 +10761,7 @@ screens.injuries = (args = {}) => {
   const mine = tm => isUserTeam(tm) ? ' ir-mine' : '';
   layout({
     title: 'Injury Report',
-    body: `${newsTabs('injuries')}
-      <p class="note small muted">${rows.length ? `${rows.length} player${rows.length === 1 ? '' : 's'} out around the league. Tap a column to sort.` : ''}</p>
+    body: `<p class="note small muted">${rows.length ? `${rows.length} player${rows.length === 1 ? '' : 's'} out around the league. Tap a column to sort.` : ''}</p>
       ${rows.length ? `<fieldset class="frame ir-frame"><div class="ir-tr ir-th">${th('name', 'Name')}${th('lvl', 'Lvl', 'c')}${th('team', 'Team', 'c')}${th('inj', 'Injury')}${th('out', 'Out', 'c')}</div>
       ${rows.map(r => `<div class="ir-tr tap${mine(r.tm)}" data-act="openPlayer" data-id="${r.p.id}">
         <b class="ir-name">${esc(`${(r.p.fn || '')[0] || ''}. ${r.p.ln}`)}</b>
@@ -10963,6 +10964,97 @@ function tradeBlocks(L) {
   return `<div class="stack">${list.map(d => `<div class="tx-block"><div class="tx-head"><b>${esc(nameOf(d.A))} ⇄ ${esc(nameOf(d.B))}</b><span class="small muted">best Lv ${d.best}</span></div>${side(d.A, d.pa_, d.pa)}${side(d.B, d.pb_, d.pb)}</div>`).join('') || '<p class="note small muted">No trades yet.</p>'}</div>`;
 }
 // Rumors around the league: disgruntled stars, vets on sinking teams, tax pressure and players being shopped.
+// Team: what your team's own account posts this season, newest first: every final (the winner first, with the Player
+// of the Game) and the roster moves since last season (signings, trades, draft picks, goodbyes).
+function teamPostsOf(tm) {
+  if (!tm) return [];
+  const L = league(), out = [], full = x => `${x.city} ${x.name}`, by = id => L.teams.find(x => x.id === id);
+  const sched = L.season.schedule || [];
+  let n = 0;
+  for (let d = 0; d < Math.min(sched.length, L.season.currentDay ?? sched.length); d++) for (const g of sched[d]?.results || []) {
+    if (g.homeTeam !== tm.id && g.awayTeam !== tm.id) continue;
+    if (!(g.winner >= 0) || !(g.homeScore || g.awayScore)) continue;
+    n++;
+    const w = by(g.winner), l = by(g.winner === g.homeTeam ? g.awayTeam : g.homeTeam), ws = g.winner === g.homeTeam ? g.homeScore : g.awayScore, ls = g.winner === g.homeTeam ? g.awayScore : g.homeScore;
+    const star = g.potg > 0 ? findPlayer(g.potg)?.p : null;
+    out.push({ k: `t:g:${L.season.currentYear}:${g.gId}`, d, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: full(tm), handle: tTag(tm), text: `FINAL: ${esc(full(w))} ${ws}, ${esc(full(l))} ${ls}${star ? `<br>Player of the Game goes to <span class="hg-at">@${esc(pTag(star))}</span>!` : ''}`, foot: `Game ${n} · ${g.winner === tm.id ? '<span class="up">W</span>' : '<span class="down">L</span>'}`, act: star ? `data-act="openPlayer" data-id="${star.id}"` : '' }) });
+  }
+  out.reverse();
+  // The roster moves (no dates on these: they sit under the games).
+  try {
+    const mv = teamMoves(L, tm), at = p => `<span class="hg-at">@${esc(pTag(p))}</span>`;
+    for (const m of mv.ins.filter(x => !x.back)) {
+      const from = m.from.replace(/^Trade · /, '');
+      const text = m.from.startsWith('Trade') ? `We've acquired ${at(m.p)} from ${esc(from)}. Welcome to the ${esc(tm.name)}!` : m.from === 'Draft' ? `Welcome to the ${esc(tm.name)}, ${at(m.p)}! Our newest draft pick is officially on the roster.` : `Welcome to ${esc(tm.city)}, ${at(m.p)}! ${m.p.contract?.sal ? `($${m.p.contract.sal}M × ${m.p.contract.yrs})` : ''}`;
+      out.push({ k: `t:in:${L.season.currentYear}:${m.p.id}`, d: -1, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: full(tm), handle: tTag(tm), text, foot: 'Roster move', act: `data-act="openPlayer" data-id="${m.p.id}"` }) });
+    }
+    for (const m of mv.outs || []) {
+      const to = String(m.to || '').replace(/^Trade · /, '');
+      const text = String(m.to || '').startsWith('Trade') ? `We've traded ${at(m.p)} to ${esc(to)}. Thank you for everything!` : /retir/i.test(m.to || '') ? `Congratulations on a great career, ${at(m.p)}. Thank you!` : `Thank you, ${at(m.p)}. Best of luck in what's next!`;
+      out.push({ k: `t:out:${L.season.currentYear}:${m.p.id}`, d: -1, html: gpost({ av: logoImg(tm, 'logo-sm hg-logo'), name: full(tm), handle: tTag(tm), text, foot: 'Roster move', act: `data-act="openPlayer" data-id="${m.p.id}"` }) });
+    }
+  } catch { /* the moves are a bonus */ }
+  return out;
+}
+// Mentions: what others say about your team and players, kept from the start of the season (offseason included)
+// through the playoffs: rumors and trending posts that name you, opponents tipping their cap to your Player of the
+// Game, your stars headed for free agency, your players among the league leaders. Never injuries.
+const PRAISE = [
+  p => `Gotta give props to @${pTag(p)}. Had it going tonight and we couldn't slow him down.`,
+  p => `@${pTag(p)} showed up tonight and there was nothing we could do to stop the bleeding. Respect.`,
+  p => `When a guy like @${pTag(p)} gets rolling, all you can do is tip your cap.`,
+  p => `Tough one. @${pTag(p)} hit every big shot. On to the next.`,
+  p => `Gave it everything tonight but @${pTag(p)} was special. Salute.`,
+  p => `@${pTag(p)} is a problem. Film session is going to be long.`,
+];
+function syncMentions() {
+  const L = league(), me = myTeam();
+  if (!me || isCollege()) return [];
+  const store = offGet('hgMentions'), list = Array.isArray(store.list) ? store.list : [], have = new Set(list.map(x => x.k));
+  const day = L.season.currentDay ?? 0, add = (k, d, html) => { if (!have.has(k)) { have.add(k); list.push({ k, d, html }); } };
+  // Rumors and trending posts that name you.
+  try { for (const x of rumorPosts(L).filter(y => y.mine)) add(`m:${x.key}`, day, x.html); } catch { /* fine */ }
+  try { for (const x of gramPosts().filter(y => y.mine)) add(`m:${x.key}`, day, gpost({ name: handleName(x.handle), handle: handleName(x.handle).toLowerCase(), text: esc(gram(x.text)), act: x.pid ? `data-act="openPlayer" data-id="${x.pid}"` : '', ver: false })); } catch { /* fine */ }
+  // Opponents on your Player of the Game.
+  const sched = L.season.schedule || [];
+  for (let d = 0; d < Math.min(sched.length, day || sched.length); d++) for (const g of sched[d]?.results || []) {
+    if (!(g.potg > 0) || (g.homeTeam !== me.id && g.awayTeam !== me.id)) continue;
+    const star = findPlayer(g.potg)?.p;
+    if (!star || !me.roster.includes(star)) continue;
+    const opp = L.teams.find(x => x.id === (g.homeTeam === me.id ? g.awayTeam : g.homeTeam));
+    const who = opp && FA.signedRoster(opp).sort((a, b) => shownLevel(b) - shownLevel(a))[g.gId % 3];
+    if (!who) continue;
+    add(`m:potg:${L.season.currentYear}:${g.gId}`, d, gpost({ av: pAv(who, opp), name: playerName(who), handle: pTag(who), text: esc(PRAISE[g.gId % PRAISE.length](star)).replace(/@([a-z0-9_.]+)/gi, '<span class="hg-at">@$1</span>'), act: `data-act="openPlayer" data-id="${star.id}"`, foot: esc(opp.shortName) }));
+  }
+  // Your best players in the last year of their deals (from the regular season on).
+  if (L.season.phase >= 9) for (const p of FA.signedRoster(me).filter(q => (q.contract?.yrs || 0) <= 1 && shownLevel(q) >= 78)) {
+    add(`m:fa:${L.season.currentYear}:${p.id}`, day, gpost({ name: 'CapSpaceGuy', handle: 'capspaceguy', text: `${esc(playerName(p))} (<span class="hg-at">@${esc(pTag(p))}</span>) is in the last year of his deal. ${esc(me.city)} has a big decision coming this summer.`, act: `data-act="openPlayer" data-id="${p.id}"`, ver: false }));
+  }
+  // Your players among the league's top five in a main category (half the games played or more).
+  if (L.season.phase >= 9 && L.season.phase <= 11) {
+    const rows = [];
+    for (const tm of L.teams) { const gp = dlPct(tm).gp; for (const q of tm.roster) { const l = seasonLine(q, state.leagueIdx, L.season.currentYear); if (l && gp >= 10 && l.gp >= gp / 2) rows.push({ q, l, tm }); } }
+    for (const [k, lbl] of [['ppg', 'scoring'], ['rpg', 'rebounding'], ['apg', 'assists'], ['spg', 'steals'], ['bpg', 'blocks']]) {
+      const top = [...rows].sort((a, b) => b.l[k] - a.l[k]).slice(0, 5), i = top.findIndex(x => x.tm === me);
+      if (i >= 0) { const x = top[i]; add(`m:lead:${L.season.currentYear}:${k}:${x.q.id}`, day, gpost({ name: 'StatMuse Land', handle: 'statmuseland', text: `<span class="hg-at">@${esc(pTag(x.q))}</span> is ${['1st', '2nd', '3rd', '4th', '5th'][i]} in the league in ${lbl} (${x.l[k].toFixed(1)} a game).`, act: `data-act="openPlayer" data-id="${x.q.id}"`, ver: false })); }
+    }
+  }
+  offSet('hgMentions', { list: list.slice(-300) });
+  return [...list].sort((a, b) => b.d - a.d);
+}
+screens.gramMine = (args = {}) => {
+  const tab = args.tab === 'team' ? 'team' : 'mentions', me = myTeam();
+  const posts = tab === 'team' ? teamPostsOf(me) : syncMentions();
+  const seen = rumorSeen();
+  const html = posts.map(x => (seen.has(x.k) ? x.html : x.html.replace(/<\/(button|div)>$/, '<span class="hg-dot" aria-label="New"></span></$1>'))).join('');
+  markGramSeen(posts.map(x => x.k));
+  state.myGramK = '';
+  layout({
+    title: 'Hoop Gram',
+    body: `${newsTabs(tab)}<p class="note small muted">${tab === 'team' ? `${esc(me ? `${me.city} ${me.name}` : 'Your team')}: every final and roster move this season, newest first.` : 'What people are saying about your team and players this season.'}</p>
+      <div class="stack hg-list">${html || `<p class="note small muted">${tab === 'team' ? 'No games or moves yet.' : 'Nobody is talking about you yet.'}</p>`}</div>`,
+  });
+};
 // The rumors as posts (the top ten), the ones involving you first.
 function rumorPosts(L) {
   const list = rumorMill(L, { level: shownLevel, li: state.leagueIdx, skip: isUserTeam });
@@ -10979,11 +11071,10 @@ function rumorPosts(L) {
 screens.rumors = () => {
   const L = league();
   const posts = rumorPosts(L);
-  markGramSeen(posts.filter(x => x.mine).map(x => x.key));
   layout({
     title: 'Hoop Gram',
     body: `${newsTabs('rumors')}${(() => { const cpu = Object.entries(shiftStore()).filter(([, r]) => r.cpu).map(([pid, r]) => ({ pid: +pid, ...r })); return cpu.length ? `<fieldset class="frame"><legend>🏀 From Camp</legend><div class="stack">${cpu.map(shiftRumor).join('')}</div></fieldset>` : ''; })()}<p class="note small muted">Whispers about who could be on the move. Some of it comes true, some doesn't.</p>
-      <div class="stack">${posts.map(x => x.html).join('') || '<p class="note small muted">Quiet around the league.</p>'}</div>${hotSeatBox(L)}`,
+      <div class="stack hg-list">${posts.map(x => x.html).join('') || '<p class="note small muted">Quiet around the league.</p>'}</div>${leagueGramCard()}${hotSeatBox(L)}`,
   });
 };
 actions.txTab = d => replace('transactions', { tab: d.v });
@@ -11094,7 +11185,7 @@ screens.leaders = (args) => {
   const barOf = x => (mode === 'stats' ? '' : `<span class="ld-bar">${gBar(G_CLS[gCat(k).key], gKinds(x.e.p, null, k).kinds)}</span>`);
   layout({
     title: 'League',
-    body: `<div class="tabs"><button class="btn ${mode === 'stats' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="stats" data-k="${mode === 'stats' ? k : 'PTS'}" data-r="1">Stats</button><button class="btn ${mode === 'ratings' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="ratings" data-k="${mode === 'ratings' ? k : 'LAY'}" data-r="1">Ratings</button>${isCollege() ? '' : `<button class="btn off" data-act="openLeaders" data-m="rafters" data-r="1">🏟️ Rafters</button>${labOn() ? '<button class="btn off" data-act="nav" data-to="records">📖 Records</button>' : ''}`}</div>${isCollege() || !labOn() ? '' : '<div class="grid2" style="margin-top:6px"><button class="btn small" data-act="nav" data-to="rankings">📊 Player Rankings</button><button class="btn small" data-act="nav" data-to="drafts">🎓 Draft History</button></div>'}
+    body: `<div class="tabs"><button class="btn ${mode === 'stats' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="stats" data-k="${mode === 'stats' ? k : 'PTS'}" data-r="1">Stats</button><button class="btn ${mode === 'ratings' ? 'on focus' : 'off'}" data-act="openLeaders" data-m="ratings" data-k="${mode === 'ratings' ? k : 'LAY'}" data-r="1">Ratings</button>${isCollege() ? '' : `<button class="btn off" data-act="openLeaders" data-m="rafters" data-r="1">🏟️ Rafters</button>${labOn() ? '<button class="btn off" data-act="nav" data-to="records">📖 Records</button>' : ''}`}</div>${isCollege() || !labOn() ? '' : '<div class="grid2" style="margin-top:6px"><button class="btn small" data-act="nav" data-to="rankings">📊 Player Rankings</button><button class="btn small" data-act="nav" data-to="drafts">🎓 Draft History</button></div>'}${isCollege() ? '' : '<div class="grid2" style="margin-top:6px"><button class="btn small" data-act="nav" data-to="teamStats">📈 Team Stats</button><button class="btn small" data-act="nav" data-to="injuries">🩹 Injury Report</button></div>'}
       <div class="opts wrap ld-keys">${head}</div>
       ${groupChips}
       <p class="note muted small" style="margin:6px 0">${esc(note)}</p>
@@ -18456,16 +18547,22 @@ function gramPosts() {
     .map(x => ({ ...x, key: `g:${x.team?.id ?? ''}:${x.pid ?? ''}:${String(x.text).slice(0, 40)}`, mine: mentionsMe(x.text, x.team, x.pid) }));
   return [...posts.filter(x => x.mine), ...posts.filter(x => !x.mine)];
 }
+// One Hoop Gram post, like the game's: the avatar on the left, the name with its check and the @handle, the text under
+// it, a red dot while it's new. text is ready-made HTML (escaped by the caller).
+const HG_SEEN = 'hgSeen';
+function gpost({ av = '', name, handle = '', text, act = '', foot = '', dot = false, ver = true }) {
+  const tag = act ? 'button' : 'div';
+  return `<${tag} class="hg-post${act ? ' tap' : ''}" ${act}><span class="hg-av">${av || '<i class="px px-gram" aria-hidden="true"></i>'}</span><span class="hg-body"><span class="hg-head"><b>${esc(name)}</b>${ver ? '<i class="hg-ver" aria-hidden="true"></i>' : ''}${handle ? `<span class="hg-handle">@${esc(handle)}</span>` : ''}</span><span class="hg-text">${text}</span>${foot ? `<span class="hg-foot">${foot}</span>` : ''}</span>${dot ? '<span class="hg-dot" aria-label="New"></span>' : ''}</${tag}>`;
+}
+const pTag = p => p?.tag || `${p?.fn || ''}${p?.ln || ''}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+const tTag = tm => tm?.tag || `${tm?.city || ''}${tm?.name || ''}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+const pAv = (p, tm) => faceImg(p, 'face-sm') || (tm ? logoImg(tm, 'logo-sm hg-logo') : '');
+const handleName = h => h.replace(/^@/, '');
 function leagueGramCard() {
   const posts = gramPosts();
-  markGramSeen(posts.filter(x => x.mine).map(x => x.key));
   if (!posts.length) return '';
-  return `<h2 class="team-title">Trending on Hoop Gram</h2>
-    <div class="stack">${posts.map(x => `<${x.pid ? `button data-act="openPlayer" data-id="${x.pid}"` : 'div'} class="hg-post ${x.pid ? 'tap' : ''}">
-      <div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>${esc(x.handle)}</b></div>
-      <p class="hg-text">${esc(gram(x.text))}</p>
-      <div class="hg-foot"><span>❤️ ${x.likes.toLocaleString()}</span><span class="muted">${esc(x.team.shortName)}</span></div>
-    </${x.pid ? 'button' : 'div'}>`).join('')}</div>`;
+  return `<h2 class="team-title">Trending</h2>
+    <div class="stack hg-list">${posts.map(x => gpost({ name: handleName(x.handle), handle: handleName(x.handle).toLowerCase(), text: esc(gram(x.text)), act: x.pid ? `data-act="openPlayer" data-id="${x.pid}"` : '', foot: `❤️ ${x.likes.toLocaleString()} · ${esc(x.team.shortName)}`, ver: false })).join('')}</div>`;
 }
 
 screens.storylines = () => {
@@ -18779,11 +18876,7 @@ function rumorPost(r, _i, all) {
   if (!text) return '';
   const handle = ['@HoopInsider', '@LeagueWhispers', '@CapSpaceGuy', '@TradeMachine', '@CourtsideSources'][seed % 5];
   const likes = 800 + (seed % 9000) + r.heat * 4000;
-  return `<button class="hg-post tap" data-act="openPlayer" data-id="${p.id}">
-    <div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>${handle}</b></div>
-    <p class="hg-text">${esc(gram(text.trim()))}</p>
-    <div class="hg-foot"><span>❤️ ${likes.toLocaleString()}</span><span class="muted">${esc(t.shortName)} · ${esc(nm)} ${lvTag(p)}</span></div>
-  </button>`;
+  return gpost({ name: handleName(handle), handle: handleName(handle).toLowerCase(), text: esc(gram(text.trim())), act: `data-act="openPlayer" data-id="${p.id}"`, foot: `❤️ ${likes.toLocaleString()} · ${esc(t.shortName)} · ${esc(nm)} ${lvTag(p)}` });
 }
 screens.overview = (args = {}) => {
   const L = league();
