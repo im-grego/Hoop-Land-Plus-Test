@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.359.0';
+const APP_VERSION = '0.360.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -744,11 +744,27 @@ function tickerBar() {
     return tickerCache.html;
   } catch { return ''; }
 }
+// Quick tabs along the top: four boxes (an emoji over a small word) that jump straight to the screens you go back and
+// forth between, from anywhere, the offseason and drafts included. The one you're in is lit.
+const QUICK_TABS = [
+  { k: 'team', ico: '👥', l: 'Team', to: 'roster', on: ['roster', 'lineup', 'payroll', 'capital', 'checkin'] },
+  { k: 'coach', ico: '🧑‍🏫', l: 'Coach', to: 'coaching', on: ['coaching', 'coachtree', 'facilities', 'gameplan', 'playbook', 'playbookEdit', 'scoring', 'coaches', 'coach'] },
+  { k: 'trade', ico: '🔁', l: 'Trade', to: 'liveTrade', on: ['liveTrade', 'market', 'transactions'] },
+  { k: 'stats', ico: '📊', l: 'Stats', to: 'leaders', on: ['leaders'] },
+];
+function quickTabs() {
+  try {
+    if (!state.data || isCollege() || CAR.isCareer(league()) || !myTeam()) return '';
+    const cur = state.stack[state.stack.length - 1]?.name;
+    return `<nav class="qtabs" aria-label="Quick tabs">${QUICK_TABS.map(q => `<button class="btn qtab ${q.on.includes(cur) ? 'on' : ''}" data-act="qtab" data-k="${q.k}"><span class="qt-ico">${q.ico}</span><span class="qt-l">${q.l}</span></button>`).join('')}</nav>`;
+  } catch { return ''; }
+}
 function layout({ title, left = '', right = '', body, action = null, actionLeft = null, bare = false }) {
   const t = esc(title);
   keepLogos(() => { $app.innerHTML = `
     ${bare ? `<h1 class="sr-only">${t}</h1>` : `<div class="header">
       ${state.stack.length === 2 ? `<button class="btn back home-btn" data-act="back" aria-label="Main menu">${HOME_ICON}</button>` : state.stack.length > 2 ? `<button class="btn back" data-act="back" aria-label="Back">${BACK_ARROW}</button>` : ''}
+      ${quickTabs()}
       ${left}
       <h1 class="sr-only">${t}</h1><div class="marquee" hidden aria-label="${t}"></div>
       ${right}
@@ -866,6 +882,7 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 window.addEventListener('popstate', () => {
   if (state.stack.length < 2) return;
   if (state.goHome) { state.goHome = false; state.stack.splice(1); render(); return; }
+  if (state.qtabTo) { state.stack.splice(2); state.stack[1] = state.qtabTo; state.qtabTo = null; window.scrollTo(0, 0); render(); return; }
   state.stack.pop();
   render();
 });
@@ -10672,6 +10689,19 @@ actions.medPick = d => {
 // ---- League News: rumors, transactions, coaching moves, CPU trades and (at Opening Night) the report card, as tabs.
 const NEWS_TABS = [['rumors', 'Rumors'], ['block', 'Trade Block'], ['gram', 'Hoop Gram'], ['injuries', 'Injuries'], ['report', 'Report Card']];
 const newsTabs = cur => `<div class="tabs fa-tabs news-tabs">${NEWS_TABS.filter(([k]) => k !== 'report' || league().season.phase === 6).map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="newsTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+// A quick tab sits one level under the main menu, whatever screen you tapped it from (Home still goes home).
+actions.qtab = d => {
+  const q = QUICK_TABS.find(x => x.k === d.k), me = myTeam();
+  if (!q || !me) return;
+  let to = q.to, args = {};
+  if (q.k === 'trade') { if (screenAllowed('liveTrade')) args = { a: me.id }; else to = 'market'; }
+  if (!screenAllowed(to)) { toast('Finish the current step on the calendar first', '', 2400, true); return; }
+  const n = state.stack.length;
+  if (n === 1) { go(to, args); return; }
+  if (n === 2) { state.stack[1] = { name: to, args }; window.scrollTo(0, 0); render(); return; }
+  state.qtabTo = { name: to, args };
+  history.go(-(n - 2));
+};
 actions.newsTab = d => (d.t === 'rumors' ? replace('rumors', {}) : d.t === 'block' ? replace('transactions', { tab: 'block', only: true }) : d.t === 'injuries' ? replace('injuries', {}) : replace('news', { tab: d.t }));
 
 // The injury report: everyone in the league who's out right now, on one sheet. Tap a column to sort by it, tap it
