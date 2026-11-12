@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.7';
+const APP_VERSION = '0.365.9';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -11389,45 +11389,77 @@ function teamPostsOf(tm) {
 // Mentions: what others say about your team and players, kept from the start of the season (offseason included)
 // through the playoffs: rumors and trending posts that name you, opponents tipping their cap to your Player of the
 // Game, your stars headed for free agency, your players among the league leaders. Never injuries.
-const PRAISE = [
+const PRAISE_RAW = [
   p => `Gotta give props to @${pTag(p)}. Had it going tonight and we couldn't slow him down.`,
   p => `@${pTag(p)} showed up tonight and there was nothing we could do to stop the bleeding. Respect.`,
   p => `When a guy like @${pTag(p)} gets rolling, all you can do is tip your cap.`,
   p => `Tough one. @${pTag(p)} hit every big shot. On to the next.`,
   p => `Gave it everything tonight but @${pTag(p)} was special. Salute.`,
   p => `@${pTag(p)} is a problem. Film session is going to be long.`,
+  p => `Every time we made a run, @${pTag(p)} had an answer. Credit where it's due.`,
+  p => `We threw everything at @${pTag(p)} tonight. Didn't matter.`,
+  p => `@${pTag(p)} was in a different gear tonight. Hat's off.`,
+  p => `Gonna be seeing @${pTag(p)} in my sleep after that one.`,
+  p => `Some nights a guy just has it. Tonight was @${pTag(p)}'s night.`,
+  p => `Respect to @${pTag(p)}. That's a hooper.`,
 ];
+const PRAISE = PRAISE_RAW.map(f => p => gram(f(p)));
 function syncMentions() {
   const L = league(), me = myTeam();
   if (!me || isCollege()) return [];
   const store = offGet('hgMentions'), list = Array.isArray(store.list) ? store.list : [], have = new Set(list.map(x => x.k));
-  const day = L.season.currentDay ?? 0, add = (k, d, html) => { if (!have.has(k)) { have.add(k); list.push({ k, d, html }); } };
+  const day = L.season.currentDay ?? 0, add = (k, d, html, extra = {}) => { if (!have.has(k)) { have.add(k); list.push({ k, d, html, ...extra }); } };
   // Rumors and trending posts that name you.
   try { for (const x of rumorPosts(L).filter(y => y.mine)) add(`m:${x.key}`, day, x.html); } catch { /* fine */ }
   try { for (const x of gramPosts().filter(y => y.mine)) add(`m:${x.key}`, day, gpost({ name: handleName(x.handle), handle: handleName(x.handle).toLowerCase(), text: esc(gram(x.text)), act: x.pid ? `data-act="openPlayer" data-id="${x.pid}"` : '', ver: false })); } catch { /* fine */ }
   // Opponents on your Player of the Game.
   const sched = L.season.schedule || [];
+  const prior = list.filter(x => x.k.startsWith(`m:potg:${L.season.currentYear}:`));
+  // The next wording after the last one used (each post keeps its wording number), so the dozen up never repeat.
+  let praised = prior.length ? Math.max(...prior.map((x, i) => x.ti ?? i)) + 1 : 0;
   for (let d = 0; d < Math.min(sched.length, day || sched.length); d++) for (const g of sched[d]?.results || []) {
     if (!(g.potg > 0) || (g.homeTeam !== me.id && g.awayTeam !== me.id)) continue;
+    if (have.has(`m:potg:${L.season.currentYear}:${g.gId}`)) continue;
     const star = findPlayer(g.potg)?.p;
     if (!star || !me.roster.includes(star)) continue;
     const opp = L.teams.find(x => x.id === (g.homeTeam === me.id ? g.awayTeam : g.homeTeam));
     const who = opp && FA.signedRoster(opp).sort((a, b) => shownLevel(b) - shownLevel(a))[g.gId % 3];
     if (!who) continue;
-    add(`m:potg:${L.season.currentYear}:${g.gId}`, d, gpost({ av: pAv(who, opp), name: playerName(who), handle: pTag(who), text: esc(PRAISE[g.gId % PRAISE.length](star)).replace(/@([a-z0-9_.]+)/gi, '<span class="hg-at">@$1</span>'), act: `data-act="openPlayer" data-id="${star.id}"`, foot: esc(opp.shortName) }));
+    const ti = (praised++) % PRAISE.length;
+    add(`m:potg:${L.season.currentYear}:${g.gId}`, d, gpost({ av: pAv(who, opp), name: playerName(who), handle: pTag(who), text: esc(PRAISE[ti](star)).replace(/@([a-z0-9_.]+)/gi, '<span class="hg-at">@$1</span>'), act: `data-act="openPlayer" data-id="${star.id}"`, foot: esc(opp.shortName) }), { ti });
   }
-  // Your best players in the last year of their deals (from the regular season on).
-  if (L.season.phase >= 9) for (const p of FA.signedRoster(me).filter(q => (q.contract?.yrs || 0) <= 1 && shownLevel(q) >= 78)) {
-    add(`m:fa:${L.season.currentYear}:${p.id}`, day, gpost({ name: 'CapSpaceGuy', handle: 'capspaceguy', text: `${esc(playerName(p))} (<span class="hg-at">@${esc(pTag(p))}</span>) is in the last year of his deal. ${esc(me.city)} has a big decision coming this summer.`, act: `data-act="openPlayer" data-id="${p.id}"`, ver: false }));
+  // Opponents' praise: only the latest dozen stay up, so no wording shows twice in the feed.
+  { const pr = list.filter(x => x.k.startsWith('m:potg:')).sort((a, b) => a.d - b.d); for (const x of pr.slice(0, Math.max(0, pr.length - PRAISE_RAW.length))) list.splice(list.indexOf(x), 1); }
+  // The old one-post-per-player versions of the two below give way to the combined ones.
+  for (let i = list.length - 1; i >= 0; i--) if (/^m:(fa|lead):/.test(list[i].k)) list.splice(i, 1);
+  const nick = q => esc(gram(shortName(q))), at = q => `<span class="hg-at">@${esc(pTag(q))}</span>`;
+  const andList = xs => xs.length < 2 ? xs[0] || '' : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+  // Your best players in the last year of their deals (from the regular season on): one post for all of them.
+  const expiring = L.season.phase >= 9 ? FA.signedRoster(me).filter(q => (q.contract?.yrs || 0) <= 1 && shownLevel(q) >= 78).sort((a, b) => shownLevel(b) - shownLevel(a)) : [];
+  if (expiring.length) {
+    const names = andList(expiring.map(q => `${nick(q)} (${at(q)})`));
+    const text = expiring.length === 1 ? `${names} is playing out the final year of his deal. ${esc(me.city)} has a big call to make this summer.`
+      : `${names} are all in the last year of their deals. ${esc(me.city)}'s summer is going to be busy.`;
+    add(`m:fa2:${L.season.currentYear}:${expiring.map(q => q.id).join('-')}`, day, gpost({ name: 'CapSpaceGuy', handle: 'capspaceguy', text, act: `data-act="openPlayer" data-id="${expiring[0].id}"`, ver: false }));
   }
   // Your players among the league's top five in a main category (half the games played or more).
   if (L.season.phase >= 9 && L.season.phase <= 11) {
     const rows = [];
     for (const tm of L.teams) { const gp = dlPct(tm).gp; for (const q of tm.roster) { const l = seasonLine(q, state.leagueIdx, L.season.currentYear); if (l && gp >= 10 && l.gp >= gp / 2) rows.push({ q, l, tm }); } }
+    const ranks = new Map();
     for (const [k, lbl] of [['ppg', 'scoring'], ['rpg', 'rebounding'], ['apg', 'assists'], ['spg', 'steals'], ['bpg', 'blocks']]) {
-      const top = [...rows].sort((a, b) => b.l[k] - a.l[k]).slice(0, 5), i = top.findIndex(x => x.tm === me);
-      if (i >= 0) { const x = top[i]; add(`m:lead:${L.season.currentYear}:${k}:${x.q.id}`, day, gpost({ name: 'StatMuse Land', handle: 'statmuseland', text: `<span class="hg-at">@${esc(pTag(x.q))}</span> is ${['1st', '2nd', '3rd', '4th', '5th'][i]} in the league in ${lbl} (${x.l[k].toFixed(1)} a game).`, act: `data-act="openPlayer" data-id="${x.q.id}"`, ver: false })); }
+      const top = [...rows].sort((a, b) => b.l[k] - a.l[k]).slice(0, 5);
+      top.forEach((x, i) => { if (x.tm === me) (ranks.get(x.q) || ranks.set(x.q, []).get(x.q)).push(`${['1st', '2nd', '3rd', '4th', '5th'][i]} in ${lbl} (${x.l[k].toFixed(1)})`); });
     }
+    const forms = [
+      (q, r) => `${at(q)} right now: ${andList(r)} in the league.`,
+      (q, r) => `Where ${nick(q)} ranks this season: ${andList(r)}.`,
+      (q, r) => `League leaderboard check. ${at(q)} is ${andList(r)}.`,
+      (q, r) => `${nick(q)} is putting together a season: ${andList(r)}.`,
+    ];
+    [...ranks].forEach(([q, r], i) => add(`m:lead2:${L.season.currentYear}:${q.id}:${r.join('|')}`, day, gpost({ name: 'StatMuse Land', handle: 'statmuseland', text: forms[(i + (L.season.currentDay || 0)) % forms.length](q, r), act: `data-act="openPlayer" data-id="${q.id}"`, ver: false })));
+    // A player's older leaderboard post makes way for his new one.
+    for (const [q] of ranks) { const mineK = list.filter(x => x.k.startsWith(`m:lead2:${L.season.currentYear}:${q.id}:`)); for (const x of mineK.slice(0, -1)) list.splice(list.indexOf(x), 1); }
   }
   offSet('hgMentions', { list: list.slice(-300) });
   return [...list].sort((a, b) => b.d - a.d);
