@@ -2241,3 +2241,19 @@ body:has(.ticker) { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)
 .header .marquee { flex: 1; min-width: 0; height: 52px; }
 .header .btn.back, .header .btn.gram-box, .header:has(.qtabs) .back { width: 52px; height: 52px; min-height: 52px; margin-left: 0; }
 .header .btn.gram-box { margin-left: 0; }
+
+/* The title board gets the same drop shadow as the buttons (the notch clip was cutting it off). */
+.header .marquee { clip-path: none; box-shadow: 0 4px 0 var(--btn-shadow); }
+
+/* Ticker in the app's button style (blue face, navy rim, light-blue inner line), and only as tall as it needs: the
+   iPhone home bar gets a little room, not its whole inset. */
+.ticker { --tk-h: 34px; --tk-pad: max(0px, calc(env(safe-area-inset-bottom, 0px) - 18px));
+  height: calc(var(--tk-h) + var(--tk-pad)); background: var(--btn); border-top: 4px solid var(--btn-edge);
+  box-shadow: inset 0 3px 0 #3d7fc8, 0 -3px 0 rgba(0, 0, 0, 0.3); }
+.tk-track { height: var(--tk-h); }
+.tk-track > span { line-height: var(--tk-h); font-size: 15px; color: #cfe0ff; }
+.tk-track .tk-w { color: #fff; }
+.tk-track .tk-at { color: #cfe0ff; }
+/* The page scrolls all the way past the ticker: the room goes on #app (the body has a fixed height). */
+body:has(.ticker) { padding-bottom: 0; }
+body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(safe-area-inset-bottom, 0px) - 18px)) + 14px); }
