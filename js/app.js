@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.22';
+const APP_VERSION = '0.365.23';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -886,7 +886,10 @@ function render() {
     window.scrollTo(0, target);
     const go = () => { if (!glide.isConnected) return; const h = document.querySelector('.header'), hdr = h && ['fixed', 'sticky'].includes(getComputedStyle(h).position) ? h.offsetHeight : 0;
       let y0 = 0; for (let e = glide; e; e = e.offsetParent) y0 += e.offsetTop;   // its place on the page (not on screen)
-      window.scrollTo({ top: Math.max(0, y0 - (hdr > 0 ? hdr : 0) - 12), behavior: 'smooth' }); };
+      // Centered on screen (a card taller than the screen starts at the top instead).
+      const gh = glide.offsetHeight, room = window.innerHeight - (hdr > 0 ? hdr : 0);
+      const to = gh < room - 24 ? y0 + gh / 2 - (hdr > 0 ? hdr : 0) - room / 2 : y0 - (hdr > 0 ? hdr : 0) - 12;
+      window.scrollTo({ top: Math.max(0, to), behavior: 'smooth' }); };
     requestAnimationFrame(() => requestAnimationFrame(go));
     top.y = null; lastView = view; return;
   }
