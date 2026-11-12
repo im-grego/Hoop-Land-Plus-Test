@@ -75,7 +75,7 @@ import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFi
 
 const APP_VERSION = '0.355.0';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
-const SHOWN_VERSION = 'Beta 0.2.0';
+const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
 // the player hasn't looked at yet.
 const DEVLOG = [
