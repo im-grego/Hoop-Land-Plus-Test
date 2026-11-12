@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.357.1';
+const APP_VERSION = '0.357.2';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -699,25 +699,41 @@ function tickerBar() {
       const done = (s.schedule[d]?.results || []).filter(g => g.winner != null && g.winner >= 0 && (g.homeScore || g.awayScore));
       if (!done.length) continue;
       items.push('<b class="tk-h">Final</b>');
+      // Each team's top performer: the player of the game for the winner when the game named one, otherwise the team's
+      // best healthy player by this season's production. No box score comes with the file, so his line is made up:
+      // his averages, nudged up or down a little (steady for the same game every time).
+      const yr = s.currentYear;
+      const star = (tid, potg) => {
+        const tm = L.teams.find(x => x.id === tid);
+        if (!tm) return null;
+        const pot = tm.roster.find(p => p.id === potg);
+        if (pot) return pot;
+        return tm.roster.filter(p => !(p.season?.injury?.gamesOut > 0)).map(p => ({ p, l: seasonLine(p, state.leagueIdx, yr) })).filter(x => x.l).sort((a, b) => b.l.gs - a.l.gs)[0]?.p || null;
+      };
+      const line = (p, salt, won) => {
+        const l = seasonLine(p, state.leagueIdx, yr) || seasonLine(p, state.leagueIdx, yr - 1);
+        if (!l) return '';
+        const r = mulberry32(((p.id * 7919) ^ salt) >>> 0), f = (won ? 1.12 : 1) * (0.85 + r() * 0.4);
+        const n = (v, min = 0) => Math.max(min, Math.round(v * f + (r() - 0.5) * 2));
+        return `${esc(p.ln || playerName(p))} ${n(l.ppg, 8)}-${n(l.rpg)}-${n(l.apg)}`;
+      };
       for (const g of done) {
         const hw = g.winner === g.homeTeam;
-        items.push(`<span class="${hw ? '' : 'tk-w'}">${esc(ab(g.awayTeam))} ${g.awayScore}</span> <i class="tk-at">@</i> <span class="${hw ? 'tk-w' : ''}">${esc(ab(g.homeTeam))} ${g.homeScore}</span>`);
+        const a = star(g.awayTeam, g.potg), h = star(g.homeTeam, g.potg);
+        const lines = [a && line(a, g.gId * 31 + 1, !hw), h && line(h, g.gId * 31 + 2, hw)].filter(Boolean);
+        items.push(`<span class="${hw ? '' : 'tk-w'}">${esc(ab(g.awayTeam))} ${g.awayScore}</span> <i class="tk-at">@</i> <span class="${hw ? 'tk-w' : ''}">${esc(ab(g.homeTeam))} ${g.homeScore}</span>${lines.length ? ` <span class="tk-ln">${lines.join(' · ')}</span>` : ''}`);
       }
       break;
     }
-    // The conference leaders.
-    const conf = c => L.teams.filter(x => (x.division < 3 ? 0 : 1) === c).map(x => ({ x, r: teamRecord(x) })).filter(o => o.r.yr === s.currentYear && o.r.W + o.r.L > 0).sort((a, b) => b.r.pct - a.r.pct || b.r.W - a.r.W)[0];
-    const east = conf(0), west = conf(1);
-    if (east || west) items.push('<b class="tk-h">Leaders</b>', ...[['East', east], ['West', west]].filter(([, o]) => o).map(([n, o]) => `${n}: ${esc(o.x.shortName)} ${o.r.W}-${o.r.L}`));
     // The stat leaders (half the team's games played or more).
     const rows = [];
     for (const tm of L.teams) {
       const gp = dlPct(tm).gp;
       for (const p of tm.roster) { const l = seasonLine(p, state.leagueIdx, s.currentYear); if (l && l.gp >= Math.max(3, gp / 2)) rows.push({ p, l }); }
     }
-    // The top ten in each of the five big categories.
+    // The top five in each of the five big categories.
     for (const [k, lbl] of [['ppg', 'Points'], ['rpg', 'Rebounds'], ['apg', 'Assists'], ['spg', 'Steals'], ['bpg', 'Blocks']]) {
-      const top = [...rows].sort((a, b) => b.l[k] - a.l[k]).slice(0, 10);
+      const top = [...rows].sort((a, b) => b.l[k] - a.l[k]).slice(0, 5);
       if (top.length) items.push(`<b class="tk-h">${lbl}</b>${top.map((x, i) => `${i + 1}. ${esc(x.p.ln || playerName(x.p))} ${x.l[k].toFixed(1)}`).join('<i class="tk-gap"></i>')}`);
     }
     if (!items.length) { tickerCache.key = key; tickerCache.html = ''; return ''; }

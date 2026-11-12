@@ -2185,3 +2185,4 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 body:has(.ticker) #app, body:has(.ticker) { padding-bottom: 40px; }
 .tk-track .tk-at { font-style: normal; color: var(--dim, #b9c8e8); opacity: 0.6; }
 .tk-track .tk-gap { display: inline-block; width: 18px; }
+.tk-track .tk-ln { font-weight: 600; color: var(--cyan); margin-left: 4px; }
