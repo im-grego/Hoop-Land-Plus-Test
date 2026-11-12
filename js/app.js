@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.19';
+const APP_VERSION = '0.365.20';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -753,12 +753,12 @@ function gramBox() {
   } catch { return ''; }
 }
 // My League: the league's numbers in one place, a tab row on top of each of its screens.
-const LEAGUE_TABS = [['leaders', 'Stats'], ['standings', 'Standings'], ['teamStats', 'Teams'], ['awards', 'Awards'], ['records', 'Records'], ['injuries', 'Injuries'], ['lgHistory', 'History']];
+const LEAGUE_TABS = [['leaders', 'Stats'], ['standings', 'Standings'], ['teamStats', 'Teams'], ['injuries', 'Injuries'], ['awards', 'Awards'], ['rankings', 'Rankings'], ['records', 'Records'], ['lgHistory', 'History']];
 function leagueTabs() {
   try {
     if (!state.data || isCollege()) return '';
     const top = state.stack[state.stack.length - 1], n = top?.name;
-    let cur = n === 'leaders' && top.args?.m === 'rafters' ? 'lgHistory' : ['drafts', 'rankings'].includes(n) ? 'lgHistory' : n;
+    let cur = n === 'leaders' && top.args?.m === 'rafters' ? 'lgHistory' : n === 'drafts' ? 'lgHistory' : n;
     if (!LEAGUE_TABS.some(([k]) => k === cur)) return '';
     return `<div class="tabs lg-tabs">${LEAGUE_TABS.map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="lgTab" data-t="${k}">${l}</button>`).join('')}</div>`;
   } catch { return ''; }
@@ -768,7 +768,7 @@ function layout({ title, left = '', right = '', body, action = null, actionLeft 
   body = leagueTabs() + body;
   keepLogos(() => { $app.innerHTML = `
     ${bare ? `<h1 class="sr-only">${t}</h1>` : `<div class="header">
-      ${state.stack.length === 2 ? `<button class="btn back home-btn" data-act="back" aria-label="Main menu">${HOME_ICON}</button>` : state.stack.length > 2 ? `<button class="btn back" data-act="back" aria-label="Back">${BACK_ARROW}</button>` : state.data ? `<button class="btn back home-btn" data-act="toTitle" aria-label="Title screen">${HOME_ICON}</button>` : ''}
+      ${state.stack.length === 2 && !(state.stack[1].name === 'lineup' && state.stack[1].args?.edit != null) ? `<button class="btn back home-btn" data-act="back" aria-label="Main menu">${HOME_ICON}</button>` : state.stack.length >= 2 ? `<button class="btn back" data-act="back" aria-label="Back">${BACK_ARROW}</button>` : state.data ? `<button class="btn back home-btn" data-act="toTitle" aria-label="Title screen">${HOME_ICON}</button>` : ''}
       ${left}
       <div class="marquee" role="heading" aria-level="1" aria-label="${t}">
         <div class="marquee-track" aria-hidden="true"><span>${t}</span><span>${t}</span></div>
@@ -839,6 +839,8 @@ function goHome() {
 const HOME_ICON = `<svg width="28" height="26" viewBox="0 0 9 8" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" d="M4 0h1v1h1v1h1v1h1v1h1v1H8v3H5V5H4v3H1V5H0V4h1V3h1V2h1V1h1z"/></svg>`;
 actions.home = () => { const n = state.stack.length - 1; if (n < 1) return; state.goHome = true; history.go(-n); };
 function back() {
+  const top = state.stack[state.stack.length - 1];
+  if (top?.name === 'lineup' && top.args?.edit != null) { actions.luEditDone(); return; }
   if (state.stack.length > 1) history.back();
 }
 function replace(name, args = {}) {
@@ -3435,6 +3437,142 @@ function mediaState() {
   return m.qs.length || m.res?.length ? m : null;
 }
 const mediaResLine = (t, r) => `<p class="note small">${r.v ? '✅ Promise kept' : '❌ Promise broken'}: ${esc(r.text)}${r.fx.length ? ` · ${mediaFxText(t, r.fx)}` : ''}</p>`;
+// ---------------------------------------------------------------------------
+// Next game: the scouting report for your team's next opponent (stats and ranks, how they play, keys, matchups,
+// injuries, who's hot and cold).
+function nextGame(t) {
+  const L = league(), s = L.season, sched = s.schedule || [];
+  if (!t || !(s.phase >= 9 && s.phase <= 11)) return null;
+  for (let d = Math.max(0, s.currentDay ?? 0); d < sched.length; d++) for (const g of sched[d]?.results || []) {
+    if ((g.homeTeam !== t.id && g.awayTeam !== t.id) || g.homeScore || g.awayScore) continue;
+    const home = g.homeTeam === t.id, opp = L.teams.find(x => x.id === (home ? g.awayTeam : g.homeTeam));
+    if (opp) return { d, g, home, opp };
+  }
+  return null;
+}
+const MU_STATS = [
+  ['ppg', 'Points', r => r.PTS / r.GP, false], ['opp', 'Allowed', r => r.OPP / r.GP, true], ['diff', 'Margin', r => (r.PTS - r.OPP) / r.GP, false],
+  ['fg', 'FG%', r => (r.FGA ? r.FGM / r.FGA * 100 : 0), false], ['tp', '3P%', r => (r.TPA ? r.TPM / r.TPA * 100 : 0), false], ['tpa', '3s taken', r => r.TPA / r.GP, false],
+  ['reb', 'Rebounds', r => r.REB / r.GP, false], ['ast', 'Assists', r => r.AST / r.GP, false], ['tov', 'Turnovers', r => r.TO / r.GP, true],
+  ['stl', 'Steals', r => r.STL / r.GP, false], ['blk', 'Blocks', r => r.BLK / r.GP, false], ['pace', 'Pace', r => (r.POS || 0) / r.GP, false],
+];
+const muLine = tm => (tm.season || []).find(x => x.yr === league().season.currentYear)?.seasonStats;
+// A team's value and league rank (1st is best; for pace, 1st is fastest).
+function muRank(tm, k) {
+  const c = MU_STATS.find(x => x[0] === k), rows = league().teams.map(x => [x, muLine(x)]).filter(([, r]) => r?.GP > 0);
+  const me = rows.find(([x]) => x === tm); if (!me) return null;
+  const v = c[2](me[1]), better = rows.filter(([, r]) => (c[3] ? c[2](r) < v : c[2](r) > v)).length;
+  return { v, rank: better + 1, of: rows.length };
+}
+// Each team's strengths and weaknesses next to the league (z-scores of the need metrics).
+function needZ(tm) {
+  const cache = (state.compCache[state.leagueIdx] ||= new Map());
+  if (!cache.has('needZ')) {
+    const all = league().teams.map(x => [x, teamNeedMetrics(x)]), out = new Map();
+    const stat = Object.fromEntries(Object.keys(NEED_LABELS).map(k => { const v = all.map(([, x]) => x.m[k]), mean = v.reduce((a, b) => a + b, 0) / v.length; return [k, { mean, sd: Math.sqrt(v.reduce((a, b) => a + (b - mean) ** 2, 0) / v.length) || 1 }]; }));
+    for (const [x, { m }] of all) out.set(x.id, Object.fromEntries(Object.keys(NEED_LABELS).map(k => [k, (m[k] - stat[k].mean) / stat[k].sd])));
+    cache.set('needZ', out);
+  }
+  return cache.get('needZ').get(tm.id) || {};
+}
+const muHurt = tm => tm.roster.filter(p => (p.season?.injury?.gamesOut || 0) > 0).sort((a, b) => shownLevel(b) - shownLevel(a));
+// The five who'll start: the save's lineup when they're all healthy, otherwise the suggested five.
+function muFive(tm) {
+  const st = tm.roster.filter(p => p.linePos < 5 && !((p.season?.injury?.gamesOut || 0) > 0));
+  if (st.length === 5) { const slot = p => { const s = [0, 2, 4, 6, 8].indexOf(p.teamPos); return s < 0 ? 5 : s; }; return [...st].sort((a, b) => slot(a) - slot(b) || a.linePos - b.linePos); }
+  try { return defaultPlan(tm).starters; } catch { return st; }
+}
+const muPpg = (tm, p) => seasonLine(p, state.leagueIdx, league().season.currentYear);
+const ord = n => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
+// What to do about them: their soft spot, their strength, who to stop, where you have the edge.
+function muKeys(me, opp) {
+  const A = (p, k) => p.attributes?.[k]?.[0] || 0, keys = [];
+  const healthy = tm => tm.roster.filter(p => (p.status === 3 || p.status === 2) && !((p.season?.injury?.gamesOut || 0) > 0));
+  const best = (tm, f) => [...healthy(tm)].sort((a, b) => f(b) - f(a))[0];
+  const nm = p => esc(shortName(p));
+  const need = teamNeed(opp), z = needZ(opp), strong = Object.keys(z).sort((a, b) => z[b] - z[a])[0];
+  const rk = k => { const r = muRank(opp, k); return r ? `${ord(r.rank)} in ${MU_STATS.find(x => x[0] === k)[1].toLowerCase()}` : ''; };
+  const inside = best(me, p => Math.max(A(p, 'INS'), A(p, 'LAY'))), shooter = best(me, p => A(p, 'TPT')), creator = best(me, p => (Math.max(A(p, 'INS'), A(p, 'MID'), A(p, 'LAY')) + A(p, 'DRB')) / 2);
+  const soft = {
+    'Rim protection': () => `Nobody protects their rim: attack the basket${inside ? ` with ${nm(inside)}` : ''}.`,
+    'Rebounding': () => `They lose the glass${rk('reb') ? ` (${rk('reb')})` : ''}: crash the offensive boards.`,
+    'Perimeter defense': () => `Soft on the perimeter: let ${creator ? nm(creator) : 'your guards'} go to work off the dribble.`,
+    '3-point shooting': () => `They can't shoot it${rk('tp') ? ` (${rk('tp')})` : ''}: pack the paint and dare them.`,
+    'Shot creation': () => 'They struggle to create their own shot: stay home and make them work late in the clock.',
+    'Guard playmaking': () => 'Thin on ball-handling: pressure their guards and force turnovers.',
+    'Wing playmaking': () => 'Their wings don\'t make plays: load up on the ball handler.',
+    'Frontcourt depth': () => `Thin up front: go big${inside ? ` and feed ${nm(inside)} inside` : ''}.`,
+    'Backcourt depth': () => 'Thin in the backcourt: push the pace and wear their guards down.',
+  }[need];
+  if (soft) keys.push(['🎯', soft()]);
+  const blocker = best(opp, p => A(p, 'BLK')), thief = best(opp, p => A(p, 'STL')), passer = best(opp, p => A(p, 'PAS')), glass = best(opp, p => A(p, 'DRE'));
+  const strength = {
+    shoot: () => `They live behind the arc${rk('tp') ? ` (${rk('tp')})` : ''}: run them off the three-point line${shooter ? `, and match it with ${nm(shooter)}` : ''}.`,
+    rim: () => `${blocker ? nm(blocker) : 'Their bigs'} protect${blocker ? 's' : ''} the rim: draw him out and kick to shooters.`,
+    reb: () => `They win the glass${glass ? ` behind ${nm(glass)}` : ''}: box out on every shot.`,
+    perim: () => `Active hands on the perimeter${thief ? ` (${nm(thief)})` : ''}: take care of the ball.`,
+    create: () => 'They can get a bucket anytime: make every shot a tough one.',
+    gplay: () => `${passer ? nm(passer) : 'Their guards'} run${passer ? 's' : ''} the offense: stay in front and cut off the passing lanes.`,
+    wplay: () => `Their wings make plays${passer ? `, ${nm(passer)} most of all` : ''}: help early and recover.`,
+  }[strong];
+  if (strength && z[strong] > 0.4) keys.push(['🛡️', strength()]);
+  const scorer = [...healthy(opp)].map(p => [p, muPpg(opp, p)]).filter(([, l]) => l?.gp >= 3).sort((a, b) => b[1].ppg - a[1].ppg)[0];
+  if (scorer) keys.push(['🚫', `Stop ${nm(scorer[0])}${hotCold(scorer[0])}: ${scorer[1].ppg.toFixed(1)} points a game.`]);
+  const a = muFive(me), b = muFive(opp);
+  const edge = [0, 1, 2, 3, 4].map(s => a[s] && b[s] ? [s, shownLevel(a[s]) - shownLevel(b[s])] : null).filter(Boolean).sort((x, y) => y[1] - x[1])[0];
+  if (edge && edge[1] >= 4) keys.push(['💪', `Your edge at ${LU.SLOTS[edge[0]]}: ${nm(a[edge[0]])} (${shownLevel(a[edge[0]])}) on ${nm(b[edge[0]])} (${shownLevel(b[edge[0]])}). Go at it.`]);
+  else { const hot = healthy(me).filter(p => (p.gameStatus?.streak || 0) >= 5).sort((x, y) => shownLevel(y) - shownLevel(x))[0]; if (hot) keys.push(['🔥', `Ride the hot hand: ${nm(hot)}.`]); }
+  return keys;
+}
+// How a team plays, in a few words: tempo, threes, defense.
+function muStyle(tm) {
+  const r = k => muRank(tm, k)?.rank, n = muRank(tm, 'ppg')?.of || 30, top = x => x && x <= Math.round(n * 0.27), low = x => x && x > n - Math.round(n * 0.27);
+  const out = [];
+  const pace = r('pace'); out.push(top(pace) ? `Fast (${ord(pace)} in pace)` : low(pace) ? `Slow, half-court (${ord(pace)} in pace)` : 'Average tempo');
+  const tpa = r('tpa'); if (top(tpa)) out.push(`Lots of threes (${ord(tpa)} in attempts)`); else if (low(tpa)) out.push(`Lives inside the arc (${ord(tpa)} in 3s taken)`);
+  const opp = r('opp'); if (top(opp)) out.push(`Tough defense (${ord(opp)} in points allowed)`); else if (low(opp)) out.push(`Leaky defense (${ord(opp)} in points allowed)`);
+  const tov = r('tov'); if (low(tov)) out.push(`Careless with the ball (${ord(tov)} in turnovers)`);
+  return out;
+}
+function nextGameCard() {
+  try {
+    const me = myTeam(), ng = nextGame(me); if (!ng) return '';
+    const rec = tm => { const r = muLine(tm); return r?.GP ? `${r.W}-${r.L}` : '0-0'; };
+    const keys = muKeys(me, ng.opp).slice(0, 2);
+    return `<fieldset class="frame mu-card"><legend>🏀 Next Game</legend>
+      <div class="mu-vs tap" data-act="nav" data-to="matchup"><span class="mu-tm">${logoImg(me, 'logo-sm')}<b>${esc(me.shortName)}</b><small>${rec(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(ng.opp, 'logo-sm')}<b>${esc(ng.opp.shortName)}</b><small>${rec(ng.opp)}</small></span></div>
+      ${keys.map(([i, s]) => `<p class="note small mu-key">${i} ${s}</p>`).join('')}
+      <button class="btn focus" data-act="nav" data-to="matchup">📋 Scouting Report</button></fieldset>`;
+  } catch { return ''; }
+}
+screens.matchup = () => {
+  const me = myTeam(), ng = nextGame(me);
+  if (!ng) { layout({ title: 'Scouting Report', body: '<p class="note">No game coming up.</p>' }); return; }
+  const opp = ng.opp, rec = tm => { const r = muLine(tm); return r?.GP ? `${r.W}-${r.L}` : '0-0'; };
+  const l10 = tm => { const a = muLine(tm)?.L10 || []; const w = a.filter(x => x === 1).length; return a.length ? `${w}-${a.length - w} last ${a.length}` : ''; };
+  const fmt = (k, v) => (k === 'diff' ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}` : v.toFixed(1));
+  const statRow = ([k, lbl, , low]) => {
+    const a = muRank(me, k), b = muRank(opp, k); if (!a || !b) return '';
+    const win = k === 'pace' ? 0 : a.rank < b.rank ? 1 : a.rank > b.rank ? -1 : 0;
+    return `<div class="mu-tr"><span class="${win > 0 ? 'up' : ''}">${fmt(k, a.v)} <small>${ord(a.rank)}</small></span><span class="mu-lbl">${lbl}</span><span class="${win < 0 ? 'down' : ''}">${fmt(k, b.v)} <small>${ord(b.rank)}</small></span></div>`;
+  };
+  const a = muFive(me), b = muFive(opp);
+  const mRow = s => { const x = a[s], y = b[s]; if (!x || !y) return ''; const d = shownLevel(x) - shownLevel(y);
+    return `<div class="mu-tr"><span class="tap ${d >= 4 ? 'up' : ''}" data-act="openPlayer" data-id="${x.id}">${esc(x.ln)}${hotCold(x)} <small>${shownLevel(x)}</small></span><span class="mu-lbl">${LU.SLOTS[s]}</span><span class="tap ${d <= -4 ? 'down' : ''}" data-act="openPlayer" data-id="${y.id}">${esc(y.ln)}${hotCold(y)} <small>${shownLevel(y)}</small></span></div>`; };
+  const hurt = tm => { const h = muHurt(tm); return h.length ? h.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln)}</b> <small class="muted">${shownLevel(p)} · ${esc(injShort(p))}</small></span>`).join('') : '<span class="up small">Healthy</span>'; };
+  const streak = (tm, hot) => { const l = tm.roster.filter(p => hot ? (p.gameStatus?.streak || 0) >= 5 : (p.gameStatus?.streak || 0) <= -5).sort((x, y) => shownLevel(y) - shownLevel(x)); return l.length ? l.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(p.ln)}</span>`).join(', ') : '<span class="muted">None</span>'; };
+  layout({
+    title: 'Scouting Report',
+    body: `<div class="mu-vs big"><span class="mu-tm">${logoImg(me)}<b>${esc(me.shortName)}</b><small>${rec(me)}</small><small class="muted">${l10(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(opp)}<b>${esc(opp.shortName)}</b><small>${rec(opp)}</small><small class="muted">${l10(opp)}</small></span></div>
+      <fieldset class="frame"><legend>Keys to the Game</legend>${muKeys(me, opp).map(([i, s]) => `<p class="note small mu-key">${i} ${s}</p>`).join('')}</fieldset>
+      <fieldset class="frame"><legend>How They Play</legend>${muStyle(opp).map(s => `<p class="note small mu-key">• ${esc(s)}</p>`).join('')}
+        <p class="note small mu-key">• Strength: <b>${esc(NEED_LABELS[Object.entries(needZ(opp)).sort((x, y) => y[1] - x[1])[0]?.[0]] || '—')}</b> · Weakness: <b>${esc(teamNeed(opp) || '—')}</b></p></fieldset>
+      <fieldset class="frame mu-frame"><legend>Team Stats</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${MU_STATS.map(statRow).join('')}</fieldset>
+      <fieldset class="frame mu-frame"><legend>Matchups</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${[0, 1, 2, 3, 4].map(mRow).join('')}</fieldset>
+      <fieldset class="frame"><legend>Injury Report</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b>${hurt(me)}</div><div><b class="small">${esc(opp.shortName)}</b>${hurt(opp)}</div></div></fieldset>
+      <fieldset class="frame"><legend>Hot &amp; Cold</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b><span>🔥 ${streak(me, true)}</span><span>🧊 ${streak(me, false)}</span></div><div><b class="small">${esc(opp.shortName)}</b><span>🔥 ${streak(opp, true)}</span><span>🧊 ${streak(opp, false)}</span></div></div></fieldset>`,
+  });
+};
 function mediaCard() {
   const m = mediaState(), t = myTeam();
   if (!m || (m.done && !m.res?.length)) return '';
@@ -3722,6 +3860,7 @@ screens.main = () => {
       </div>`}
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
       ${sCard}
+      ${nextGameCard()}
       ${mediaCard()}
       ${marketCard()}
       ${retireeCard()}
@@ -8870,8 +9009,8 @@ function injOut(p) {
   return { games: n, back: season ? null : played + n + 1, season, total };
 }
 // "12g" (back for game 31) or "Season" for the injury report and short spots; the longer line for profiles.
-const injShort = p => { const o = injOut(p); return o ? (o.season ? 'Season' : `${o.games}g`) : ''; };
-const injLong = p => { const o = injOut(p); return o ? (o.season ? 'out for the season' : `${o.games} game${o.games === 1 ? '' : 's'} left${o.back ? `, back for game ${o.back}` : ''}`) : ''; };
+const injShort = p => { const o = injOut(p); return o ? (o.season ? 'Season' : o.games ? `${o.games}g` : 'DTD') : ''; };
+const injLong = p => { const o = injOut(p); return o ? (o.season ? 'out for the season' : !o.games ? 'day-to-day, back for the next game' : `${o.games} game${o.games === 1 ? '' : 's'} left${o.back ? `, back for game ${o.back}` : ''}`) : ''; };
 function shownLevel(p) {
   if (!declining(p)) return levelOf(p);
   return levelOf({ pot: p.pot, attributes: Object.fromEntries(ATTRS.map(k => [k, [regressed(p, k), p.attributes[k][1]]])) });
@@ -9057,6 +9196,7 @@ function lineupView(L, t) {
 screens.lineup = (args = {}) => {
   const L = league(), t = L.teams.find(x => x.id === +(args.arg ?? args.tid)) || myTeam() || viewTeams()[0] || L.teams[0];
   if (CAR.isCareer(L)) { lineupView(L, t); return; }
+  if (!args.ld) { Object.assign(args, luFromSave(t) || {}); args.ld = 1; }
   const real = !!realMinutes(t), mode = args.mode && (args.mode !== 'real' || real) ? args.mode : luDefault(t);
   const game = gameMinutes(), cr = coachRot(t, mode === 'playoffs'), size = args.size || cr.size;
   const plan = luPlan(t, { ...args, mode });
@@ -9071,9 +9211,9 @@ screens.lineup = (args = {}) => {
     const sv = sug.get(p.id) ?? 0, diff = sv - r.minutes[0];
     return `<div class="lu-tr ${r.linePos < 5 ? 'lu-st' : ''} ${inRot ? '' : 'out'} ${args.sel != null && +args.sel === p.id ? 'lu-sel' : ''}">
       <button class="lu-c-slot lu-pick" data-act="luTap" data-id="${p.id}" aria-label="Select to swap">${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? r.linePos + 1 : '—'}</button>
-      <span class="lu-c-name tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln || playerName(p))}</b>${split}
+      <span class="lu-c-name" data-act="luTap" data-id="${p.id}"><span class="lu-nm"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(p.ln || playerName(p))}</b>${hotCold(p)}</span>${split}
         <span class="lu-bar2"><i style="width:${(r.minutes[0] / game * 100).toFixed(1)}%"></i></span></span>
-      <span class="lu-c-ovr">${shownLevel(p)}</span>
+      <span class="lu-c-ovr" data-act="luTap" data-id="${p.id}">${shownLevel(p)}</span>
       <span class="lu-c-min"><button class="lu-step" data-hold="luMin" data-id="${p.id}" data-d="-${step}" aria-label="Fewer minutes" ${inRot || r.hand ? '' : 'disabled'}>−</button><b>${r.minutes[0]}</b><button class="lu-step" data-hold="luMin" data-id="${p.id}" data-d="${step}" aria-label="More minutes">+</button></span>
       <span class="lu-c-sug">${sv}${diff ? `<i class="${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '▲' : '▼'}</i>` : ''}</span>
     </div>`;
@@ -9084,8 +9224,8 @@ screens.lineup = (args = {}) => {
   const stMin = plan.rows.filter(r => r.linePos < 5).reduce((s, r) => s + r.minutes[0], 0), bnMin = total - stMin, full = 5 * game;
   const bySlot = [0, 1, 2, 3, 4].map(k => plan.rows.reduce((s, r) => s + (r.minutes[k + 1] || 0), 0));
   const strip = `<div class="lu-strip">
-      <div class="lu-sb wide"><span>Starters</span><b>${stMin}/${full}</b><i style="width:${(stMin / full * 100).toFixed(1)}%"></i></div>
-      <div class="lu-sb wide"><span>Bench</span><b>${bnMin}/${full}</b><i style="width:${(bnMin / full * 100).toFixed(1)}%"></i></div>
+      <div class="lu-sb wide"><span>Starters</span><b>${Math.round(stMin / full * 100)}%</b><i style="width:${(stMin / full * 100).toFixed(1)}%"></i></div>
+      <div class="lu-sb wide"><span>Bench</span><b>${Math.round(bnMin / full * 100)}%</b><i style="width:${(bnMin / full * 100).toFixed(1)}%"></i></div>
       ${LU.SLOTS.map((s, k) => `<div class="lu-sb ${bySlot[k] < game ? 'short' : ''}"><span>${s}</span><b>${bySlot[k]}/${game}</b></div>`).join('')}
       <div class="lu-sb ${total < full ? 'short' : ''}"><span>Total</span><b>${total}/${full}</b></div></div>`;
   // Edit Minutes: one player's minutes at each position, like the game's screen (◀ ▶ through the rotation).
@@ -9096,12 +9236,12 @@ screens.lineup = (args = {}) => {
         <span class="lu-c-min"><button class="lu-step" data-hold="luSlot" data-id="${p.id}" data-s="${k}" data-d="-1" aria-label="Fewer minutes at ${LU.SLOTS[k]}" ${(r.minutes[k + 1] || 0) > 0 ? '' : 'disabled'}>−</button><b>${r.minutes[k + 1] || 0}</b><button class="lu-step" data-hold="luSlot" data-id="${p.id}" data-s="${k}" data-d="1" aria-label="More minutes at ${LU.SLOTS[k]}">+</button></span><span></span></div>`;
     layout({
       title: 'Edit Minutes',
-      body: `${strip}<fieldset class="frame lu-frame"><legend>${esc(playerName(p))} · ${esc(posName(p))} · Lv ${shownLevel(p)}</legend>
-        <p class="note small muted">${r.minutes[0]} minutes in all${(p.season?.injury?.gamesOut || 0) > 0 ? ` · <span class="down">${esc(injLong(p))}</span>` : ''}</p>
+      body: `<div class="grid2 lu-acts"><button class="btn off" data-act="luOpt" data-k="clear">Clear All</button><button class="btn focus" data-act="luEditDone">✅ Save</button></div>
+        ${strip}<fieldset class="frame lu-frame"><legend>${esc(p.ln || playerName(p))}${hotCold(p)}</legend>
+        <p class="note small muted">${esc(POSITIONS[p.pos] || posName(p))} · Lv ${shownLevel(p)} · ${r.minutes[0]} minutes in all${(p.season?.injury?.gamesOut || 0) > 0 ? ` · <span class="down">${esc(injLong(p))}</span>` : ''}</p>
         <div class="lu-list">${[0, 1, 2, 3, 4].map(slotRow).join('')}</div>
         ${args.lock && total < full ? `<p class="note small gold lu-free">${full - total} minute${full - total === 1 ? '' : 's'} to hand out.</p>` : ''}</fieldset>
-        <div class="lu-cycle"><button class="btn" data-act="luEdit" data-id="${prev.id}" aria-label="Previous player">◀</button><b>${esc(p.ln || playerName(p))}</b><button class="btn" data-act="luEdit" data-id="${next.id}" aria-label="Next player">▶</button></div>
-        <button class="btn focus" data-act="luEditDone" style="margin-top:8px">✅ Done</button>`,
+        <div class="lu-cycle"><button class="btn" data-act="luEdit" data-id="${prev.id}" aria-label="Previous player">◀</button><b>${esc(p.ln || playerName(p))}</b><button class="btn" data-act="luEdit" data-id="${next.id}" aria-label="Next player">▶</button></div>`,
     });
     return;
   }
@@ -9111,14 +9251,54 @@ screens.lineup = (args = {}) => {
     title: 'Lineup & Minutes',
     body: `<p class="note small">${logoImg(t)} <b>${esc(teamFull(t))}</b></p>
       <div class="tabs fa-tabs">${tabs.map(k => `<button class="btn small ${k === mode ? 'on focus' : 'off'}" data-act="luSet" data-k="mode" data-v="${k}">${LU_TABS[k]}</button>`).join('')}</div>
-      <div class="grid3 lu-opts"><button class="btn small" data-act="luOpt" data-k="lineup">Optimize Lineup</button><button class="btn small" data-act="luOpt" data-k="minutes">Optimize Minutes</button><button class="btn small" data-act="luOpt" data-k="clear">Clear All Minutes</button></div>
-      ${sel != null ? `<div class="grid2 lu-acts lu-selbar"><button class="btn off" data-act="luTap" data-id="${sel}">Cancel</button><button class="btn focus" data-act="luEdit" data-id="${sel}">✏️ Edit Minutes</button></div><p class="note small gold">Tap another player's spot to swap them.</p>` : `<div class="lu-acts"><button class="btn focus" data-act="luApply" style="width:100%">✅ Set lineup</button><p class="note small muted" style="margin-top:6px">Tap a player's spot to pick him: then tap another to swap them, or edit his minutes by position.</p></div>`}
+      <div class="grid3 lu-opts"><button class="btn small" data-act="luOpt" data-k="lineup">Optimize Lineup</button><button class="btn small" data-act="luOpt" data-k="minutes">Optimize Minutes</button><button class="btn small" data-act="luEdit" data-id="${sel ?? plan.rows[0]?.p.id}">Edit Minutes</button></div>
+      <div class="grid2 lu-opts"><button class="btn small" data-act="luHealthy" data-k="save">💾 Save Healthy Lineup</button><button class="btn small" data-act="luHealthy" data-k="use" ${lsGet(luHealthyKey(t), null) ? '' : 'disabled'}>❤️ Use Healthy Lineup</button></div>
+      ${isStep('rotation') ? '<button class="btn focus" data-act="luApply" style="width:100%;margin-top:8px">✅ Done</button>' : ''}
+      <p class="note small ${sel != null ? 'gold' : 'muted'}" style="margin-top:6px">${sel != null ? 'Tap another player to swap them, or Edit Minutes for his minutes by position.' : 'Tap a player to pick him, then another to swap them. Changes save as you go.'}</p>
       <div class="drill-row"><span class="grow small">Players in the rotation</span><span class="trait-ctl"><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.max(5, plan.rot.length - 1)}" ${plan.rot.length <= 5 ? 'disabled' : ''}>−</button><b class="small" style="min-width:2em;text-align:center">${plan.rot.length}</b><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.min(12, plan.rot.length + 1)}" ${plan.rot.length >= 12 ? 'disabled' : ''}>+</button></span></div>
-      ${strip}<fieldset class="frame lu-frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend>${args.lock && total < 5 * game ? `<p class="note small gold lu-free">${5 * game - total} minute${5 * game - total === 1 ? '' : 's'} to hand out: tap + on anyone.</p>` : ''}<div class="lu-list">${head}${plan.rows.map(row).join('')}</div>
+      ${strip}<fieldset class="frame lu-frame"><legend>Rotation · ${total} of ${5 * game} minutes</legend>${args.lock && total < 5 * game ? `<p class="note small gold lu-free">${5 * game - total} minute${5 * game - total === 1 ? '' : 's'} to hand out: tap + on anyone. It saves once every minute is handed out.</p>` : ''}<div class="lu-list">${head}${plan.rows.map(row).join('')}</div>
         ${plan.short.length && !(args.lock && total < 5 * game) ? `<p class="note small down">Short at ${plan.short.map(x => `${x.slot} (${x.v})`).join(', ')}: add a player or minutes.</p>` : ''}</fieldset>`,
   });
 };
 const luArgs = () => state.stack[state.stack.length - 1].args || {};
+// The game's own hot and cold streaks (gameStatus.streak).
+const hotCold = p => { const s = p?.gameStatus?.streak || 0; return s >= 5 ? ' <span class="hc" title="Hot">🔥</span>' : s <= -5 ? ' <span class="hc" title="Cold">🧊</span>' : ''; };
+const luTeam = a => league().teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
+const luHealthyKey = t => `hlc:luHealthy:${saveTag()}:${t.id}`;
+// The lineup the save holds right now, as the screen's settings (every minute by position, the five where they start).
+function luFromSave(t) {
+  const game = gameMinutes(), rows = t.roster.filter(p => (p.status === 3 || p.status === 2) && (p.minutes?.[0] || 0) > 0);
+  if (rows.length < 5 || rows.some(p => (p.season?.injury?.gamesOut || 0) > 0) || rows.reduce((s, p) => s + p.minutes[0], 0) !== 5 * game) return null;
+  const five = rows.filter(p => p.linePos < 5);
+  if (five.length !== 5) return null;
+  const start = {};
+  for (const p of five) { let s = [0, 2, 4, 6, 8].indexOf(p.teamPos); if (s < 0 || start[s] != null) s = [0, 1, 2, 3, 4].find(k => start[k] == null); start[s] = p.id; }
+  return { over: Object.fromEntries(rows.map(p => [p.id, p.minutes[0]])), pins: Object.fromEntries(rows.map(p => [p.id, p.minutes.slice(1, 6)])), pinAll: true, lock: true, start, size: rows.length };
+}
+// Every change saves: once every minute is handed out, the lineup goes into the save.
+function luCommit(a) {
+  replace('lineup', a);
+  const t = luTeam(a); if (!t) return;
+  const plan = luPlan(t, a);
+  if (plan.rows.reduce((s, r) => s + r.minutes[0], 0) < 5 * gameMinutes()) return;
+  applyLu(t, plan);
+  state.dirty = true;
+  if (isStep('rotation')) { const f = (calFlags().rotSet ||= []); if (!f.includes(t.id)) f.push(t.id); }
+}
+// The healthy lineup: the one you want when everyone's back, kept so one tap brings it back.
+actions.luHealthy = d => {
+  const a = { ...luArgs() }, t = luTeam(a), k = luHealthyKey(t);
+  if (d.k === 'save') {
+    const keep = Object.fromEntries(['mode', 'size', 'start', 'over', 'lock', 'pins', 'pinAll'].filter(x => a[x] != null).map(x => [x, a[x]]));
+    lsSet(k, keep); toast('💾 Healthy lineup saved', 'Tap Use Healthy Lineup to bring it back when everyone\'s healthy.', 2200); render(); return;
+  }
+  const h = lsGet(k, null); if (!h) return;
+  const n = { ...h, arg: a.arg, tid: a.tid, ld: 1 };
+  const hurt = t.roster.filter(p => (n.over?.[p.id] || 0) > 0 && (p.season?.injury?.gamesOut || 0) > 0);
+  luCommit(n);
+  if (hurt.length) toast('Still hurt', `${hurt.map(p => p.ln).join(', ')}: hand out ${hurt.length === 1 ? 'his' : 'their'} minutes until ${hurt.length === 1 ? 'he\'s' : 'they\'re'} back.`, 2600, true);
+  else toast('❤️ Healthy lineup set', '', 1600);
+};
 // Press and hold a − or + (data-hold): one step now, then a step every tenth of a second until you let go.
 {
   let timer = null, wait = null;
@@ -9162,10 +9342,14 @@ actions.luTap = d => {
   // By-position minutes don't follow a player to a new spot; his total does.
   if (a.pins) { a.pins = { ...a.pins }; delete a.pins[rA.p.id]; delete a.pins[rB.p.id]; }
   if (a.lock) { a.over = { ...a.over }; for (const r of [rA, rB]) if (!(a.over[r.p.id] > 0) && r.linePos >= 5) a.over[r.p.id] = 0; }
-  replace('lineup', a);
+  luCommit(a);
 };
 actions.luEdit = d => { const a = { ...luArgs(), edit: +d.id }; delete a.sel; replace('lineup', a); };
-actions.luEditDone = () => { const a = { ...luArgs() }; delete a.edit; replace('lineup', a); };
+actions.luEditDone = () => {
+  const a = { ...luArgs() }, t = luTeam(a), plan = luPlan(t, a), left = 5 * gameMinutes() - plan.rows.reduce((s, r) => s + r.minutes[0], 0);
+  if (left > 0) { toast(`${left} minute${left === 1 ? '' : 's'} still to hand out`, 'Give them to someone before you save.', 2200, true); return; }
+  delete a.edit; luCommit(a);
+};
 // One player's minutes at one position: they come from (and go back to) the minutes still to hand out.
 actions.luSlot = d => {
   const a = { ...luArgs() }, L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
@@ -9188,22 +9372,25 @@ actions.luSlot = d => {
   over[pid] = pin.reduce((x, y) => x + y, 0);
   a.pins = pins; a.over = over;
   a.size = Math.max(5, Object.values(over).filter(x => x > 0).length);
-  replace('lineup', a);
+  luCommit(a);
 };
 // The game's Options: Optimize Lineup (the suggestion, your starters included), Optimize Minutes (your five, the
 // minutes suggested around them), Clear All Minutes (your five stay; every minute is yours to hand out).
 actions.luOpt = d => {
   const a = { ...luArgs() }, L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
+  const plan0 = luPlan(t, a), editing = d.k === 'clear' ? a.edit : null;
   delete a.sel; delete a.edit; delete a.pins; delete a.pinAll;
   if (d.k === 'lineup') { a.over = {}; a.lock = false; delete a.size; delete a.start; }
-  else if (d.k === 'minutes') { a.over = {}; a.lock = false; delete a.size; }
+  // Optimize Minutes: the same players, the minutes suggested for them (the rotation stays its size).
+  else if (d.k === 'minutes') { a.over = Object.fromEntries(plan0.rows.filter(r => !(r.minutes[0] > 0)).map(r => [r.p.id, 0])); a.lock = false; a.size = plan0.rot.length; a.start = Object.fromEntries(plan0.starters.map((p, s) => [s, p.id])); }
   else {
     const plan = luPlan(t, a);
     a.start = Object.fromEntries(plan.starters.map((p, s) => [s, p.id]));
     a.over = Object.fromEntries(plan.rows.map(r => [r.p.id, 0]));
     a.lock = true; a.size = 5;
+    if (editing != null) a.edit = editing;
   }
-  replace('lineup', a);
+  luCommit(a);
 };
 actions.luStartPick = d => {
   const a = luArgs(), pid = +d.id, cur = Object.entries(a.start || {}).find(([, v]) => +v === pid);
@@ -9220,14 +9407,14 @@ actions.luStartPick = d => {
     n.start = st;
     // Minutes set by hand start over around the new five.
     if (n.lock) { n.over = {}; n.lock = false; delete n.size; toast('Minutes reset', 'Set around your new starting five.', 1800); }
-    replace('lineup', n);
+    luCommit(n);
   });
 };
 actions.luSet = d => {
   const a = { ...luArgs() };
   if (d.k === 'over' || d.k === 'mode') { a.over = {}; a.lock = false; delete a.size; delete a.pins; delete a.pinAll; delete a.sel; delete a.edit; if (d.k === 'mode') delete a.start; }   // reset: back to the suggestion
   if (d.k !== 'over') a[d.k] = d.k === 'size' ? +d.v : d.v;
-  replace('lineup', a);
+  luCommit(a);
 };
 actions.luMin = d => {
   const a = { ...luArgs() }, L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
@@ -9239,14 +9426,24 @@ actions.luMin = d => {
   const v = Math.max(0, Math.min(game, cur + +d.d, cur + Math.max(0, free)));
   if (v === cur) { if (+d.d > 0 && free <= 0) toast('No free minutes', 'Take minutes from someone first.', 1800, true); return; }
   if (v > 0 && Object.values(over).filter(x => x > 0).length >= 12 && !(cur > 0)) { toast('Twelve is the most', 'Take someone out of the rotation first.', 1800, true); return; }
-  over[d.id] = v;
+  // Everyone stays where they play; his minute comes off (or goes on) at his own spot, so taking from a point guard
+  // leaves point guard short, never the center.
+  const pins = { ...(a.pins || {}) };
+  for (const q of plan.rows) if (q.minutes[0] > 0 && !pins[q.p.id]) pins[q.p.id] = q.minutes.slice(1, 6);
+  const pin = [...(pins[d.id] || [0, 0, 0, 0, 0])], slotTot = k => plan.rows.reduce((s, q) => s + ((pins[q.p.id] || [])[k] || 0), 0);
+  const p = r.p, order = [r.slot, ...[0, 1, 2, 3, 4].filter(k => k !== r.slot && LU.inPos(p, k)).sort((x, y) => (pin[y] || 0) - (pin[x] || 0)), ...[0, 1, 2, 3, 4].filter(k => k !== r.slot && !LU.inPos(p, k))];
+  let left = Math.abs(v - cur);
+  if (v < cur) { for (const k of [...order].sort((x, y) => (x === r.slot ? -1 : y === r.slot ? 1 : (pin[y] || 0) - (pin[x] || 0)))) { const take = Math.min(left, pin[k] || 0); pin[k] -= take; left -= take; if (!left) break; } }
+  else { for (const k of order) { const room = Math.max(0, game - slotTot(k)); const add = Math.min(left, room); pin[k] = (pin[k] || 0) + add; left -= add; if (!left) break; }
+    if (left === Math.abs(v - cur)) { toast('Every spot is full', 'Take minutes from someone first.', 1800, true); return; } }
+  pins[d.id] = pin; a.pins = pins; a.pinAll = true;
+  over[d.id] = pin.reduce((x, y) => x + y, 0);
   a.over = over;
-  if (a.pins?.[d.id]) { a.pins = { ...a.pins }; delete a.pins[d.id]; }   // a new total: his minutes by position are planned again
   a.size = Math.max(5, Object.values(over).filter(x => x > 0).length);
-  replace('lineup', a);
+  luCommit(a);
 };
 actions.luApply = async () => {
-  const a = luArgs(), L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
+  const a = luArgs(), L = league(), t = luTeam(a);
   const plan = luPlan(t, a);
   const tot = plan.rows.reduce((s, r) => s + r.minutes[0], 0), full = 5 * gameMinutes();
   if (a.lock && tot < full) { toast(`${full - tot} minutes still to hand out`, 'Give them to someone before you set it.', 2600, true); return; }
@@ -11168,11 +11365,11 @@ screens.injuries = (args = {}) => {
     body: `<p class="note small muted">${rows.length ? `${rows.length} player${rows.length === 1 ? '' : 's'} out around the league. Tap a column to sort.` : ''}</p>
       ${rows.length ? `<fieldset class="frame ir-frame"><div class="ir-tr ir-th">${th('name', 'Name')}${th('lvl', 'Lvl', 'c')}${th('team', 'Team', 'c')}${th('inj', 'Injury')}${th('out', 'Out', 'c')}</div>
       ${rows.map(r => `<div class="ir-tr tap${mine(r.tm)}" data-act="openPlayer" data-id="${r.p.id}">
-        <b class="ir-name">${esc(`${(r.p.fn || '')[0] || ''}. ${r.p.ln}`)}</b>
+        <b class="ir-name">${esc(r.p.ln || playerName(r.p))}</b>
         <span class="ir-lvl c">${r.lvl}</span>
         <span class="ir-team c">${logoImg(r.tm, 'logo-sm ir-logo')}<span>${esc(r.tm.shortName)}</span></span>
         <span class="ir-inj ${r.major ? 'down' : ''}">${esc(r.inj)}</span>
-        <span class="ir-out c ${r.o.season || r.o.games >= 17 ? 'down' : ''}">${r.o.season ? 'Season' : `${r.o.games}g`}${r.o.back ? `<small>G${r.o.back}</small>` : ''}</span>
+        <span class="ir-out c ${r.o.season || r.o.games >= 17 ? 'down' : ''}">${r.o.season ? 'Season' : r.o.games ? `${r.o.games}g` : 'DTD'}${r.o.back ? `<small>G${r.o.back}</small>` : ''}</span>
       </div>`).join('')}</fieldset>` : '<p class="note up">Nobody in the league is hurt right now.</p>'}`,
   });
 };
@@ -12346,7 +12543,7 @@ screens.rankings = (args = {}) => {
   const extra = at >= shown.length ? [{ ...rows[at], at }] : [];
   const nav = (o) => `data-act="rankNav" data-o='${JSON.stringify(o)}'`;
   layout({
-    title: 'Player Rankings',
+    title: 'Rankings',
     body: `<div class="seg ld-groups">${[['level', 'By level'], ['value', 'By value']].map(([k, l]) => `<button class="btn small ${by === k ? 'on focus' : 'off'}" ${nav({ by: k })}>${l}</button>`).join('')}</div>
       ${pos != null ? `<div class="seg ld-groups"><button class="btn small on focus" ${nav({ pos: '' })}>${esc(POSITIONS[pos])} only ✕</button></div>`
         : `<div class="seg ld-groups">${[['g', 'Guards'], ['w', 'Wings'], ['b', 'Bigs']].map(([g, l]) => `<button class="btn small ${on.has(g) ? 'on focus' : 'off'}" data-act="ldGroup" data-g="${g}">${l}</button>`).join('')}</div>`}
@@ -20261,7 +20458,7 @@ function confStandings(t, yr) {
 }
 // Every team's numbers for a season, sortable, back as far as the save goes.
 const TEAM_STAT_COLS = [
-  ['ppg', 'PPG', r => r.PTS / r.GP, false], ['opp', 'Opp', r => r.OPP / r.GP, true], ['margin', 'Margin', r => (r.PTS - r.OPP) / r.GP, false],
+  ['ppg', 'PPG', r => r.PTS / r.GP, false], ['opp', 'Opp', r => r.OPP / r.GP, true], ['margin', 'Diff', r => (r.PTS - r.OPP) / r.GP, false],
   ['fg', 'FG%', r => (r.FGA ? (r.FGM / r.FGA) * 100 : 0), false], ['tp', '3P%', r => (r.TPA ? (r.TPM / r.TPA) * 100 : 0), false], ['ft', 'FT%', r => (r.FTA ? (r.FTM / r.FTA) * 100 : 0), false],
 ];
 actions.lgHof = () => go('editor', { tab: 'hof' });
@@ -20305,7 +20502,6 @@ screens.lgHistory = () => {
       <button class="btn left" data-act="openLeaders" data-m="rafters"><span class="ico">🏟️</span> Rafters</button>
       ${(L.hallOfFame || []).length ? '<button class="btn left" data-act="lgHof"><span class="ico">🏛️</span> Hall of Fame</button>' : ''}
       <button class="btn left" data-act="nav" data-to="drafts"><span class="ico">🎓</span> Draft History</button>
-      <button class="btn left" data-act="nav" data-to="rankings"><span class="ico">📊</span> Player Rankings</button>
     </div>` });
 };
 screens.teamStats = (args) => {
