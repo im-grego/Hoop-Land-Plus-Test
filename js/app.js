@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.11';
+const APP_VERSION = '0.365.12';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3269,7 +3269,7 @@ function mediaQuestions(L, t) {
     const l = line(p), b = last(p);
     if (fresh(`slump:${p.id}`) && l && b && l.gp >= 8 && b.gp >= 20 && b.ppg >= 10 && l.ppg < b.ppg * 0.75) {
       const goal = Math.round(b.ppg);
-      add({ key: `slump:${p.id}`, q: `${playerName(p)} is down to ${l.ppg.toFixed(1)} points a game from ${b.ppg.toFixed(1)} last season. What's going on?`, options: [
+      add({ key: `slump:${p.id}`, q: `${playerName(p)} is scoring ${Math.floor(l.ppg)} points a game, down from ${Math.ceil(b.ppg)} last season. What's going on?`, options: [
         ['back', 'He\'ll find it. We believe in him.', [['m', p.id, 3], ['promise', { kind: 'pts', pid: p.id, base: base(p), need: goal, games: 10, due: day + 30, win: [['m', p.id, 4], ['fans', 2]], lose: [['fans', -3]], text: `If he averages ${goal} ${G10}` }]]],
         ['challenge', 'He has to be better.', [['m', p.id, -5], ['trait', p.id, 'motor', 1]]]] });
       break;
@@ -3280,7 +3280,7 @@ function mediaQuestions(L, t) {
     const l = line(p), b = last(p);
     if (fresh(`hot:${p.id}`) && l && b && l.gp >= 8 && l.ppg >= 18 && l.ppg >= b.ppg + 5) {
       const mvp = shownLevel(p) >= 93;
-      add({ key: `hot:${p.id}`, q: `${playerName(p)} is putting up ${l.ppg.toFixed(1)} a night, up from ${b.ppg.toFixed(1)}. ${mvp ? 'Should he be in the MVP conversation?' : 'Is he an All-Star this year?'}`, options: [
+      add({ key: `hot:${p.id}`, q: `${playerName(p)} is averaging ${Math.ceil(l.ppg)} points a night, up from ${Math.floor(b.ppg)}. ${mvp ? 'Should he be in the MVP conversation?' : 'Is he an All-Star this year?'}`, options: [
         ['yes', mvp ? 'He\'s the MVP. Nobody means more to his team.' : 'Absolutely. He\'s been our best player.', [['m', p.id, 5], ['trait', p.id, EGO_KEY, 1], ['m', top.filter(q => q !== p).slice(0, 3).map(q => q.id), -2]]],
         ['team', 'It\'s about how the team plays.', [['m', p.id, -3], ['m', 'all', 1]]]] });
       break;
@@ -3364,7 +3364,7 @@ function mediaQuestions(L, t) {
   }
   // An unhappy player.
   for (const p of top.slice(0, 8)) {
-    if (fresh(`unhappy:${p.id}`) && (p.season?.morale ?? 60) < 40) {
+    if (fresh(`unhappy:${p.id}`) && (p.season?.morale ?? 60) < 40 && shownLevel(p) >= 77) {
       add({ key: `unhappy:${p.id}`, q: `${playerName(p)} doesn't look happy. Is he on the market?`, options: [
         ['stay', 'He\'s not going anywhere.', [['m', p.id, 3], ['promise', { kind: 'keep', pid: p.id, due: 9999, win: [], lose: [['m', 'all', -4], ['fans', -2]], text: `If you trade ${p.ln} this season` }]]],
         ['listen', 'We listen on everyone.', [['m', p.id, -4], ['block', p.id], ['trust', 1]]]] });
