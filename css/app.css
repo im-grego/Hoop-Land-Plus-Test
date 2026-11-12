@@ -2257,3 +2257,12 @@ body:has(.ticker) { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)
 /* The page scrolls all the way past the ticker: the room goes on #app (the body has a fixed height). */
 body:has(.ticker) { padding-bottom: 0; }
 body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(safe-area-inset-bottom, 0px) - 18px)) + 14px); }
+
+/* Title board lettering closer to the game's: a chunky pixel face in bright white, with a faint lamp grid over it
+   (the letters stay bright instead of being cut into dim dots). */
+.marquee-track span, .header .marquee-track span {
+  font-family: "Press Start 2P", var(--pixel); font-weight: 400; font-size: 20px; line-height: 20px; letter-spacing: 2px; padding-right: 64px;
+  color: #fff; text-shadow: 0 0 6px rgba(255, 255, 255, 0.35);
+  -webkit-mask-image: none; mask-image: none; }
+.header .marquee::after { display: block; content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: repeating-linear-gradient(90deg, rgba(20, 16, 30, 0.28) 0 1px, transparent 1px 3px), repeating-linear-gradient(0deg, rgba(20, 16, 30, 0.28) 0 1px, transparent 1px 3px); }
