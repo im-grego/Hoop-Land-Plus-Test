@@ -2465,3 +2465,8 @@ h2.pl-name { white-space: nowrap; overflow: hidden; }
 /* Realistic NBA setup: the class years sit under their heading */
 .setup-opt.setup-sub { margin-left: 28px; width: calc(100% - 28px); padding-top: 8px; padding-bottom: 8px; }
 .setup-opt.setup-sub b { font-size: 14px; }
+
+/* Lineup: a faint line under the starters and over the players who don't play; the bench sort */
+.lu-tr.lu-div { border-top: 1px solid rgba(255, 255, 255, 0.28); margin-top: 3px; }
+.lu-sort { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 2px 0 6px; }
+.lu-sort .btn.tiny { min-height: 28px; padding: 3px 8px; font-size: 12px; }

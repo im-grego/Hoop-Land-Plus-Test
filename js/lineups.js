@@ -211,7 +211,7 @@ const offMinutes = (rot, g) => rot.reduce((a, q) => a + g.slots.get(q).reduce((b
 // order, a player with no games yet (back from injury, just signed) slots in by his level next to the teammate
 // closest to it; the rotation runs 9 to 12 deep and stops where the talent drops off (4+ levels below the man
 // before), and the minutes follow what each has been playing.
-export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = {}, share = null, promised = {}, real = null, sizeSet = false, locked = false, start = {}, pins = {} } = {}) {
+export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = {}, share = null, promised = {}, real = null, sizeSet = false, locked = false, start = {}, pins = {}, keep = [] } = {}) {
   const roster = team.roster.filter(p => p.status === 3 || p.status === 2), deep = isDeep(roster);
   const top5 = [...roster].map(levelOf).sort((a, b) => b - a).slice(0, 5), awful = top5.reduce((a, v) => a + v, 0) / Math.max(1, top5.length) < 80;
   const lowCap = mode === 'develop' || awful ? 0 : 20;
@@ -223,8 +223,8 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
   const plays = q => !realOn || !real[q.id] || real[q.id].mpg >= 8 || over[q.id] > 0;
   // Set to 0 by hand: out of the rotation. Set above 0: in it, whoever else gets squeezed.
   // A starter you picked stays in even at 0 minutes while you hand them out by hand (Clear All Minutes).
-  const picked = new Set(Object.values(start || {}).map(Number));
-  const cands = roster.filter(p => healthy(p) && (over[p.id] !== 0 || (locked && picked.has(p.id)))).sort((a, b) => score(b) - score(a));
+  const picked = new Set(Object.values(start || {}).map(Number)), kept = new Set((keep || []).map(Number));
+  const cands = roster.filter(p => healthy(p) && (over[p.id] !== 0 || (locked && (picked.has(p.id) || kept.has(p.id))))).sort((a, b) => score(b) - score(a));
   const starters = pickStarters(cands, score);
   // Starters you picked by hand go in at their spots (the one they push out takes the picked player's old spot).
   for (const [s, pid] of Object.entries(start || {})) {
@@ -244,7 +244,8 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
   // The bench: a backup big and a backup guard always (a weaker true center beats a point guard playing the five),
   // a backup wing when there's one close enough, then the best of the rest.
   const nBench = Math.max(0, Math.min(12, size) - 5), grp = p => ((p.pos ?? 4) <= 2 ? 0 : (p.pos ?? 4) <= 5 ? 1 : 2);
-  const picks = bench.filter(p => over[p.id] > 0).slice(0, nBench);
+  // Swapped in by hand: in the rotation (at 0 minutes until you give him some).
+  const picks = bench.filter(p => over[p.id] > 0 || (locked && kept.has(p.id))).slice(0, nBench);
   // Prospects where they're meant to play come next (at most two), then the position needs.
   for (const p of bench.filter(q => promised[q.id] && over[q.id] == null && !picks.includes(q))) if (picks.length < nBench) picks.push(p);
   if (!realOn && prospectsPlay(mode, deep)) for (const p of bench.filter(q => isProspect(q) && over[q.id] == null && !picks.includes(q)).slice(0, 2)) if (picks.length < nBench) picks.push(p);
