@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.41';
+const APP_VERSION = '0.365.42';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3963,7 +3963,7 @@ screens.main = () => {
       ${!isCollege() && !isFranchise() && !CAR.isCareer(L) && state.userTeams.size ? `<div class="grid2"><button class="btn left" data-act="nav" data-to="myteams"><span class="ico">🗂️</span> My Teams <span class="note small">${state.userTeams.size}${state.autoTeams.size ? ` · ${state.autoTeams.size} on autopilot` : ''}</span></button></div>` : ''}
       <div class="grid3 menu-sys">
         <button class="btn" data-act="nav" data-to="settings"><span class="ico">☰</span> Settings</button>
-        <button class="btn" data-act="nav" data-to="${isCollege() ? 'editor' : 'leaders'}"><span class="ico">🏀</span> My League</button>
+        <button class="btn" data-act="${isCollege() ? 'nav' : 'myLeague'}" data-to="${isCollege() ? 'editor' : 'leaders'}"><span class="ico">🏀</span> My League</button>
         <button class="btn" data-act="nav" data-to="export"><span class="ico">💾</span> Export</button>
       </div>
       ${communityRow()}`,
@@ -20640,6 +20640,7 @@ const TEAM_STAT_COLS = [
   ['fg', 'FG%', r => (r.FGA ? (r.FGM / r.FGA) * 100 : 0), false], ['tp', '3P%', r => (r.TPA ? (r.TPM / r.TPA) * 100 : 0), false], ['ft', 'FT%', r => (r.FTA ? (r.FTM / r.FTA) * 100 : 0), false],
 ];
 actions.lgHof = () => go('editor', { tab: 'hof' });
+actions.myLeague = () => go('leaders', { m: 'stats', k: 'PTS' });
 actions.lgTab = d => (d.t === 'leaders' ? replace('leaders', { m: 'stats', k: 'PTS' }) : replace(d.t, {}));
 // Both conferences, best record first: W-L, games back and the point margin; your team boxed.
 screens.standings = () => {

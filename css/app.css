@@ -2484,3 +2484,14 @@ h2.pl-name { white-space: nowrap; overflow: hidden; }
 /* Home: Settings, My League and Export on one row */
 .menu-sys.grid3 .btn { font-size: 13px; padding-left: 4px; padding-right: 4px; white-space: nowrap; }
 .menu-sys.grid3 .btn .ico { margin-right: 4px; }
+
+/* The tiles always reach the bottom edge of the screen (under the home indicator too), with or without the ticker:
+   a still layer pinned to the screen, past the safe area, under the moving one. */
+html { min-height: 100%; }
+body { min-height: 100vh; min-height: 100lvh; }
+body::after {
+  content: ""; position: fixed; left: 0; right: 0; top: calc(-1 * env(safe-area-inset-top, 0px) - 60px);
+  bottom: calc(-1 * env(safe-area-inset-bottom, 0px) - 120px); z-index: -2; pointer-events: none;
+  background: var(--bg) url("../icons/bg-tile.jpg") 0 0 / 300px 200px repeat; image-rendering: pixelated;
+}
+#app { min-height: 100vh; min-height: 100lvh; box-sizing: border-box; }
