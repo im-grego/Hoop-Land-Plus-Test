@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.59';
+const APP_VERSION = '0.365.60';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -11024,14 +11024,11 @@ screens.roster = (args) => {
         ${many ? `<button class="nav-btn" data-act="nav" data-replace="1" data-to="roster" data-arg="${nextT.id}" aria-label="Next team">▶</button>` : '<span></span>'}
       </div>
       ${teamHeader(t)}
-      ${!isCollege() ? `<div class="${isUserTeam(t) ? 'grid3' : 'grid2'} team-links">${isUserTeam(t) ? '<button class="btn small" data-act="nav" data-to="coaching">🧑‍🏫 My Coach</button>' : ''}<button class="btn small" data-act="nav" data-to="history" data-arg="${t.id}">📜 History</button><button class="btn small" data-act="nav" data-to="payroll" data-arg="${t.id}">🤝 Contracts</button></div>` : ''}
-      ${isUserTeam(t) && t.frontOffice && isComplete() && !isCollege() ? (() => { const ch = chemOf(t); return `<div class="grid2 team-mini">
-        <button class="btn left small mini-box" data-act="nav" data-to="fanLog"><span class="ico">👥</span> <span>Fans <b>${t.frontOffice.fans ?? 50}</b><br>${(() => { const mv = fanLog().filter(x => x.tid === t.id && x.yr === league().season.currentYear); const up = mv.filter(x => x.d > 0).reduce((a, x) => a + x.d, 0), dn = mv.filter(x => x.d < 0).reduce((a, x) => a - x.d, 0); return mv.length ? `<span class="small"><span class="up">▲${up}</span> <span class="down">▼${dn}</span></span>` : '<span class="muted small">/ 100</span>'; })()}</span></button>
-        <button class="btn left small mini-box" data-act="nav" data-to="chemistry" data-arg="${t.id}"><span class="ico">💙</span> <span>Chemistry <b>${ch.avg}</b><br><span class="small"><span class="up">▲${ch.up}</span> <span class="down">▼${ch.down}</span></span></span></button>
-      </div>`; })() : ''}
+      ${!isCollege() ? `<div class="${isUserTeam(t) ? 'grid3' : 'grid2'} team-links"><button class="btn small" data-act="nav" data-to="lineup" data-arg="${t.id}">⏱️ Lineup</button>${isUserTeam(t) ? '<button class="btn small" data-act="nav" data-to="coaching">🧑‍🏫 My Coach</button>' : ''}<button class="btn small" data-act="nav" data-to="payroll" data-arg="${t.id}">🤝 Contracts</button></div>` : ''}
       ${movesBox(L, t)}
       ${rosterBreakdownBox(t)}
-      <div class="list">${rows.map(({ p, d }) => playerRow(p, d)).join('')}</div>`,
+      <div class="list">${rows.map(({ p, d }) => playerRow(p, d)).join('')}</div>
+      ${!isCollege() ? `<button class="btn small team-hist" data-act="nav" data-to="history" data-arg="${t.id}">📜 History</button>` : ''}`,
   });
 };
 
@@ -12708,6 +12705,10 @@ function teamHeader(t) {
   const pts = teamPoints(L), mine = pts.rows.get(t.id);
   const box = (v, lbl, rk, cls = '', k = '') => `<div class="tap" data-act="teamStats" data-k="${k}"${pts.last ? ` data-yr="${L.season.currentYear - 1}"` : ''}><b class="${cls}">${v}</b><span>${lbl}</span><span class="rk-of">${ord(rk)}</span></div>`;
   return `${mine ? `<div class="stat-grid th-stats">${box(mine.ppg.toFixed(1), 'PPG', mine.ppgRk, '', 'ppg')}${box(mine.opp.toFixed(1), 'Opp PPG', mine.oppRk, '', 'opp')}${box(`${mine.diff >= 0 ? '+' : ''}${mine.diff.toFixed(1)}`, 'Diff', mine.diffRk, mine.diff >= 0 ? 'up' : 'down', 'margin')}</div>${pts.last ? '<p class="note small muted th-last">Last season</p>' : ''}` : ''}
+    ${isUserTeam(t) && t.frontOffice && isComplete() ? `<div class="grid2 team-mini">
+      <button class="btn small mini-box" data-act="nav" data-to="fanLog">👥 Fans <b>${t.frontOffice.fans ?? 50}</b></button>
+      <button class="btn small mini-box" data-act="nav" data-to="chemistry" data-arg="${t.id}">💙 Chemistry <b>${chemOf(t).avg}</b></button>
+    </div>` : ''}
     ${FA.capSystemOn() ? capBar(t) : ''}`;
 }
 

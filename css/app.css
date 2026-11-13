@@ -1060,7 +1060,7 @@ html, body, button, a, input, select, label { touch-action: pan-x pan-y; }
 .opt-btns .btn { min-height: 28px; padding: 0 8px; font-size: 12px; }
 
 /* Star icons */
-.st-row { display: inline-flex; gap: 3px; vertical-align: -1px; width: 87px; justify-content: flex-start; align-items: center; }
+.st-row { display: inline-flex; gap: 3px; vertical-align: -1px; min-width: 87px; width: auto;   /* room for 5 stars; 5.5 or 6 (set by hand) pushes what follows over */ justify-content: flex-start; align-items: center; }
 .st { position: relative; display: inline-block; width: 15px; height: 15px; overflow: hidden; flex: none; }
 .st svg { display: block; height: 15px; image-rendering: pixelated; }
 
@@ -1823,7 +1823,10 @@ a.btn { text-decoration: none; }
 /* My Team: History | Contracts, then the small Fans | Chemistry boxes. */
 .team-links { margin-bottom: 8px; }
 .team-mini { margin-bottom: 8px; }
-.team-mini .mini-box { min-height: 0; padding: 8px 10px; line-height: 1.25; text-align: left; }
+.team-mini .mini-box { white-space: nowrap; }   /* one row, the height of the other buttons */
+.team-mini .mini-box b { margin-left: 6px; }
+.team-mini { margin: 8px 0; }
+.team-hist { width: 100%; margin-top: 10px; }
 .dl-steps { margin: 8px 0 4px; padding-left: 20px; }
 .dl-steps li { margin: 2px 0; }
 .community .ver-badge, .community .roadmap-btn { align-self: stretch; min-height: 100%; }
