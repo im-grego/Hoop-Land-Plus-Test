@@ -2513,3 +2513,6 @@ body::after {
 .ol-more > summary::before { content: "▸ "; }
 .ol-more[open] > summary::before { content: "▾ "; }
 .ol-more > .ol-yr { margin-top: 4px; }
+
+/* College/club box: the flag sits in the right corner */
+.col-box .outlook-top .col-flag { margin-left: auto; display: flex; align-items: center; }

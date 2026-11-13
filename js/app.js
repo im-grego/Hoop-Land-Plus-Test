@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.50';
+const APP_VERSION = '0.365.51';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -15494,10 +15494,10 @@ function collegeBox(p) {
   const real = c.school?.name ? REAL_SCHOOLS[c.school.name] : null;
   const team = sc && !sc.name ? state.data.seasonLeagues[sc.li]?.teams?.find(x => x.id === sc.tid) : null;
   const tint = real ? `--tc1:#${real[0]};--tc2:#${real[1]}` : team ? teamTint(team) : '';
-  // Overseas: his club's country flag and the club, with the league in the tag; college: the school's logo and colors.
+  // Overseas: the club on the left, its country's flag on the right; college: the school's name and colors (no logo).
   const pro = c.made && (c.intl || /^Pro club/.test(c.team)), clubCt = pro ? (c.team.split(' · ')[1] || '') : '';
   const flag = pro ? OLY.flagHtml(FLAG_CODE[clubCt] || '', 2.4) : '';
-  return `<div class="outlook col-box ${pro ? 'col-pro' : ''}" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${pro ? (flag || '') : real ? `<span class="sch-badge" style="background:#${real[0]};color:${real[1] === 'FFFFFF' || /^[0-9A-F]{2}/.test(real[1]) ? `#${real[1]}` : '#fff'};border-color:#${real[1]}">${esc(real[2])}</span>` : team ? logoImg(team) : COLLEGE_LOGO}<div class="col-hd"><b>${esc(pro ? c.team.split(' · ')[0] : c.team)}</b><span class="status">${pro ? `${esc(c.lg || 'Overseas')}${clubCt ? ` · ${esc(clubCt)}` : ''}` : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div></div>
+  return `<div class="outlook col-box ${pro ? 'col-pro' : ''}" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${pro || real ? '' : team ? logoImg(team) : COLLEGE_LOGO}<div class="col-hd"><b>${esc(pro ? c.team.split(' · ')[0] : c.team)}</b><span class="status">${pro ? `${esc(c.lg || 'Overseas')}${clubCt ? ` · ${esc(clubCt)}` : ''}` : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div>${flag ? `<span class="col-flag">${flag}</span>` : ''}</div>
     <p class="note small muted" style="margin:0">${c.gp} games · ${f(c.mpg)} MPG</p>
     <div class="statline">
       ${[['PTS', f(c.pts)], ['REB', f(c.reb)], ['AST', f(c.ast)], ['STL', f(c.stl)], ['BLK', f(c.blk)],
