@@ -110,11 +110,11 @@ export const CLUBS = {
   euroDev: [C('Mega Basketball', 'ABA League', 'Serbia', 'dev'), C('FMP', 'ABA League', 'Serbia', 'dev'), C('Cedevita Olimpija', 'ABA League', 'Slovenia', 'dev'),
     C('Joventut Badalona', 'Liga ACB', 'Spain', 'dev'), C('Unicaja', 'Liga ACB', 'Spain', 'dev'), C('Palencia', 'Primera FEB', 'Spain', 'dev'),
     C('Ratiopharm Ulm', 'BBL', 'Germany', 'dev'), C('Alba Berlin', 'BBL', 'Germany', 'dev'), C('Filathlitikos', 'GBL', 'Greece', 'dev'),
-    C('Rytas Vilnius', 'LKL', 'Lithuania', 'dev')],
+    C('Rytas Vilnius', 'LKL', 'Lithuania', 'dev'), C('Aquila Basket Trento', 'Serie A', 'Italy', 'dev'), C('OKK Beograd', 'ABA League', 'Serbia', 'dev')],
   france: [C('Metropolitans 92', 'LNB Élite', 'France', 'dev'), C('Cholet', 'LNB Élite', 'France', 'dev'), C('JL Bourg', 'LNB Élite', 'France', 'dev'),
     C('Le Mans', 'LNB Élite', 'France', 'dev'), C('Saint-Quentin', 'LNB Élite', 'France', 'dev'), C('Nanterre 92', 'LNB Élite', 'France', 'dev'),
     C('SIG Strasbourg', 'LNB Élite', 'France', 'dev')],
-  nbl: [C('New Zealand Breakers', 'NBL', 'New Zealand', 'nbl'), C('Illawarra Hawks', 'NBL', 'Australia', 'nbl'), C('Adelaide 36ers', 'NBL', 'Australia', 'nbl'),
+  nbl: [C('South East Melbourne Phoenix', 'NBL', 'Australia', 'nbl'), C('New Zealand Breakers', 'NBL', 'New Zealand', 'nbl'), C('Illawarra Hawks', 'NBL', 'Australia', 'nbl'), C('Adelaide 36ers', 'NBL', 'Australia', 'nbl'),
     C('Melbourne United', 'NBL', 'Australia', 'nbl'), C('Sydney Kings', 'NBL', 'Australia', 'nbl'), C('Perth Wildcats', 'NBL', 'Australia', 'nbl'),
     C('Cairns Taipans', 'NBL', 'Australia', 'nbl'), C('Brisbane Bullets', 'NBL', 'Australia', 'nbl')],
   ote: [C('Overtime Elite', 'OTE', 'USA', 'ote')],
@@ -140,4 +140,10 @@ export function clubFor(country, { seed = 0, rank = null } = {}) {
   // Home clubs first when the pool has one from his own country.
   const home = list.filter(c => c.ct === country), pick = home.length && r() < 0.6 ? home : list;
   return pick[Math.floor(r() * pick.length)];
+}
+
+// A club a class file names (from a big board): the club from the lists, or as given (a development club).
+export function clubNamed(c) {
+  const all = Object.values(CLUBS).flat(), hit = all.find(x => x.n === c.n);
+  return hit || { n: c.n, lg: c.lg || 'Professional league', ct: c.ct || '', lvl: c.lvl || 'dev' };
 }

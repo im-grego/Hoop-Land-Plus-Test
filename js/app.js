@@ -6,7 +6,7 @@ import { collegeProduction, productionWord, setDevPlans, PLAN_ATTRS, DEFAULT_PAR
 import { setMadeLines, setPreferMade, groupOf as posGroupOf } from './draft.js';
 import { LOGO_MAP } from './logomap.js';
 import { setMadeGameScores, collegeGameScore } from './progression.js';
-import { makeLines, clubFor } from './madeprod.js';
+import { makeLines, clubFor, clubNamed } from './madeprod.js';
 import { buildSchedule, needsSchedule } from './schedule.js';
 import { SCREEN_HELP, SECTION_HELP } from './helptext.js';
 import {
@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.47';
+const APP_VERSION = '0.365.48';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -262,9 +262,9 @@ function makeClassLines(cls, yr, meta = labMeta()) {
   if (!need.length) return;
   const m = madeStore();
   // Placed against the whole class (made-up and real alike), so a real season and a made-up one sit on the same scale.
-  const sch = assignSchools(cls, meta), progs = collegePrograms(), tierOf = p => { const s = sch[p.id]; return progs.find(x => x.li === s?.li && x.tid === s?.tid)?.kind || 'mid'; };
+  const sch = assignSchools(cls, meta), progs = collegePrograms(), tierOf = p => { const s = sch[p.id]; if (s?.name) return realSchoolTier(s.name); return progs.find(x => x.li === s?.li && x.tid === s?.tid)?.kind || 'mid'; };
   const lines = makeLines(cls, { yr, pedOf: p => meta[p.id]?.ped || '', salt: saveSalt(), tierOf, styleOf: p => meta[p.id]?.style || '', leagueOf: p => intlLeague(meta[p.id]?.ped || ''), rankOf: p => meta[p.id]?.rank ?? null,
-    clubOf: p => { const c = /International \(([^)]+)\)/.exec(meta[p.id]?.ped || '')?.[1]; return c ? clubFor(COUNTRY[c] || c, { seed: (saveSalt() ^ Math.imul(p.id + 7, 2654435761)) >>> 0, rank: meta[p.id]?.rank ?? null }) : null; } });
+    clubOf: p => { const named = meta[p.id]?.club; if (named) return clubNamed(named); const c = /International \(([^)]+)\)/.exec(meta[p.id]?.ped || '')?.[1]; return c ? clubFor(COUNTRY[c] || c, { seed: (saveSalt() ^ Math.imul(p.id + 7, 2654435761)) >>> 0, rank: meta[p.id]?.rank ?? null }) : null; } });
   for (const p of need) if (!m[p.id]) m[p.id] = lines.get(p.id);
   try { localStorage.setItem(madeKey(), JSON.stringify(m)); } catch { /* storage full or blocked: lines stay for this session */ }
 }
@@ -287,6 +287,22 @@ const POWERHOUSES = ['Duke', 'Kentucky', 'Kansas', 'North Carolina', 'UCLA', 'Ar
 const HIGH_MIDS = ['Gonzaga', "Saint Mary's", 'San Diego State', 'Memphis', 'Dayton', 'VCU', 'Drake', 'New Mexico', 'UNLV', 'Wichita State', 'Boise State',
   'Utah State', 'Nevada', 'Colorado State', 'Davidson', 'Florida Atlantic', 'Grand Canyon', 'Belmont', 'Butler', 'Xavier', 'Cincinnati', 'Saint Louis',
   'Loyola Chicago', 'Liberty', 'McNeese', 'Seton Hall', 'Providence', 'Georgetown', 'Wake Forest', 'Pittsburgh', 'Clemson', 'Mississippi State', 'Ole Miss', 'Oklahoma State'];
+// Real schools a class file names (from the big boards): their colors and a short badge name, shown in place of a logo.
+const REAL_SCHOOLS = {
+  Kansas: ['0051BA', 'E8000D', 'KU'], BYU: ['002E5D', 'FFFFFF', 'BYU'], Arkansas: ['9D2235', 'FFFFFF', 'ARK'], Arizona: ['CC0033', '003366', 'ARIZ'],
+  Illinois: ['E84A27', '13294B', 'ILL'], UConn: ['000E2F', 'FFFFFF', 'UCONN'], Florida: ['0021A5', 'FA4616', 'UF'], Duke: ['003087', 'FFFFFF', 'DUKE'],
+  Louisville: ['AD0000', '000000', 'LOU'], Texas: ['BF5700', 'FFFFFF', 'TEX'], Kentucky: ['0033A0', 'FFFFFF', 'UK'], 'Ohio State': ['BB0000', '666666', 'OSU'],
+  'North Carolina': ['7BAFD4', '13294B', 'UNC'], Alabama: ['9E1B32', '828A8F', 'BAMA'], USC: ['990000', 'FFC72C', 'USC'], Missouri: ['F1B82D', '000000', 'MIZ'],
+  Miami: ['F47321', '005030', 'MIA'], Michigan: ['00274C', 'FFCB05', 'MICH'], Villanova: ['00205B', '13B5EA', 'NOVA'], Vanderbilt: ['866D4B', '000000', 'VANDY'],
+  'West Virginia': ['002855', 'EAAA00', 'WVU'], Maryland: ['E03A3E', 'FFD520', 'UMD'], Tennessee: ['FF8200', '58595B', 'TENN'], 'Michigan State': ['18453B', 'FFFFFF', 'MSU'],
+  "St. John's": ['BA0C2F', 'FFFFFF', 'SJU'], Gonzaga: ['002967', 'C8102E', 'ZAGS'], Providence: ['000000', 'A2AAAD', 'PC'], Houston: ['C8102E', 'FFFFFF', 'UH'],
+  LSU: ['461D7C', 'FDD023', 'LSU'], Nebraska: ['E41C38', 'FFFFFF', 'NEB'], 'NC State': ['CC0000', 'FFFFFF', 'NCST'], Virginia: ['232D4B', 'F84C1E', 'UVA'],
+  Purdue: ['CEB888', '000000', 'PUR'], TCU: ['4D1979', 'A3A9AC', 'TCU'], Wisconsin: ['C5050C', 'FFFFFF', 'WIS'], SMU: ['354CA1', 'CC0035', 'SMU'],
+  'Arizona State': ['8C1D40', 'FFC627', 'ASU'], 'Iowa State': ['C8102E', 'F1BE48', 'ISU'], Auburn: ['0C2340', 'E87722', 'AUB'], 'Virginia Tech': ['630031', 'CF4420', 'VT'],
+  Marquette: ['003366', 'FFCC00', 'MU'], Georgia: ['BA0C2F', '000000', 'UGA'], Baylor: ['154734', 'FFB81C', 'BAY'], 'Texas Tech': ['CC0000', '000000', 'TTU'],
+  Syracuse: ['F76900', '000E54', 'CUSE'], 'Utah State': ['0F2439', 'FFFFFF', 'USU'],
+};
+const realSchoolTier = n => (POWERHOUSES.includes(n) || ['UConn', 'Duke', 'Kansas', 'Kentucky', 'North Carolina', 'Arizona', 'Florida', 'Arkansas', 'Michigan', 'Michigan State', 'Illinois', 'Alabama', 'Houston', 'Tennessee', 'Auburn', 'Purdue', 'Texas', 'Ohio State', 'USC', 'BYU', 'Gonzaga', "St. John's", 'Louisville', 'Baylor', 'Texas Tech', 'Virginia', 'Wisconsin', 'Maryland', 'Iowa State', 'Marquette'].includes(n) ? 'power' : 'mid');
 const schoolKey = () => `hlc:schools:${saveTag()}`;
 function schoolStore() { try { return JSON.parse(localStorage.getItem(schoolKey())) || {}; } catch { return {}; } }
 function collegePrograms() {
@@ -307,6 +323,9 @@ function collegePrograms() {
 function assignSchools(cls, meta = labMeta()) {
   const st = schoolStore(), progs = collegePrograms();
   if (!progs.length) return st;
+  let named = false;
+  for (const p of cls) { const sc = meta[p.id]?.school; if (sc && st[p.id]?.name !== sc) { st[p.id] = { name: sc }; named = true; } }
+  if (named) { try { localStorage.setItem(schoolKey(), JSON.stringify(st)); } catch { /* ignore */ } }
   const need = cls.filter(p => !st[p.id] && (meta[p.id] || !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0)))).sort((a, b) => (b.pot || 0) - (a.pot || 0) || levelOf(b) - levelOf(a));
   if (!need.length) return st;
   const used = new Map(Object.values(st).map(s => [`${s.li}:${s.tid}`, 0]));
@@ -332,6 +351,7 @@ function withSchool(p, line) {
   if (!line || line.intl || /^Pro club/.test(line.team || '')) return line;
   let s = schoolStore()[p.id];
   if (!s) { const L = league(); s = assignSchools((L.draftClass || []).includes(p) ? L.draftClass : [p])[p.id]; }
+  if (s?.name) return { ...line, team: s.name, cl: (line.team || '').replace(/ season$/, ''), school: { name: s.name } };
   const t = s && state.data.seasonLeagues[s.li]?.teams?.find(x => x.id === s.tid);
   if (!t) return line;
   return { ...line, team: `${t.city ? `${t.city} ` : ''}${t.name || ''}`.trim() || t.shortName, cl: (line.team || '').replace(/ season$/, ''), school: { li: s.li, tid: s.tid } };
@@ -15428,11 +15448,13 @@ function collegeBox(p) {
   const f = (v, d = 1) => (v == null ? '—' : v.toFixed(d));
   // His college team's own logo and colors (like the draft's team boxes); the league ball when there's no team.
   const sc = c.li != null && c.tid != null ? { li: c.li, tid: c.tid } : c.school;
-  const team = sc ? state.data.seasonLeagues[sc.li]?.teams?.find(x => x.id === sc.tid) : null, tint = team ? teamTint(team) : '';
+  const real = c.school?.name ? REAL_SCHOOLS[c.school.name] : null;
+  const team = sc && !sc.name ? state.data.seasonLeagues[sc.li]?.teams?.find(x => x.id === sc.tid) : null;
+  const tint = real ? `--tc1:#${real[0]};--tc2:#${real[1]}` : team ? teamTint(team) : '';
   // Overseas: his club's country flag and the club, with the league in the tag; college: the school's logo and colors.
   const pro = c.made && (c.intl || /^Pro club/.test(c.team)), clubCt = pro ? (c.team.split(' · ')[1] || '') : '';
   const flag = pro ? OLY.flagHtml(FLAG_CODE[clubCt] || '', 2.4) : '';
-  return `<div class="outlook col-box ${pro ? 'col-pro' : ''}" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${pro ? (flag || '') : team ? logoImg(team) : COLLEGE_LOGO}<div class="col-hd"><b>${esc(pro ? c.team.split(' · ')[0] : c.team)}</b><span class="status">${pro ? `${esc(c.lg || 'Overseas')}${clubCt ? ` · ${esc(clubCt)}` : ''}` : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div></div>
+  return `<div class="outlook col-box ${pro ? 'col-pro' : ''}" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${pro ? (flag || '') : real ? `<span class="sch-badge" style="background:#${real[0]};color:${real[1] === 'FFFFFF' || /^[0-9A-F]{2}/.test(real[1]) ? `#${real[1]}` : '#fff'};border-color:#${real[1]}">${esc(real[2])}</span>` : team ? logoImg(team) : COLLEGE_LOGO}<div class="col-hd"><b>${esc(pro ? c.team.split(' · ')[0] : c.team)}</b><span class="status">${pro ? `${esc(c.lg || 'Overseas')}${clubCt ? ` · ${esc(clubCt)}` : ''}` : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div></div>
     <p class="note small muted" style="margin:0">${c.gp} games · ${f(c.mpg)} MPG</p>
     <div class="statline">
       ${[['PTS', f(c.pts)], ['REB', f(c.reb)], ['AST', f(c.ast)], ['STL', f(c.stl)], ['BLK', f(c.blk)],
