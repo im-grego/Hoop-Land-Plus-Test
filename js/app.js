@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.30';
+const APP_VERSION = '0.365.31';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2821,7 +2821,8 @@ const NBA_SETUP = [
   { k: 'picks', title: 'Real draft picks', text: 'Every traded pick (2027-2033) moves to the team that really owns it, with its protections and swaps.' },
   { k: 'dead', title: 'Real dead cap', text: 'Stretched contracts on the books: Lillard on Milwaukee, Beal on Phoenix.' },
   { k: 'expansion', title: 'Expansion after the 2029 season', text: 'The Seattle Sonics and Las Vegas Venom join in the 2029 offseason (a summer after the Olympics): protected lists and the expansion draft after the lottery, and they play from the 2030 season.' },
-  ...RDC.REAL_CLASS_YEARS.map(y => ({ k: `class${y}`, title: `Realistic ${y} draft class`, text: `Replaces the game's ${y} class when the save reaches that draft, varied for this save.` })),
+  { k: 'classes', title: 'Realistic draft classes', text: 'Hand-built classes replace the game\'s when the save reaches that draft, varied a little for each save. Pick the years you want.' },
+  ...RDC.REAL_CLASS_YEARS.map(y => ({ k: `class${y}`, title: `${y} draft class`, sub: true })),
   { k: 'history', title: 'History from 1977', text: 'The save starts its history at the merger, so you can scroll back through every season\'s standings, awards and stats since.' },
 ];
 // Which realistic classes this device puts in (all three unless some were turned off).
@@ -2883,13 +2884,20 @@ screens.nbaSetup = () => {
   const done = k => (k === 'picks' && f.picks) || (k === 'dead' && f.dead) || (k === 'expansion' && !!expStore()?.real);
   layout({
     title: 'Realistic NBA',
-    body: `<div class="stack">${NBA_SETUP.map(x => `<button class="drill-row tap setup-opt ${on[x.k] ? 'sel' : ''}" data-act="nbaSetupToggle" data-k="${x.k}" ${done(x.k) ? 'disabled' : ''}>
-        <span class="grow"><b>${on[x.k] || done(x.k) ? '<span class="chk-on">✅</span>' : '⬜'} ${esc(x.title)}</b><br><span class="small muted">${esc(x.text)}</span></span>${done(x.k) ? '<span class="small up">Applied</span>' : ''}</button>`).join('')}</div>
+    body: `<div class="stack">${NBA_SETUP.map(x => { const chk = x.k === 'classes' ? RDC.REAL_CLASS_YEARS.some(y => on[`class${y}`]) : on[x.k] || done(x.k);
+        return `<button class="drill-row tap setup-opt ${x.sub ? 'setup-sub' : ''} ${chk ? 'sel' : ''}" data-act="nbaSetupToggle" data-k="${x.k}" ${done(x.k) ? 'disabled' : ''}>
+        <span class="grow"><b>${chk ? '<span class="chk-on">✅</span>' : '⬜'} ${esc(x.title)}</b>${x.text ? `<br><span class="small muted">${esc(x.text)}</span>` : ''}</span>${done(x.k) ? '<span class="small up">Applied</span>' : ''}</button>`; }).join('')}</div>
       <p class="note small muted">Change any of these later in Settings.</p>`,
     action: { act: 'nbaSetupApply', label: 'Apply' },
   });
 };
-actions.nbaSetupToggle = d => { const on = state.nbaSel ||= Object.fromEntries(NBA_SETUP.map(x => [x.k, true])); on[d.k] = !on[d.k]; render(); };
+actions.nbaSetupToggle = d => {
+  const on = state.nbaSel ||= Object.fromEntries(NBA_SETUP.map(x => [x.k, true]));
+  // The heading turns every year on or off together.
+  if (d.k === 'classes') { const any = RDC.REAL_CLASS_YEARS.some(y => on[`class${y}`]); for (const y of RDC.REAL_CLASS_YEARS) on[`class${y}`] = !any; }
+  else on[d.k] = !on[d.k];
+  render();
+};
 actions.setRealYear = d => {
   const y = +d.y, cur = realClassYears();
   state.params.realClassYears = cur.includes(y) ? cur.filter(x => x !== y) : [...cur, y].sort();
