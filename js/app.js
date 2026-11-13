@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.38';
+const APP_VERSION = '0.365.39';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3868,10 +3868,9 @@ function startCard() {
   if (!s || L.season.phase !== 9 || L.season.currentDay !== s.day) return '';
   const t = L.teams.find(isUserTeam);
   if (!t) return '';
-  const r = t.season?.find(x => x.yr === L.season.currentYear)?.seasonStats || { W: 0, L: 0 };
   const open = 15 - FA.signedRoster(t).length;
   return `<fieldset class="frame"><legend>🏀 ${esc(fmtDay(s.date))}</legend><div class="stack">
-    <p class="note">${logoImg(t)} <b>${esc(teamFull(t))}</b> · ${r.W}-${r.L} · ${FA.signedRoster(t).length}/15 players${open > 0 ? ` · <span class="gold">${open} open spot${open > 1 ? 's' : ''}</span>` : ''}</p>
+    <p class="note small">${FA.signedRoster(t).length}/15 players${open > 0 ? ` · <span class="gold">${open} open spot${open > 1 ? 's' : ''}</span>` : ''}</p>
     ${capBar(t)}
     <div class="grid2"><button class="btn left" data-act="liveTrade"><span class="ico">🔁</span> Trade Machine</button><button class="btn left" data-act="nav" data-to="startFA"><span class="ico">✍️</span> Free Agents</button></div>
     <div class="grid2"><button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button><button class="btn left" data-act="nav" data-to="gleague"><span class="ico">🏀</span> G League</button></div>
@@ -3949,23 +3948,23 @@ screens.main = () => {
       </div>`}
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
       ${nbaSetupCard()}
-      ${sCard}
       ${nextGameCard()}
+      ${sCard}
+      ${calendarCard()}
       ${mediaCard()}
       ${marketCard()}
       ${retireeCard()}
       ${careerCard()}
       ${expAskCard()}
-      ${calendarCard()}
-      <div class="grid2">
+      ${(L.teams.some(isUserTeam) && !/data-to="roster"/.test(sCard)) || isCollege() ? `<div class="grid2">
         ${L.teams.some(isUserTeam) && !/data-to="roster"/.test(sCard) ? '<button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button>' : ''}
-        <button class="btn left" data-act="nav" data-to="${isCollege() ? 'editor' : 'leaders'}"><span class="ico">🏀</span> My League</button>
         ${isCollege() ? `<button class="btn left" data-act="nav" data-to="coaching"><span class="ico">🧑‍🏫</span> My Coach</button>` : ''}
-      </div>
+      </div>` : ''}
       ${!isCollege() && !isFranchise() && !CAR.isCareer(L) && state.userTeams.size ? `<div class="grid2"><button class="btn left" data-act="nav" data-to="myteams"><span class="ico">🗂️</span> My Teams <span class="note small">${state.userTeams.size}${state.autoTeams.size ? ` · ${state.autoTeams.size} on autopilot` : ''}</span></button></div>` : ''}
-      <div class="grid2 menu-sys">
-        <button class="btn left" data-act="nav" data-to="settings"><span class="ico">☰</span> Settings</button>
-        <button class="btn left" data-act="nav" data-to="export"><span class="ico">💾</span> Export</button>
+      <div class="grid3 menu-sys">
+        <button class="btn" data-act="nav" data-to="settings"><span class="ico">☰</span> Settings</button>
+        <button class="btn" data-act="nav" data-to="${isCollege() ? 'editor' : 'leaders'}"><span class="ico">🏀</span> My League</button>
+        <button class="btn" data-act="nav" data-to="export"><span class="ico">💾</span> Export</button>
       </div>
       ${communityRow()}`,
   });

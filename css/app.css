@@ -2480,3 +2480,7 @@ h2.pl-name { white-space: nowrap; overflow: hidden; }
 .lu-sort-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .lu-sort-btns .btn.tiny { width: 100%; }
 .lu-frame > .lu-sort { margin-top: -10px; }
+
+/* Home: Settings, My League and Export on one row */
+.menu-sys.grid3 .btn { font-size: 13px; padding-left: 4px; padding-right: 4px; white-space: nowrap; }
+.menu-sys.grid3 .btn .ico { margin-right: 4px; }
