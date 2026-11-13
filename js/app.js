@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.39';
+const APP_VERSION = '0.365.40';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -12295,6 +12295,7 @@ function newsBox(p) {
 function playerTags(p) {
   const c = p.contract || {}, t = [];
   const add = (label, cls = '') => t.push(`<span class="badge ${cls}">${label}</span>`);
+  if (c.sal && c.yrs) { add(esc(contractText(p, true))); const v = contractBadge(p).trim(); if (v) t.push(v); }
   // His agent, when it's one that changes the talks.
   if (isComplete() && !isCollege() && p.status !== 1) { const ag = FA.agentOf(p); if (ag !== 'fair') add(`${FA.AGENTS[ag].icon} ${FA.AGENTS[ag].label}`, ag === 'shark' ? 'down-b' : 'lvl'); }
   if (p.yrs === 0) add('Rookie', 'new');
