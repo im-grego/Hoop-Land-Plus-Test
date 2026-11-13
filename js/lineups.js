@@ -261,6 +261,13 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
   const picked = new Set(Object.values(start || {}).map(Number)), kept = new Set((keep || []).map(Number));
   const cands = roster.filter(p => healthy(p) && (over[p.id] !== 0 || (locked && (picked.has(p.id) || kept.has(p.id))))).sort((a, b) => score(b) - score(a));
   const starters = pickStarters(cands, score);
+  // A promised starting job: he's in the five, taking the spot of the weakest starter at his end of the floor.
+  const end = p => ((p.pos ?? 4) <= 2 ? 0 : (p.pos ?? 4) <= 5 ? 1 : 2);
+  for (const p of cands.filter(q => promised[q.id]?.start && !starters.includes(q))) {
+    const outs = starters.filter(q => !promised[q.id]?.start), same = outs.filter(q => end(q) === end(p));
+    const out = (same.length ? same : outs).sort((a, b) => score(a) - score(b))[0];
+    if (out) starters[starters.indexOf(out)] = p;
+  }
   // Starters you picked by hand go in at their spots (the one they push out takes the picked player's old spot).
   for (const [s, pid] of Object.entries(start || {})) {
     const p = cands.find(q => q.id === +pid), k = +s;
@@ -312,6 +319,12 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
     }
     const realHi = Math.min(game, Math.max(Math.round(game * 0.8), Math.ceil(total / Math.max(1, rot.length)) + Math.round(game / 12)));
     for (const p of own) over[p.id] = Math.max(Math.round(6 * k), Math.min(realHi, Math.round(over[p.id])));
+    // Promised minutes are a floor here too; the others give the difference back in proportion.
+    const pf = p => Math.round((promised[p.id]?.min || 0) * k);
+    let add = 0;
+    for (const p of own) if (pf(p) > over[p.id]) { add += pf(p) - over[p.id]; over[p.id] = pf(p); }
+    const give = own.filter(p => !pf(p)), gs = give.reduce((a, p) => a + over[p.id], 0);
+    if (add && gs) for (const p of give) over[p.id] = Math.max(0, Math.round(over[p.id] - add * over[p.id] / gs));
   }
   let { want, hi, cap } = minutesFor(rot, mode, game, over, share, deep, promised, lowCap), got = assign(rot, starters, want, hi, game, over, cap, pins);
   // Still out of position somewhere? Bring in a bench player who can play the spot, if he's within 14 levels of the
