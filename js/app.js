@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.55';
+const APP_VERSION = '0.365.56';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -301,6 +301,24 @@ const REAL_SCHOOLS = {
   'Arizona State': ['8C1D40', 'FFC627', 'ASU'], 'Iowa State': ['C8102E', 'F1BE48', 'ISU'], Auburn: ['0C2340', 'E87722', 'AUB'], 'Virginia Tech': ['630031', 'CF4420', 'VT'],
   Marquette: ['003366', 'FFCC00', 'MU'], Georgia: ['BA0C2F', '000000', 'UGA'], Baylor: ['154734', 'FFB81C', 'BAY'], 'Texas Tech': ['CC0000', '000000', 'TTU'],
   Syracuse: ['F76900', '000E54', 'CUSE'], 'Utah State': ['0F2439', 'FFFFFF', 'USU'],
+  // Every other school with an NBA pick in the last ten drafts (2017–2026): ESPN's colors and logos.
+  Akron: ['041E42', 'C5B783', 'AKR'], Belmont: ['182142', 'C9262D', 'BEL'], 'Boise State': ['0033A0', 'D64309', 'BOIS'], 'Boston College': ['8C2232', 'DBCCA6', 'BC'],
+  California: ['041E42', 'FFC72C', 'CAL'], Charleston: ['7A2531', '9E8959', 'COFC'], Cincinnati: ['000000', 'E00122', 'CIN'], Clemson: ['F56600', 'FFFFFF', 'CLEM'],
+  Colorado: ['000000', 'CFB87C', 'COLO'], 'Colorado State': ['004C23', 'C8C372', 'CSU'], Creighton: ['005CA9', '6CADDE', 'CREI'], Dayton: ['004B8D', 'FFFFFF', 'DAY'],
+  DePaul: ['2D649C', 'CE1125', 'DEP'], 'Eastern Michigan': ['006938', 'FFFFFF', 'EMU'], 'Florida State': ['782F40', 'CEB888', 'FSU'], Furman: ['582C83', 'FFFFFF', 'FUR'],
+  Georgetown: ['110E42', '001C58', 'GTWN'], 'Georgia Tech': ['B3A369', 'FFFFFF', 'GT'], Hofstra: ['003594', 'FFC72C', 'HOF'], Indiana: ['970310', 'FFFFFF', 'IU'],
+  Iowa: ['231F20', 'FCD116', 'IOWA'], 'Kansas State': ['330A57', 'E2E3E4', 'KSU'], Liberty: ['0A254E', 'B72025', 'LIB'], 'Loyola Maryland': ['76A7A0', 'C9CBCA', 'L-MD'],
+  Memphis: ['004991', '8E908F', 'MEM'], Milwaukee: ['000000', 'FFC20E', 'MILW'], Minnesota: ['5E0A2F', 'FAB41C', 'MINN'], 'Mississippi State': ['5D1725', 'C1C6C8', 'MSST'],
+  'Missouri State': ['5E0009', 'FFFFFF', 'MOST'], 'Murray State': ['002148', '000E00', 'MUR'], Nevada: ['041E42', '8A8D8F', 'NEV'], Northwestern: ['492F92', 'FFFFFF', 'NU'],
+  'Notre Dame': ['062340', 'C99700', 'ND'], Ohio: ['154734', 'FFFFFF', 'OHIO'], Oklahoma: ['990000', 'FFFFFF', 'OU'], 'Oklahoma State': ['FE5C00', '000000', 'OKST'],
+  Oregon: ['00934B', 'FFF41B', 'ORE'], 'Penn State': ['061440', 'FFFFFF', 'PSU'], Pepperdine: ['003A72', 'DC762F', 'PEPP'], Pittsburgh: ['003594', 'FFB81C', 'PITT'],
+  Rutgers: ['CE0E2D', 'FFFFFF', 'RUTG'], "Saint Joseph's": ['9E1B32', '6C6F70', 'JOES'], 'San Diego State': ['A6192E', '000000', 'SDSU'], 'San Francisco': ['005A36', 'FFFFFF', 'SF'],
+  'Santa Clara': ['690B0B', '101010', 'SCU'], 'Seton Hall': ['0857B1', '8A8D8F', 'HALL'], 'South Carolina': ['73000A', '000000', 'SC'], 'South Florida': ['006747', 'CFC493', 'USF'],
+  Stanford: ['8C1515', 'FFFFFF', 'STAN'], 'Texas A&M': ['500000', 'FFFFFF', 'TA&M'], Toledo: ['0B2240', 'FFCD00', 'TOL'], Tulane: ['006747', '418FDE', 'TULN'],
+  'UC Santa Barbara': ['1E1840', 'FEBC11', 'UCSB'], UCF: ['000000', 'B4A169', 'UCF'], UCLA: ['2774AE', 'F2A900', 'UCLA'], 'UT Arlington': ['004B7C', 'F58024', 'UTA'],
+  Utah: ['BE0000', 'FFFFFF', 'UTAH'], VCU: ['000000', 'FFAF00', 'VCU'], Valparaiso: ['794500', 'FFFFFF', 'VAL'], 'Wake Forest': ['2C2A29', 'CEB888', 'WAKE'],
+  Washington: ['33006F', 'E8D3A2', 'WASH'], 'Washington State': ['A60F2D', '4D4D4D', 'WSU'], 'Weber State': ['18005A', 'EBEBEB', 'WEB'], 'Western Kentucky': ['E13A3E', 'FFFFFF', 'WKU'],
+  'Wichita State': ['27251F', 'FFCD00', 'WICH'], Wyoming: ['492F24', 'FFC425', 'WYO'], Xavier: ['21304E', 'A5A7A8', 'XAV'], Yale: ['004A81', '286DC0', 'YALE'],
 };
 const realSchoolTier = n => (POWERHOUSES.includes(n) || ['UConn', 'Duke', 'Kansas', 'Kentucky', 'North Carolina', 'Arizona', 'Florida', 'Arkansas', 'Michigan', 'Michigan State', 'Illinois', 'Alabama', 'Houston', 'Tennessee', 'Auburn', 'Purdue', 'Texas', 'Ohio State', 'USC', 'BYU', 'Gonzaga', "St. John's", 'Louisville', 'Baylor', 'Texas Tech', 'Virginia', 'Wisconsin', 'Maryland', 'Iowa State', 'Marquette'].includes(n) ? 'power' : 'mid');
 const schoolKey = () => `hlc:schools:${saveTag()}`;
@@ -15487,7 +15505,7 @@ function collegeRank(p, c, k) {
 const FLAG_CODE = { Spain: 'ES', Serbia: 'RS', France: 'FR', Germany: 'DE', Lithuania: 'LT', Turkey: 'TR', Italy: 'IT', Greece: 'GR', Israel: 'IL', Slovenia: 'SI', Australia: 'AU', 'New Zealand': 'NZ', USA: 'US', Canada: 'CA', Croatia: 'HR' };
 // The school logos bundled with the app (img/logos/college), named by the school.
 // Logos drawn in the school's own main color get a thin white outline so they show on that color.
-const LOGO_HALO = new Set(["Arizona State", "Iowa State", "Ohio State", "TCU", "Providence", "Nebraska", "SMU", "Houston", "Texas Tech", "Purdue", "Syracuse", "USC", "Arkansas", "St. John's", "Illinois", "Maryland", "Wisconsin", "Villanova", "Kansas"]);
+const LOGO_HALO = new Set(["Arizona State", "Iowa State", "Ohio State", "TCU", "Providence", "Nebraska", "SMU", "Houston", "Texas Tech", "Purdue", "Syracuse", "USC", "Arkansas", "St. John's", "Illinois", "Maryland", "Wisconsin", "Villanova", "Kansas", "Boise State", "Boston College", "Colorado", "Eastern Michigan", "Furman", "Georgetown", "Georgia Tech", "Kansas State", "Minnesota", "Mississippi State", "Missouri State", "Northwestern", "Ohio", "Oklahoma", "Penn State", "Rutgers", "Santa Clara", "South Florida", "Stanford", "Tulane", "UC Santa Barbara", "UCLA", "Washington", "Washington State", "Western Kentucky", "Wyoming", "Milwaukee", "Saint Joseph's", "San Diego State", "Pepperdine", "Yale"]);
 const schoolSlug = name => String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 function collegeBox(p) {
   const c = collegeLine(p, state.data.seasonLeagues);
