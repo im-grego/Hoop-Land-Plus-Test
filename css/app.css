@@ -2470,3 +2470,6 @@ h2.pl-name { white-space: nowrap; overflow: hidden; }
 .lu-tr.lu-div { border-top: 1px solid rgba(255, 255, 255, 0.28); margin-top: 3px; }
 .lu-sort { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 2px 0 6px; }
 .lu-sort .btn.tiny { min-height: 28px; padding: 3px 8px; font-size: 12px; }
+
+/* The lineup's hint keeps two lines of room so picking a player never shifts the list */
+[data-screen="lineup"] .lu-opts + .lu-opts + p.note, [data-screen="lineup"] .lu-opts + p.note { min-height: 2.7em; }

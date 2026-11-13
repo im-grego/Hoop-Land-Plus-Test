@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.32';
+const APP_VERSION = '0.365.33';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -960,7 +960,7 @@ function runAct(el, e) {
   // Otherwise the button itself: found again after the redraw by its own data (a + or − on a trait, skill or tendency
   // stays right under your finger even when tags above it come and go).
   const sel = box ? `[data-anchor="${CSS.escape(box.dataset.anchor)}"]` : Object.entries(el.dataset).map(([k, v]) => `[data-${k.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`)}="${CSS.escape(v)}"]`).join('');
-  state.anchor = { sel, top: (box || el).getBoundingClientRect().top };
+  state.anchor = state.stack[state.stack.length - 1]?.name === 'lineup' && /^lu/.test(act) && act !== 'luEdit' && act !== 'luEditDone' ? null : { sel, top: (box || el).getBoundingClientRect().top };
   if (fn) fn(el.dataset, el, e);
 }
 // Touch taps run on finger-up: iOS sometimes spends the first tap on a
@@ -9363,7 +9363,7 @@ screens.lineup = (args = {}) => {
       ${isStep('rotation') ? '<button class="btn focus" data-act="luApply" style="width:100%;margin-top:8px">✅ Done</button>' : ''}
       <p class="note small ${sel != null ? 'gold' : 'muted'}" style="margin-top:6px">${sel != null ? 'Tap another player to swap them, or Edit Minutes for his minutes by position.' : 'Tap a player to pick him, then another to swap them. Changes save as you go.'}</p>
       <div class="drill-row"><span class="grow small">Players in the rotation</span><span class="trait-ctl"><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.max(5, plan.rot.length - 1)}" ${plan.rot.length <= 5 ? 'disabled' : ''}>−</button><b class="small" style="min-width:2em;text-align:center">${plan.rot.length}</b><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.min(12, plan.rot.length + 1)}" ${plan.rot.length >= 12 ? 'disabled' : ''}>+</button></span></div>
-      ${strip}<fieldset class="frame lu-frame"><legend>Rotation · ${total}/${5 * game}</legend>${args.lock && total < 5 * game ? `<p class="note small gold lu-free">${5 * game - total} minute${5 * game - total === 1 ? '' : 's'} to hand out: tap + on anyone. It saves once every minute is handed out.</p>` : ''}<div class="lu-sort"><span class="small muted">Bench by</span><button class="btn tiny ${byPos ? 'off' : 'on focus'}" data-act="luBenchSort" data-v="min">Minutes</button><button class="btn tiny ${byPos ? 'on focus' : 'off'}" data-act="luBenchSort" data-v="pos">Position</button></div><div class="lu-list">${head}${listed.map(row).join('')}</div>
+      ${strip}<fieldset class="frame lu-frame"><legend>Rotation · ${total}/${5 * game}${total < 5 * game ? ` · <span class="gold">${5 * game - total} to hand out</span>` : ''}</legend><div class="lu-sort"><span class="small muted">Bench by</span><button class="btn tiny ${byPos ? 'off' : 'on focus'}" data-act="luBenchSort" data-v="min">Minutes</button><button class="btn tiny ${byPos ? 'on focus' : 'off'}" data-act="luBenchSort" data-v="pos">Position</button></div><div class="lu-list">${head}${listed.map(row).join('')}</div>${args.lock && total < 5 * game ? `<p class="note small gold lu-free">${5 * game - total} minute${5 * game - total === 1 ? '' : 's'} to hand out: tap + on anyone. It saves once every minute is handed out.</p>` : ''}
         ${plan.short.length && !(args.lock && total < 5 * game) ? `<p class="note small down">Short at ${plan.short.map(x => `${x.slot} (${x.v})`).join(', ')}: add a player or minutes.</p>` : ''}</fieldset>`,
   });
 };
