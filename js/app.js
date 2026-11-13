@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.42';
+const APP_VERSION = '0.365.43';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -883,7 +883,7 @@ function render() {
   const glide = state.glideTo ? document.querySelector(state.glideTo) : null;
   state.glideTo = null;
   if (glide) {
-    window.scrollTo(0, target);
+    window.scrollTo(0, y);   // stay put (no snap to the tapped tile); the glide below moves only if it has to
     // Where the card's middle sits in the middle of what you can see: under a fixed header, above the score ticker.
     const want = () => {
       const h = document.querySelector('.header'), hdr = h && ['fixed', 'sticky'].includes(getComputedStyle(h).position) ? h.offsetHeight : 0;
@@ -895,7 +895,7 @@ function render() {
       return Math.max(0, Math.min(to, document.documentElement.scrollHeight - vh));
     };
     // After the tap settles (iOS can drop a scroll made mid-tap), then once more if it didn't land.
-    setTimeout(() => { if (!glide.isConnected) return; window.scrollTo({ top: want(), behavior: 'smooth' });
+    setTimeout(() => { if (!glide.isConnected) return; if (Math.abs(window.scrollY - want()) > 8) window.scrollTo({ top: want(), behavior: 'smooth' });
       setTimeout(() => { if (glide.isConnected && Math.abs(window.scrollY - want()) > 8) window.scrollTo({ top: want(), behavior: 'smooth' }); }, 650); }, 60);
     top.y = null; lastView = view; return;
   }
