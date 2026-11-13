@@ -2473,3 +2473,10 @@ h2.pl-name { white-space: nowrap; overflow: hidden; }
 
 /* The lineup's hint keeps two lines of room so picking a player never shifts the list */
 [data-screen="lineup"] .lu-opts + .lu-opts + p.note, [data-screen="lineup"] .lu-opts + p.note { min-height: 2.7em; }
+
+/* Bench sort: the label on top, three buttons under it, tucked under the Rotation heading */
+.lu-sort { flex-direction: column; align-items: stretch; gap: 4px; margin: 0 0 6px; }
+.lu-sort > span { text-align: center; }
+.lu-sort-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.lu-sort-btns .btn.tiny { width: 100%; }
+.lu-frame > .lu-sort { margin-top: -10px; }

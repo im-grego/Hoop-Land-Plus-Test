@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.35';
+const APP_VERSION = '0.365.36';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -9370,7 +9370,7 @@ screens.lineup = (args = {}) => {
       ${isStep('rotation') ? '<button class="btn focus" data-act="luApply" style="width:100%;margin-top:8px">✅ Done</button>' : ''}
       <p class="note small ${sel != null ? 'gold' : 'muted'}" style="margin-top:6px">${sel != null ? 'Tap another player to swap them, or Edit Minutes for his minutes by position.' : 'Tap a player to pick him, then another to swap them. Changes save as you go.'}</p>
       <div class="drill-row"><span class="grow small">Players in the rotation</span><span class="trait-ctl"><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.max(5, plan.rot.length - 1)}" ${plan.rot.length <= 5 ? 'disabled' : ''}>−</button><b class="small" style="min-width:2em;text-align:center">${plan.rot.length}</b><button class="btn tiny" data-act="luSet" data-k="size" data-v="${Math.min(12, plan.rot.length + 1)}" ${plan.rot.length >= 12 ? 'disabled' : ''}>+</button></span></div>
-      ${strip}<fieldset class="frame lu-frame"><legend>Rotation · ${total}/${5 * game}${total < 5 * game ? ` · <span class="gold">${5 * game - total} to hand out</span>` : ''}</legend><div class="lu-sort"><span class="small muted">Sort the bench</span><button class="btn tiny" data-act="luBenchSort" data-v="min">By Minutes</button><button class="btn tiny" data-act="luBenchSort" data-v="pos">By Position</button></div><div class="lu-list">${head}${listed.map(row).join('')}</div>${args.lock && total < 5 * game ? `<p class="note small gold lu-free">${5 * game - total} minute${5 * game - total === 1 ? '' : 's'} to hand out: tap + on anyone. It saves once every minute is handed out.</p>` : ''}
+      ${strip}<fieldset class="frame lu-frame"><legend>Rotation · ${total}/${5 * game}${total < 5 * game ? ` · <span class="gold">${5 * game - total} to hand out</span>` : ''}</legend><div class="lu-sort"><span class="small muted">Sort the bench</span><div class="lu-sort-btns"><button class="btn tiny" data-act="luBenchSort" data-v="min">By Minutes</button><button class="btn tiny" data-act="luBenchSort" data-v="pos">By Position</button><button class="btn tiny" data-act="luBenchSort" data-v="lvl">By Level</button></div></div><div class="lu-list">${head}${listed.map(row).join('')}</div>${args.lock && total < 5 * game ? `<p class="note small gold lu-free">${5 * game - total} minute${5 * game - total === 1 ? '' : 's'} to hand out: tap + on anyone. It saves once every minute is handed out.</p>` : ''}
         ${plan.short.length && !(args.lock && total < 5 * game) ? `<p class="note small down">Short at ${plan.short.map(x => `${x.slot} (${x.v})`).join(', ')}: add a player or minutes.</p>` : ''}</fieldset>`,
   });
 };
@@ -9388,7 +9388,7 @@ actions.luBenchSort = d => {
   const a = luArgs(), t = luTeam(a), plan = luPlan(t, a), o = luOrderOf(t, plan);
   const inRot = r => r.minutes[0] > 0 || (a.keep || []).includes(r.p.id);
   const bench = plan.rows.filter(r => r.linePos >= 5 && inRot(r)), out = plan.rows.filter(r => r.linePos >= 5 && !inRot(r));
-  bench.sort(d.v === 'pos' ? (x, y) => x.slot - y.slot || y.minutes[0] - x.minutes[0] : (x, y) => y.minutes[0] - x.minutes[0]);
+  bench.sort(d.v === 'pos' ? (x, y) => x.slot - y.slot || y.minutes[0] - x.minutes[0] : d.v === 'lvl' ? (x, y) => shownLevel(y.p) - shownLevel(x.p) || y.minutes[0] - x.minutes[0] : (x, y) => y.minutes[0] - x.minutes[0]);
   out.sort((x, y) => o.indexOf(x.p.id) - o.indexOf(y.p.id));
   state.luOrder[t.id] = [...bench, ...out].map(r => r.p.id);
   (state.luPosLbl ||= {})[t.id] = d.v === 'pos';
