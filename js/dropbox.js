@@ -132,12 +132,26 @@ export async function dropboxShareLink(path) {
   throw new Error(json.error_summary || `Couldn't make a share link (${res.status})`);
 }
 // Upload a file in place (one file per save name, so its share link stays the same export after export).
-export async function dropboxUploadFixed(blob, name) {
-  const path = dropboxPath(name, dropboxConfig().folder);
-  const res = await contentCall(UPLOAD_URL, { path, mode: 'overwrite', autorename: false, mute: true }, blob);
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error_summary || `Upload failed (${res.status})`);
-  return json.path_display || path;
+// The upload with progress (onProgress(0..1)): XMLHttpRequest, since fetch can't report how much has gone up.
+function xhrUpload(url, arg, blob, token, onProgress) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', url);
+    x.setRequestHeader('Authorization', `Bearer ${token}`);
+    x.setRequestHeader('Dropbox-API-Arg', headerJson(arg));
+    x.setRequestHeader('Content-Type', 'application/octet-stream');
+    if (onProgress) x.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    x.onload = () => { let json = {}; try { json = JSON.parse(x.responseText); } catch { /* not JSON */ } resolve({ status: x.status, json }); };
+    x.onerror = () => reject(new Error('Network error: check your connection'));
+    x.send(blob);
+  });
+}
+export async function dropboxUploadFixed(blob, name, onProgress = null) {
+  const path = dropboxPath(name, dropboxConfig().folder), arg = { path, mode: 'overwrite', autorename: false, mute: true };
+  let r = await xhrUpload(UPLOAD_URL, arg, blob, await accessToken(), onProgress);
+  if (r.status === 401) { saveDropboxConfig({ accessToken: null, expires: 0 }); onProgress?.(0); r = await xhrUpload(UPLOAD_URL, arg, blob, await accessToken(), onProgress); }
+  if (r.status < 200 || r.status >= 300) throw new Error(r.json.error_summary || `Upload failed (${r.status})`);
+  return r.json.path_display || path;
 }
 
 // A Dropbox share link as a direct download (dl.dropboxusercontent.com, dl=1), and the file's name from its path.
