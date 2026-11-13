@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.61';
+const APP_VERSION = '0.365.62';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -11026,7 +11026,7 @@ screens.roster = (args) => {
         ${many ? `<button class="nav-btn" data-act="nav" data-replace="1" data-to="roster" data-arg="${nextT.id}" aria-label="Next team">▶</button>` : '<span></span>'}
       </div>
       ${teamHeader(t)}
-      ${!isCollege() ? `<div class="${isUserTeam(t) ? 'grid3' : 'grid2'} team-links"><button class="btn small" data-act="nav" data-to="lineup" data-arg="${t.id}">⏱️ Lineup</button>${isUserTeam(t) ? '<button class="btn small" data-act="nav" data-to="coaching">🧑‍🏫 My Coach</button>' : ''}<button class="btn small" data-act="nav" data-to="payroll" data-arg="${t.id}">🤝 Contracts</button></div>` : ''}
+      ${!isCollege() ? `<div class="${isUserTeam(t) ? 'grid3' : 'grid2'} team-links"><button class="btn small" data-act="nav" data-to="lineup" data-arg="${t.id}">⏱️ Lineup</button>${isUserTeam(t) ? '<button class="btn small" data-act="nav" data-to="coaching">🧑‍🏫 Coach</button>' : ''}<button class="btn small" data-act="nav" data-to="payroll" data-arg="${t.id}">🤝 Payroll</button></div>` : ''}
       ${movesBox(L, t)}
       ${rosterBreakdownBox(t)}
       <div class="list">${rows.map(({ p, d }) => playerRow(p, d)).join('')}</div>
@@ -12707,10 +12707,13 @@ function teamHeader(t) {
   const pts = teamPoints(L), mine = pts.rows.get(t.id);
   const box = (v, lbl, rk, cls = '', k = '') => `<div class="tap" data-act="teamStats" data-k="${k}"${pts.last ? ` data-yr="${L.season.currentYear - 1}"` : ''}><b class="${cls}">${v}</b><span>${lbl}</span><span class="rk-of">${ord(rk)}</span></div>`;
   return `${mine ? `<div class="stat-grid th-stats">${box(mine.ppg.toFixed(1), 'PPG', mine.ppgRk, '', 'ppg')}${box(mine.opp.toFixed(1), 'Opp PPG', mine.oppRk, '', 'opp')}${box(`${mine.diff >= 0 ? '+' : ''}${mine.diff.toFixed(1)}`, 'Diff', mine.diffRk, mine.diff >= 0 ? 'up' : 'down', 'margin')}</div>${pts.last ? '<p class="note small muted th-last">Last season</p>' : ''}` : ''}
-    ${isUserTeam(t) && t.frontOffice && isComplete() ? `<div class="grid2 team-mini">
-      <button class="btn small mini-box" data-act="nav" data-to="fanLog">👥 Fans <b>${t.frontOffice.fans ?? 50}</b></button>
-      <button class="btn small mini-box" data-act="nav" data-to="chemistry" data-arg="${t.id}">💙 Chemistry <b>${chemOf(t).avg}</b></button>
-    </div>` : ''}
+    ${isUserTeam(t) && t.frontOffice && isComplete() ? (() => {
+      // Two bars, half the screen each, colored by where they sit (red low, blue middle, green high). The label and the
+      // bar both open what moved it.
+      const bar = (ico, lbl, v, to, arg = '') => { v = Math.max(0, Math.min(100, Math.round(v))); const c = v >= 70 ? 'hi' : v >= 40 ? 'mid' : 'lo';
+        return `<div class="tm-meter tap" data-act="nav" data-to="${to}"${arg ? ` data-arg="${arg}"` : ''}><span class="tm-lbl">${ico} ${lbl} <b>${v}</b></span><span class="tm-bar ${c}"><i style="width:${v}%"></i></span></div>`; };
+      return `<div class="grid2 team-mini">${bar('👥', 'Fans', t.frontOffice.fans ?? 50, 'fanLog')}${bar('💙', 'Chemistry', chemOf(t).avg, 'chemistry', t.id)}</div>`;
+    })() : ''}
     ${FA.capSystemOn() ? capBar(t) : ''}`;
 }
 

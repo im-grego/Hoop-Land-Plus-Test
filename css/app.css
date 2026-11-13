@@ -1823,8 +1823,6 @@ a.btn { text-decoration: none; }
 /* My Team: History | Contracts, then the small Fans | Chemistry boxes. */
 .team-links { margin-bottom: 8px; }
 .team-mini { margin-bottom: 8px; }
-.team-mini .mini-box { white-space: nowrap; }   /* one row, the height of the other buttons */
-.team-mini .mini-box b { margin-left: 6px; }
 .team-mini { margin: 8px 0; }
 .team-hist { width: 100%; margin-top: 10px; }
 .dl-steps { margin: 8px 0 4px; padding-left: 20px; }
@@ -2527,3 +2525,13 @@ body::after {
 
 /* Injured: a white cross by the name */
 .inj-x { margin-left: 3px; color: #fff; font-weight: 900; font-size: 0.95em; text-shadow: 0 1px 0 #0008; }
+
+/* Team page: Fans and Chemistry as two half-width bars under a light-blue label */
+.tm-meter { display: flex; flex-direction: column; gap: 5px; cursor: pointer; }
+.tm-lbl { color: var(--cyan, #5ee7ff); font-weight: 800; font-size: 15px; white-space: nowrap; }
+.tm-lbl b { color: #fff; margin-left: 4px; }
+.tm-bar { display: block; height: 12px; background: #0b2f6b; border: 2px solid var(--btn-edge, #1b5fc1); }
+.tm-bar > i { display: block; height: 100%; }
+.tm-bar.hi > i { background: #4ade80; }
+.tm-bar.mid > i { background: #38bdf8; }
+.tm-bar.lo > i { background: #f87171; }
