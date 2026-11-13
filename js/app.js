@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.58';
+const APP_VERSION = '0.365.59';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -23640,10 +23640,23 @@ async function dbxShareFile(built) {
   const box = overlay(`<p class="note"><b>${copied ? '✅ Link copied' : 'Your link is ready'}</b></p>
     <p class="note small">In Hoop Land, import a season and paste it.</p>
     <input type="text" class="sel-team" readonly value="${esc(link)}" style="width:100%">
-    <div class="grid2" style="margin-top:8px"><button class="btn focus" data-act="dbxCopyAgain">📋 Copy Again</button><button class="btn off" data-act="dbxCloseBox">Done</button></div>`);
+    <div class="grid2" style="margin-top:8px"><button class="btn focus" data-copy>📋 ${copied ? 'Copy Again' : 'Copy Link'}</button><button class="btn off" data-done>Done</button></div>`);
   state.dbxLink = link; state.dbxBox = box;
+  // A pop-up sits outside the app, so its buttons answer here (the app's own tap handler never sees them).
+  const input = box.querySelector('input');
+  input.addEventListener('focus', () => input.select());
+  box.addEventListener('click', e => {
+    if (e.target.closest('[data-copy]')) actions.dbxCopyAgain();
+    else if (e.target.closest('[data-done]')) { actions.dbxCloseBox(); actions.home(); }
+  });
 }
-actions.dbxCopyAgain = async () => { try { await navigator.clipboard.writeText(state.dbxLink || ''); toast('Link copied'); } catch { const i = state.dbxBox?.querySelector('input'); i?.select(); toast('Select the link and copy it'); } };
+actions.dbxCopyAgain = async () => {
+  const i = state.dbxBox?.querySelector('input');
+  try { await navigator.clipboard.writeText(state.dbxLink || ''); toast('📋 Link copied'); return; } catch { /* try the older way */ }
+  // Older way (works on iOS when the clipboard API refuses): select the field and copy.
+  if (i) { i.removeAttribute('readonly'); i.focus(); i.setSelectionRange(0, i.value.length); const ok = document.execCommand && document.execCommand('copy'); i.setAttribute('readonly', ''); if (ok) { toast('📋 Link copied'); return; } }
+  toast('Select the link and copy it', '', 3000, true);
+};
 actions.dbxCloseBox = () => { state.dbxBox?.remove(); state.dbxBox = null; };
 
 actions.dbxUpload = async () => {
