@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.43';
+const APP_VERSION = '0.365.44';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -895,8 +895,16 @@ function render() {
       return Math.max(0, Math.min(to, document.documentElement.scrollHeight - vh));
     };
     // After the tap settles (iOS can drop a scroll made mid-tap), then once more if it didn't land.
-    setTimeout(() => { if (!glide.isConnected) return; if (Math.abs(window.scrollY - want()) > 8) window.scrollTo({ top: want(), behavior: 'smooth' });
-      setTimeout(() => { if (glide.isConnected && Math.abs(window.scrollY - want()) > 8) window.scrollTo({ top: want(), behavior: 'smooth' }); }, 650); }, 60);
+    // Your finger wins: any touch, wheel or key after the tap cancels the glide and its check, so you can scroll away.
+    let mine = false;
+    const off = () => { mine = true; for (const ev of ['touchstart', 'wheel', 'keydown', 'pointerdown']) window.removeEventListener(ev, off); };
+    setTimeout(() => { for (const ev of ['touchstart', 'wheel', 'keydown', 'pointerdown']) window.addEventListener(ev, off, { passive: true, once: true }); }, 0);
+    // Our own glide (eased, about a third of a second), checked every frame so a touch stops it dead.
+    const slide = to => { const from = window.scrollY, d = to - from, t0 = performance.now(), dur = Math.min(420, 180 + Math.abs(d) * 0.4);
+      const step = now => { if (mine) return; const k = Math.min(1, (now - t0) / dur), e = 1 - (1 - k) ** 3; window.scrollTo(0, from + d * e); if (k < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step); };
+    setTimeout(() => { if (mine || !glide.isConnected) return; if (Math.abs(window.scrollY - want()) > 8) slide(want());
+      setTimeout(() => { if (!mine && glide.isConnected && Math.abs(window.scrollY - want()) > 8) slide(want()); setTimeout(off, 500); }, 650); }, 60);
     top.y = null; lastView = view; return;
   }
   window.scrollTo(0, target);
