@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.54';
+const APP_VERSION = '0.365.55';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -15487,7 +15487,7 @@ function collegeRank(p, c, k) {
 const FLAG_CODE = { Spain: 'ES', Serbia: 'RS', France: 'FR', Germany: 'DE', Lithuania: 'LT', Turkey: 'TR', Italy: 'IT', Greece: 'GR', Israel: 'IL', Slovenia: 'SI', Australia: 'AU', 'New Zealand': 'NZ', USA: 'US', Canada: 'CA', Croatia: 'HR' };
 // The school logos bundled with the app (img/logos/college), named by the school.
 // Logos drawn in the school's own main color get a thin white outline so they show on that color.
-const LOGO_HALO = new Set([]);
+const LOGO_HALO = new Set(["Arizona State", "Iowa State", "Ohio State", "TCU", "Providence", "Nebraska", "SMU", "Houston", "Texas Tech", "Purdue", "Syracuse", "USC", "Arkansas", "St. John's", "Illinois", "Maryland", "Wisconsin", "Villanova", "Kansas"]);
 const schoolSlug = name => String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 function collegeBox(p) {
   const c = collegeLine(p, state.data.seasonLeagues);
