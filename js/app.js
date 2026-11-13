@@ -6,7 +6,7 @@ import { collegeProduction, productionWord, setDevPlans, PLAN_ATTRS, DEFAULT_PAR
 import { setMadeLines, groupOf as posGroupOf } from './draft.js';
 import { LOGO_MAP } from './logomap.js';
 import { setMadeGameScores, collegeGameScore } from './progression.js';
-import { makeLines } from './madeprod.js';
+import { makeLines, clubFor } from './madeprod.js';
 import { buildSchedule, needsSchedule } from './schedule.js';
 import { SCREEN_HELP, SECTION_HELP } from './helptext.js';
 import {
@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.45';
+const APP_VERSION = '0.365.46';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -254,6 +254,8 @@ function madeStore() {
 }
 // An overseas prospect's league, by country (filled in as the real leagues come in); "Professional league" otherwise.
 const INTL_LEAGUES = {};
+// Country codes some class files use.
+const COUNTRY = { FR: 'France', ES: 'Spain', RS: 'Serbia', CA: 'Canada', AU: 'Australia', NZ: 'New Zealand', US: 'USA', HU: 'Hungary', LT: 'Lithuania', LK: 'Lithuania', DE: 'Germany', GR: 'Greece', TR: 'Turkey', IT: 'Italy', SI: 'Slovenia', HR: 'Croatia' };
 const intlLeague = ped => { const c = /International \(([^)]+)\)/.exec(ped || '')?.[1]; return (c && INTL_LEAGUES[c]) || ''; };
 function makeClassLines(cls, yr, meta = labMeta()) {
   const need = cls.filter(p => !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0)));
@@ -261,7 +263,8 @@ function makeClassLines(cls, yr, meta = labMeta()) {
   const m = madeStore();
   // Placed against the whole class (made-up and real alike), so a real season and a made-up one sit on the same scale.
   const sch = assignSchools(cls, meta), progs = collegePrograms(), tierOf = p => { const s = sch[p.id]; return progs.find(x => x.li === s?.li && x.tid === s?.tid)?.kind || 'mid'; };
-  const lines = makeLines(cls, { yr, pedOf: p => meta[p.id]?.ped || '', salt: saveSalt(), tierOf, styleOf: p => meta[p.id]?.style || '', leagueOf: p => intlLeague(meta[p.id]?.ped || ''), rankOf: p => meta[p.id]?.rank ?? null });
+  const lines = makeLines(cls, { yr, pedOf: p => meta[p.id]?.ped || '', salt: saveSalt(), tierOf, styleOf: p => meta[p.id]?.style || '', leagueOf: p => intlLeague(meta[p.id]?.ped || ''), rankOf: p => meta[p.id]?.rank ?? null,
+    clubOf: p => { const c = /International \(([^)]+)\)/.exec(meta[p.id]?.ped || '')?.[1]; return c ? clubFor(COUNTRY[c] || c, { seed: (saveSalt() ^ Math.imul(p.id + 7, 2654435761)) >>> 0, rank: meta[p.id]?.rank ?? null }) : null; } });
   for (const p of need) if (!m[p.id]) m[p.id] = lines.get(p.id);
   try { localStorage.setItem(madeKey(), JSON.stringify(m)); } catch { /* storage full or blocked: lines stay for this session */ }
 }
@@ -15424,7 +15427,7 @@ function collegeBox(p) {
   // His college team's own logo and colors (like the draft's team boxes); the league ball when there's no team.
   const sc = c.li != null && c.tid != null ? { li: c.li, tid: c.tid } : c.school;
   const team = sc ? state.data.seasonLeagues[sc.li]?.teams?.find(x => x.id === sc.tid) : null, tint = team ? teamTint(team) : '';
-  return `<div class="outlook col-box" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${team ? logoImg(team) : COLLEGE_LOGO}<b>${esc(c.team)}</b><span class="status">${c.made && (c.intl || /^Pro club/.test(c.team)) ? 'Overseas' : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div>
+  return `<div class="outlook col-box" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${team ? logoImg(team) : COLLEGE_LOGO}<b>${esc(c.team)}</b><span class="status">${c.made && (c.intl || /^Pro club/.test(c.team)) ? esc(c.lg || 'Overseas') : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div>
     <p class="note small muted" style="margin:0">${c.gp} games · ${f(c.mpg)} MPG</p>
     <div class="statline">
       ${[['PTS', f(c.pts)], ['REB', f(c.reb)], ['AST', f(c.ast)], ['STL', f(c.stl)], ['BLK', f(c.blk)],

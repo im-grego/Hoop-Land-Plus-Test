@@ -40,7 +40,7 @@ function styleBends(style = '') {
 // tier: his school ('power' a powerhouse, 'mid' a top mid-major, 'other'): at a powerhouse a star shares the ball with
 // other pros (fewer shots, better looks); at a smaller school he carries it (more volume, harder shots).
 // style: the class's play-style label. league: an overseas prospect's pro league (shown with his country).
-export function makeLine(p, { yr, pct = 0.5, ped = '', salt = 0, tier = 'mid', style = '', league = '', rank = null } = {}) {
+export function makeLine(p, { yr, pct = 0.5, ped = '', salt = 0, tier = 'mid', style = '', league = '', rank = null, club = null } = {}) {
   const r = rng((salt ^ Math.imul((p.id || 0) + 101, 2654435761)) >>> 0);
   const g = () => { let u = 0; while (!u) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r()); };
   const { intl, where, year } = schoolYear(p, ped);
@@ -55,10 +55,13 @@ export function makeLine(p, { yr, pct = 0.5, ped = '', salt = 0, tier = 'mid', s
   const rankUp = rank == null ? 0 : rank <= 5 ? 0.12 : rank <= 14 ? 0.06 : rank <= 30 ? 0.02 : 0;
   const role = clamp(0.55 + pct * 0.42 + year * 0.05 + (stars - 4) * 0.06 + rankUp + luck, 0.4, 1.15);
   // Usage by school: a powerhouse spreads the shots, a mid-major leans on him, a small school runs everything through him.
-  const usage = intl ? 0.78 : tier === 'power' ? 0.92 : tier === 'other' ? 1.16 : 1.06;
-  const effAdj = intl ? -1.5 : tier === 'power' ? 1.5 : tier === 'other' ? -2 : -0.5;
-  const mpg = intl ? clamp(13 + role * 11 + g() * 2, 10, 30) : clamp(14 + role * 18 + g() * 1.5, 12, 36);
-  const gp = intl ? Math.round(clamp(24 + r() * 10, 18, 36)) : Math.round(clamp(29 + r() * 7 - (r() < 0.12 ? 6 + r() * 8 : 0), 14, 37));
+  // Overseas, the club decides: a EuroLeague team's deep roster keeps a teenager to spot minutes, a development club
+  // (Mega, Ulm, Metropolitans 92) or an NBL Next Stars spot plays him, Overtime Elite runs everything through him.
+  const lvl = club?.lvl || 'dev';
+  const usage = intl ? { elite: 0.7, dev: 0.82, nbl: 0.8, ote: 1.05 }[lvl] : tier === 'power' ? 0.92 : tier === 'other' ? 1.16 : 1.06;
+  const effAdj = intl ? { elite: -0.5, dev: -1.5, nbl: -1.5, ote: 0 }[lvl] : tier === 'power' ? 1.5 : tier === 'other' ? -2 : -0.5;
+  const mpg = intl ? ({ elite: clamp(9 + role * 9 + g() * 2, 6, 24), dev: clamp(13 + role * 12 + g() * 2, 10, 30), nbl: clamp(12 + role * 12 + g() * 2, 9, 28), ote: clamp(18 + role * 12 + g() * 1.5, 16, 33) })[lvl] : clamp(14 + role * 18 + g() * 1.5, 12, 36);
+  const gp = intl ? Math.round(clamp((lvl === 'elite' ? 30 : lvl === 'nbl' ? 26 : lvl === 'ote' ? 28 : 28) + r() * 8 - 4, 16, 40)) : Math.round(clamp(29 + r() * 7 - (r() < 0.12 ? 6 + r() * 8 : 0), 14, 37));
   const m = mpg / 32;
   const scoring = (cur(p, 'LAY') + cur(p, 'INS') + cur(p, 'MID') + cur(p, 'TPT') + cur(p, 'DRB') + cur(p, 'DNK') * 0.5) / 5.5;
   const pts = Math.max(0.5, mpg * (0.4 + 0.036 * (scoring - 8)) * (0.62 + role * 0.5) * usage * (1 + attackT * 0.05) * (1 + g() * 0.08));
@@ -79,17 +82,62 @@ export function makeLine(p, { yr, pct = 0.5, ped = '', salt = 0, tier = 'mid', s
   const fgm = Math.max(0, (pts - ftm - tpa * tp / 100) / 2 + tpa * tp / 100), fga = fg > 0 ? fgm / (fg / 100) : 0;
   const gs = (pts + 0.7 * reb + 0.7 * ast + stl + 0.7 * blk - 0.7 * tov - 0.4 * (fga - fgm) - 0.4 * (fta - ftm)) / mpg * 36;
   return {
-    yr, li: null, made: true, intl: !!intl, country: intl ? where : undefined,
-    team: intl ? `${league || 'Professional league'} · ${where}` : ['Freshman', 'Sophomore', 'Junior', 'Senior'][year] + ' season',
+    yr, li: null, made: true, intl: !!intl, country: intl ? where : undefined, lg: intl ? (club?.lg || league || 'Professional league') : undefined,
+    team: intl ? (club ? `${club.n} · ${club.ct}` : `${league || 'Professional league'} · ${where}`) : ['Freshman', 'Sophomore', 'Junior', 'Senior'][year] + ' season',
     gp, mpg: round1(mpg), pts: round1(pts), reb: round1(reb), ast: round1(ast), stl: round1(stl), blk: round1(blk), tov: round1(tov),
     fg: round1(fg), tp: tpa >= 0.3 ? round1(tp) : null, ft: round1(ft), tpa: round1(tpa), fta: round1(fta), gs: Math.round(gs * 100) / 100,
   };
 }
 
 // Lines for a whole class: each player's place in it, then his line.
-export function makeLines(cls, { yr, pedOf = () => '', salt = 0, tierOf = () => 'mid', styleOf = () => '', leagueOf = () => '', rankOf = () => null } = {}) {
+export function makeLines(cls, { yr, pedOf = () => '', salt = 0, tierOf = () => 'mid', styleOf = () => '', leagueOf = () => '', rankOf = () => null, clubOf = () => null } = {}) {
   const sums = cls.map(skillSum).sort((a, b) => a - b), n = Math.max(1, cls.length - 1);
   const out = new Map();
-  for (const p of cls) out.set(p.id, makeLine(p, { yr, pct: sums.indexOf(skillSum(p)) / n, ped: pedOf(p), salt, tier: tierOf(p), style: styleOf(p), league: leagueOf(p), rank: rankOf(p) }));
+  for (const p of cls) out.set(p.id, makeLine(p, { yr, pct: sums.indexOf(skillSum(p)) / n, ped: pedOf(p), salt, tier: tierOf(p), style: styleOf(p), league: leagueOf(p), rank: rankOf(p), club: clubOf(p) }));
   return out;
+}
+
+// Overseas clubs. lvl: elite (EuroLeague: deep rosters, spot minutes for a teenager), dev (clubs that play their
+// prospects), nbl (NBL Next Stars), ote (Overtime Elite). n: club, lg: league, ct: the club's country.
+const C = (n, lg, ct, lvl) => ({ n, lg, ct, lvl });
+export const CLUBS = {
+  euroElite: [C('Real Madrid', 'Liga ACB', 'Spain', 'elite'), C('FC Barcelona', 'Liga ACB', 'Spain', 'elite'), C('Baskonia', 'Liga ACB', 'Spain', 'elite'),
+    C('Partizan', 'ABA League', 'Serbia', 'elite'), C('Crvena Zvezda', 'ABA League', 'Serbia', 'elite'), C('ASVEL', 'LNB Élite', 'France', 'elite'),
+    C('AS Monaco', 'LNB Élite', 'France', 'elite'), C('Paris Basketball', 'LNB Élite', 'France', 'elite'), C('Bayern Munich', 'BBL', 'Germany', 'elite'),
+    C('Žalgiris Kaunas', 'LKL', 'Lithuania', 'elite'), C('Anadolu Efes', 'BSL', 'Turkey', 'elite'), C('Fenerbahçe', 'BSL', 'Turkey', 'elite'),
+    C('Olimpia Milano', 'Serie A', 'Italy', 'elite'), C('Virtus Bologna', 'Serie A', 'Italy', 'elite'), C('Panathinaikos', 'GBL', 'Greece', 'elite'),
+    C('Olympiacos', 'GBL', 'Greece', 'elite'), C('Maccabi Tel Aviv', 'Israeli League', 'Israel', 'elite')],
+  euroDev: [C('Mega Basketball', 'ABA League', 'Serbia', 'dev'), C('FMP', 'ABA League', 'Serbia', 'dev'), C('Cedevita Olimpija', 'ABA League', 'Slovenia', 'dev'),
+    C('Joventut Badalona', 'Liga ACB', 'Spain', 'dev'), C('Unicaja', 'Liga ACB', 'Spain', 'dev'), C('Palencia', 'Primera FEB', 'Spain', 'dev'),
+    C('Ratiopharm Ulm', 'BBL', 'Germany', 'dev'), C('Alba Berlin', 'BBL', 'Germany', 'dev'), C('Filathlitikos', 'GBL', 'Greece', 'dev'),
+    C('Rytas Vilnius', 'LKL', 'Lithuania', 'dev')],
+  france: [C('Metropolitans 92', 'LNB Élite', 'France', 'dev'), C('Cholet', 'LNB Élite', 'France', 'dev'), C('JL Bourg', 'LNB Élite', 'France', 'dev'),
+    C('Le Mans', 'LNB Élite', 'France', 'dev'), C('Saint-Quentin', 'LNB Élite', 'France', 'dev'), C('Nanterre 92', 'LNB Élite', 'France', 'dev'),
+    C('SIG Strasbourg', 'LNB Élite', 'France', 'dev')],
+  nbl: [C('New Zealand Breakers', 'NBL', 'New Zealand', 'nbl'), C('Illawarra Hawks', 'NBL', 'Australia', 'nbl'), C('Adelaide 36ers', 'NBL', 'Australia', 'nbl'),
+    C('Melbourne United', 'NBL', 'Australia', 'nbl'), C('Sydney Kings', 'NBL', 'Australia', 'nbl'), C('Perth Wildcats', 'NBL', 'Australia', 'nbl'),
+    C('Cairns Taipans', 'NBL', 'Australia', 'nbl'), C('Brisbane Bullets', 'NBL', 'Australia', 'nbl')],
+  ote: [C('Overtime Elite', 'OTE', 'USA', 'ote')],
+};
+// Where a prospect from each country plays: [pool, weight]. The best prospects lean to the clubs that play them.
+const ROUTES = {
+  France: [['france', 6], ['euroElite', 2], ['euroDev', 1]],
+  Spain: [['euroElite', 3], ['euroDev', 2]],
+  Serbia: [['euroDev', 3], ['euroElite', 2]],
+  Canada: [['nbl', 3], ['ote', 2], ['euroDev', 2], ['france', 1]],
+  Australia: [['nbl', 5], ['euroDev', 1]],
+  'New Zealand': [['nbl', 5], ['euroDev', 1]],
+  USA: [['ote', 3], ['nbl', 2], ['euroDev', 1]],
+};
+const ROUTE_ANY = [['euroDev', 4], ['euroElite', 2], ['france', 2], ['nbl', 1]];
+export function clubFor(country, { seed = 0, rank = null } = {}) {
+  const r = rng(seed >>> 0), routes = ROUTES[country] || ROUTE_ANY;
+  // A top-ten prospect usually plays: development clubs, the NBL or Overtime Elite over a EuroLeague bench.
+  const w = routes.map(([k, v]) => [k, rank != null && rank <= 10 && k === 'euroElite' ? v * 0.4 : v]);
+  let x = r() * w.reduce((a, [, v]) => a + v, 0), pool = w[0][0];
+  for (const [k, v] of w) { if ((x -= v) <= 0) { pool = k; break; } }
+  const list = CLUBS[pool];
+  // Home clubs first when the pool has one from his own country.
+  const home = list.filter(c => c.ct === country), pick = home.length && r() < 0.6 ? home : list;
+  return pick[Math.floor(r() * pick.length)];
 }
