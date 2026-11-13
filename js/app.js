@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.28';
+const APP_VERSION = '0.365.29';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2747,6 +2747,23 @@ function recallSetup() {
   state.setupCheck = null;
   const L = league();
   if (isCollege() || state.leagueFile) return;
+  // The game's saves carry no id, so a new save under the same name and team looks like the last one. A save that's
+  // earlier than the furthest this record has seen (an earlier season, or fewer games played) is a new save (or an
+  // older file): the Realistic NBA card is offered again and the realistic draft classes it hasn't reached are re-armed.
+  try {
+    const k = setupKey(L), rec = JSON.parse(localStorage.getItem(k) || 'null');
+    if (rec) {
+      const cur = [L.season.currentYear, L.meta?.uGID || 0], seen = rec.seen || [rec.year || 0, 0];
+      const earlier = cur[0] < seen[0] || (cur[0] === seen[0] && cur[1] + 5 < seen[1]);
+      if (earlier) {
+        delete rec.nbaSetup; delete rec.nbaSkip;
+        const dy = draftYear(L);
+        for (const x of Object.keys(rec)) { const m = /^realclass(\d+)$/.exec(x); if (m && +m[1] >= dy) delete rec[x]; }
+      }
+      rec.seen = earlier || cur[0] > seen[0] || (cur[0] === seen[0] && cur[1] > seen[1]) ? cur : seen;
+      localStorage.setItem(k, JSON.stringify(rec));
+    }
+  } catch { /* ignore */ }
   const own = setupFlags();
   if (own.anchors) { const sc = own.team === L.season.teamId ? setupScore(own, L) : 0; state.setupCheck = { kind: sc >= 0.6 ? 'verified' : 'other', score: sc }; if (sc >= 0.6) return; }
   let best = null;
@@ -2954,7 +2971,6 @@ function calendarCard() {
   };
   // The current event on top (gold), the calendar under it, then the rest of the offseason.
   return `<fieldset class="frame"><legend>${dispYr(s.currentYear)} Offseason</legend>
-    ${nbaSetupCard()}
     ${cur ? `<ol class="calendar cal-first">${item(cur)}</ol>` : '<p class="note up">🏁 Offseason complete.</p>'}
     ${calendarGrid(cal, cur)}
     <details class="cal-all"><summary>All steps</summary><ol class="calendar">${cal.filter(st => st !== cur).map(item).join('')}</ol></details>
@@ -3909,6 +3925,7 @@ screens.main = () => {
           <span class="note small">${CAR.isCareer(L) ? 'Career mode' : `Your ${isCollege() || isFranchise() ? (isCollege() ? 'school' : 'team') : 'teams'}: ${esc(yourTeams)}`}</span></div>
       </div>`}
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
+      ${nbaSetupCard()}
       ${sCard}
       ${nextGameCard()}
       ${mediaCard()}
