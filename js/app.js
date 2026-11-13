@@ -1,5 +1,5 @@
 import {
-  parseSave, serializeSave, FT_MAX, attrCap, injuryHistory, ATTRS, ATTR_NAMES, PHYSICAL, attrMin, skillName, skillCategory, sortSkills, isEliteSkill, isFreeSkill, ELITE_REQUIREMENTS, ELITE_MIN, ATTR_MAX, activeSkills, isLeveled, CATEGORIES, SKILL_MAX_LEVEL, SKILL_CATEGORIES, POSITIONS, MODE_NAMES, phaseName, BUMP_PHASES, BUMP_DAY, POT_MIN, POT_MAX, regressionYear, injuryName, injuryPart, PHASE_POST_DRAFT, PHASE_PRE_DRAFT, PHASE_PRE_LOTTERY, PHASE_FREE_AGENCY, leagueRookies, draftYear, jerseyNumber,
+  parseSave, serializeSave, FT_MAX, attrCap, injuryHistory, ATTRS, ATTR_NAMES, PHYSICAL, attrMin, skillName, skillCategory, sortSkills, isEliteSkill, isFreeSkill, ELITE_REQUIREMENTS, ELITE_MIN, ATTR_MAX, activeSkills, isLeveled, CATEGORIES, SKILL_MAX_LEVEL, SKILL_CATEGORIES, POSITIONS, MODE_NAMES, phaseName, BUMP_PHASES, BUMP_DAY, POT_MIN, POT_MAX, POT_EDIT_MAX, regressionYear, injuryName, injuryPart, PHASE_POST_DRAFT, PHASE_PRE_DRAFT, PHASE_PRE_LOTTERY, PHASE_FREE_AGENCY, leagueRookies, draftYear, jerseyNumber,
   setBlessed, playerName, heightStr, avgRating, lastSeasonMpg, leaguePlayers, snapshot, restore, diffPlayer, jerseyClashes, fixJerseyNumbers, undoJerseyNumbers, levelOf, cloneData, MINOR_INJURY, potCap, ceilTotal, canGrow,
 } from './savefile.js';
 import { collegeProduction, productionWord, setDevPlans, PLAN_ATTRS, DEFAULT_PARAMS, runProgression, buildSkillProfiles, rankSkillsFor, unlockSkill, mulberry32, runRookieBump, injuryRisk, earnsNaturalLongevity, productionScores, spendHeldPoints } from './progression.js';
@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.56';
+const APP_VERSION = '0.365.57';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -1775,7 +1775,7 @@ function buildExport() {
   }
   if (!isCollege()) settleRetirees(league(), true);   // anyone still retiring off a roster (yours included) goes now
   if (!isCollege() && league().season.phase === 6) { exportCuts(league()); cutWeakSeconds(league()); floorFill(league()); gameCapCheck(league(), league().season.salaryCap); rebuildBlock(league()); for (const t of league().teams) if (!isUserTeam(t) && t.roster.length) applyLu(t, defaultPlan(t)); }
-  if (!isCollege()) { fixLineups(league()); pruneStaleNews(league()); proLeagueFlags(league()); }
+  if (!isCollege()) { fixLineups(league()); pruneStaleNews(league()); proLeagueFlags(league()); clearStaleOptions(league()); }
   if (!isCollege()) pickWindow(league());
   // The game made the season's schedule before the expansion draft: new teams would have no games. Rebuild it.
   if (!isCollege() && needsSchedule(league())) {
@@ -1870,8 +1870,28 @@ actions.download = async () => {
   if (!(await giveFile(file))) return;
   state.dirty = false;
   countEvent('save-exported');
-  toast('Season file saved');
+  afterSave(file);
 };
+// Saved: the same file can go to the clipboard or to Dropbox (with its link copied for Hoop Land's season import).
+function afterSave(file) {
+  const dbx = dbxOn() ? (dropboxConnected() ? '<button class="btn focus" data-dbx>📤 Upload to Dropbox &amp; Copy Link</button>' : '<button class="btn" data-dbxc>🌐 Connect Dropbox (one time)</button>') : '';
+  const box = overlay(`<p class="note"><b>✅ Season file saved</b><br><span class="small">${esc(file.name)}</span></p>
+    <div class="stack">${dbx}<button class="btn" data-copy>📋 Copy the File to the Clipboard</button><button class="btn off" data-x>Done</button></div>`);
+  box.addEventListener('click', async e => {
+    if (e.target.closest('[data-x]')) { box.remove(); return; }
+    if (e.target.closest('[data-dbx]')) { box.remove(); dbxShareFile(file); return; }
+    if (e.target.closest('[data-dbxc]')) { box.remove(); actions.dbxConnectOnce(); return; }
+    if (e.target.closest('[data-copy]')) {
+      // Inside the tap: a promised clipboard item where there is one (Safari), plain text otherwise.
+      try {
+        if (window.ClipboardItem && navigator.clipboard?.write) await navigator.clipboard.write([new ClipboardItem({ 'text/plain': file.text().then(s => new Blob([s], { type: 'text/plain' })) })]);
+        else await navigator.clipboard.writeText(await file.text());
+        toast('📋 File copied', `${(file.size / 1e6).toFixed(1)} MB on the clipboard`);
+        box.remove();
+      } catch (err) { toast('Copy didn\'t work here', err?.message || 'The browser blocked the clipboard.', 4000, true); }
+    }
+  });
+}
 
 // The game's cap setting in a league file is this season's 2nd apron (the
 // highest line, room for in-season moves); the max contract tiers are scaled
@@ -2383,7 +2403,7 @@ const isFranchise = () => { const L = league(); return L.season.mode === 0 && L.
 // Paused features: steps kept in the code but out of the app until they're ready to show.
 // Summer League is back (Jul 3, after Contracts): the rookies' deals, their numbers, the age adjustment and the
 // tournament in Las Vegas, all on its own step.
-const PAUSED = new Set(['vote', 'exhib', 'rotation']);
+const PAUSED = new Set(['vote', 'exhib', 'rotation', 'projections']);   // projections: not ready yet
 // Offseason events still on the test site only (the live site skips them).
 const LAB_STEPS = new Set(['coachCarousel', 'tradeNight', 'nego', 'schedRelease']);
 const activeCal = () => (state.campusPro ? campusProCal() : isCollege() ? COLLEGE_CAL : CALENDAR.filter(st => !PAUSED.has(st.key) && (st.key !== 'office' || !(isFranchise() || CAR.isCareer(league()))) && (st.key !== 'latefa' || isComplete()) && (!['owner', 'medical', 'exhib', 'rotation', 'vote'].includes(st.key) || !CAR.isCareer(league())) && (st.key !== 'expansion' || !!expThisYear()) && (st.key !== 'olympics' || olyOn()) && (!LAB_STEPS.has(st.key) || labOn())));   // a career save runs no team
@@ -13336,7 +13356,7 @@ actions.regAge = d => {
 
 actions.potAdj = d => {
   const p = currentPlayer();
-  p.pot = Math.max(POT_MIN, Math.min(POT_MAX, p.pot + +d.dir));
+  p.pot = Math.max(POT_MIN, Math.min(POT_EDIT_MAX, p.pot + +d.dir));   // by hand up to 12; nothing else takes him past 10
   state.dirty = true;
   render();
 };
@@ -15330,7 +15350,12 @@ actions.wkFold = (d, el, e) => {
 actions.workoutAll = () => replace('workouts', { ...(state.stack[state.stack.length - 1].args || {}), all: true });
 
 // College class from years already played (Hoop Land's `yrs`).
-const classYear = p => ['Fr', 'So', 'Jr', 'Sr'][Math.max(0, Math.min(3, p.yrs ?? (p.age - 18)))];
+// His class: the one his scouting background names (Freshman…Senior) when it has one, so the chip, the background line
+// and the stats box agree; otherwise from his years in school.
+const classYear = p => {
+  const named = ['Freshman', 'Sophomore', 'Junior', 'Senior'].findIndex(w => (labMeta()[p.id]?.ped || '').includes(w));
+  return ['Fr', 'So', 'Jr', 'Sr'][named >= 0 ? named : Math.max(0, Math.min(3, p.yrs ?? (p.age - 18)))];
+};
 
 
 // Front Office: your trade block, offers from around the league, and your
@@ -17883,14 +17908,14 @@ function talksBox(done) {
       .sort((a, b) => shownLevel(b.p) - shownLevel(a.p)).slice(0, 15);   // best players first
     const c = headCoachOf(t), m = (c?.attributes?.motivation?.[0] ?? 0) / 2;
     return `<fieldset class="frame"><legend>🗣️ Player Meetings${teams.length > 1 ? ` · ${esc(t.shortName)}` : ''}</legend>
-      <p class="note small"><b>${Math.max(0, left)}</b> of ${budget} talks left${m >= 6 ? ` · ${esc(c.ln)} is a motivator (+${m >= 8 ? 2 : 1})` : ''}${tierNow('scheme') ? ` · coaching tree +${tierNow('scheme')}` : ''}. Coachable players take more from a talk; a habit moves at most ${lim} from where the offseason started.</p>
+      <p class="note small"><b>${Math.max(0, left)}</b> of ${budget} talks left${m >= 6 ? ` · ${esc(c.ln)} is a motivator (+${m >= 8 ? 2 : 1})` : ''}${tierNow('scheme') ? ` · coaching tree +${tierNow('scheme')}` : ''}. A talk works on the one habit named; coachable and young players take a bigger step; a habit moves at most ${lim} from where the offseason started.</p>
       <div class="stack talk-list">${rows.map(({ p, pts }) => {
         const did = ts[p.id], coach = coachVal(p);
         const head = `<p class="note small" style="margin:0"><b>${esc(playerName(p))}</b> ${lvTag(p)} <span class="muted">${p.age}y</span>${coach >= 16 ? ' <span class="badge talk-coach">📚 Coachable</span>' : coach <= 4 ? ' <span class="badge talk-uncoach">🙉 Uncoachable</span>' : ''}</p>`;
         if (did) { const T = TK.TOPICS[did.topic], msg = T[did.dir]; return `<div class="pq">${head}<p class="note small">${msg.icon} "${esc(msg.says)}" ${did.changes.length ? did.changes.map(([k, a, b]) => `<span class="${b > a ? 'up' : 'down'}">${esc(TEND_LABELS[k] || k)} ${a > 0 ? '+' : ''}${a}→${b > 0 ? '+' : ''}${b}</span>`).join(' · ') : '<span class="down">He tuned it out.</span>'}</p>${done ? '' : `<button class="btn tiny off" data-act="talkUndo" data-id="${p.id}">Take it back</button>`}</div>`; }
         if (done) return '';
         return `<div class="pq">${head}${pts.map(x => { const T = TK.TOPICS[x.topic], w = x.why; return `<p class="note small muted" style="margin:4px 0 2px">${esc(T.label)}: ${esc(ATTR_NAMES[w.a] || w.a)} ${w.r} with a habit of ${w.t > 0 ? '+' : ''}${w.t}${x.fit === 'down' && w.capped ? ` · <span class="down">🚫 bad habit, can't reach 10 (ceiling ${w.ceil})</span>` : ''}</p>
-          <div class="grid2">${['up', 'down'].map(dir => `<button class="btn small ${dir === x.fit ? 'focus' : 'off'}" data-act="talkGive" data-id="${p.id}" data-t="${x.topic}" data-d="${dir}" ${left <= 0 ? 'disabled' : ''}>${T[dir].icon} ${esc(T[dir].label)}${dir === x.fit ? ' ✓' : ''}</button>`).join('')}</div>`; }).join('')}</div>`;
+          <div class="grid2">${['up', 'down'].map(dir => `<button class="btn small ${dir === x.fit ? 'focus' : 'off'}" data-act="talkGive" data-id="${p.id}" data-t="${x.topic}" data-d="${dir}" data-k="${w.k}" ${left <= 0 ? 'disabled' : ''}>${T[dir].icon} ${esc(T[dir].label)}${dir === x.fit ? ' ✓' : ''}</button>`).join('')}</div>`; }).join('')}</div>`;
       }).join('') || '<p class="note small muted">Everyone\'s habits fit their game. Nothing to fix.</p>'}</div></fieldset>`;
   }).join('');
 }
@@ -17900,7 +17925,7 @@ actions.talkGive = d => {
   if (!p || ts[p.id] || calFlags().meeting || talkUsed(t) >= TK.talkBudget(headCoachOf(t), tierNow('scheme'))) return;
   const st = tendStore();
   if (!st.orig[p.id]) st.orig[p.id] = { ...p.tendencies };
-  const changes = TK.haveTalk(p, d.t, d.d, { orig: st.orig[p.id], lim: CO.maxShift(tierNow('scheme'), fxNow()) + 1, rng: mulberry32((saveSalt() ^ Math.imul(p.id + 41, 2654435761)) >>> 0) });
+  const changes = TK.haveTalk(p, d.t, d.d, { orig: st.orig[p.id], lim: CO.maxShift(tierNow('scheme'), fxNow()) + 1, rng: mulberry32((saveSalt() ^ Math.imul(p.id + 41, 2654435761)) >>> 0), key: d.k || null });
   ts[p.id] = { topic: d.t, dir: d.d, changes };
   saveTend(); state.dirty = true; render();
 };
@@ -18750,6 +18775,18 @@ function reopenOptions() {
   return n;
 }
 
+// A team or player option on a deal already in its last year is stale (the option year is this one): the file goes out
+// without it, so the game doesn't show (TO)/(PO) or ask again. A pending extension stays. Not while this offseason's
+// option calls are still open (that's when a final-year option is real).
+function clearStaleOptions(L) {
+  if (isCollege() || (phaseRank(L.season) >= 1 && phaseRank(L.season) < 4 && !(optStore().done && extStore().done))) return 0;
+  let n = 0;
+  for (const p of [...L.teams.flatMap(t => t.roster), ...(L.freeAgents || [])]) {
+    const c = p.contract;
+    if (c && (c.yrs || 0) <= 1 && c.opt > 0) { c.opt = 0; n++; }
+  }
+  return n;
+}
 const optionPlayers = L => L.teams.flatMap(t => t.roster.filter(p => p.contract && (p.status === FA.STATUS_SIGNED || p.status === FA.STATUS_EXPIRING) && (p.contract.yrs || 0) <= 1 && (p.contract.opt === 1 || p.contract.opt === 2)).map(p => ({ p, team: t })));
 const marketValue = p => fairSalary(shownLevel(p));
 // Qualifying offer amount (NBA CBA): a first-rounder off his rookie deal
@@ -23537,7 +23574,7 @@ function labOn() { try { const v = localStorage.getItem('hlc:lab'); if (v === '0
 try { const q = new URLSearchParams(location.search).get('lab'); if (q === 'off') localStorage.setItem('hlc:lab', '0'); else if (q === 'on') localStorage.setItem('hlc:lab', '1'); } catch { /* ignore */ }
 setCoachMarketV2(labOn());
 devlogAuto();   // the newer coach market: test site only
-function dbxOn() { return !!BUILT_IN_APP_KEY && !inArtifact() && labOn(); }
+function dbxOn() { return !!BUILT_IN_APP_KEY && !inArtifact(); }   // one-tap Dropbox: on everywhere now
 (() => {
   const q = new URLSearchParams(location.search);
   const sw = q.get('dropbox') || q.get('lab');
@@ -23563,17 +23600,20 @@ function dbxShareBox() {
 // The installed app keeps its own storage, apart from the browser, so it can't take Dropbox's redirect: there Dropbox
 // shows a code to paste. In a browser tab the sign-in opens in a new tab and comes straight back.
 actions.dbxConnectOnce = async () => {
-  const installed = runningInstalled();
+  // The live site signs in with Dropbox's code to paste (no return address to register); the test site comes straight back.
+  const installed = runningInstalled() || liveSite();
   const w = window.open('', '_blank');
   const url = await dropboxAuthUrl(BUILT_IN_APP_KEY, installed ? null : new URL(".", location.href).href.split("?")[0]);
   if (w) w.location = url; else location.assign(url);
   render();
   toast(installed ? 'Allow access, then paste the code here' : 'Allow access in the new tab', '', 4000);
 };
-actions.dbxShare = async () => {
+actions.dbxShare = () => dbxShareFile(null);
+// Upload a season file (built now, or the one just saved) and copy its link for Hoop Land.
+async function dbxShareFile(built) {
   const o = overlay('<div class="spinner"></div><p class="note">Uploading to Dropbox…</p>');
   // Start the clipboard write inside the tap (Safari needs it there), filled in when the link is ready.
-  const work = (async () => { await nextFrame(); const file = buildExport(); const path = await dropboxUploadFixed(file, file.name); return dropboxShareLink(path); })();
+  const work = (async () => { await nextFrame(); const file = built || buildExport(); const path = await dropboxUploadFixed(file, file.name); return dropboxShareLink(path); })();
   let copied = false;
   const early = (window.ClipboardItem && navigator.clipboard?.write)
     ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': work.then(u => new Blob([u], { type: 'text/plain' })) })]).then(() => { copied = true; }).catch(() => {})
@@ -23590,7 +23630,7 @@ actions.dbxShare = async () => {
     <input type="text" class="sel-team" readonly value="${esc(link)}" style="width:100%">
     <div class="grid2" style="margin-top:8px"><button class="btn focus" data-act="dbxCopyAgain">📋 Copy Again</button><button class="btn off" data-act="dbxCloseBox">Done</button></div>`);
   state.dbxLink = link; state.dbxBox = box;
-};
+}
 actions.dbxCopyAgain = async () => { try { await navigator.clipboard.writeText(state.dbxLink || ''); toast('Link copied'); } catch { const i = state.dbxBox?.querySelector('input'); i?.select(); toast('Select the link and copy it'); } };
 actions.dbxCloseBox = () => { state.dbxBox?.remove(); state.dbxBox = null; };
 
@@ -23627,6 +23667,7 @@ function leagueTraitsIn(L) {
 function buildLeagueExport() {
   const L = state.data.seasonLeagues[0];
   cleanCoachPool(L);   // free-agent coaches go out clean, so the game lists them
+  if (!isCollege()) clearStaleOptions(L);
   const keep = new Map();
   for (const p of edPlayers(L)) {
     if (!p.traits) continue;

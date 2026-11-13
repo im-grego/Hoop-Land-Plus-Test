@@ -69,10 +69,20 @@ export function reach(p, topic, dir) {
 // Have the talk: move his tendencies in the message's direction, the biggest gaps first (any of the topic's habits
 // when nothing is out of line). orig: where he started the offseason (a habit moves at most `lim` from it).
 // Returns the changes [[k, from, to]] (empty when he tuned it out).
-export function haveTalk(p, topic, dir, { orig = null, lim = 3, rng = Math.random } = {}) {
+export function haveTalk(p, topic, dir, { orig = null, lim = 3, rng = Math.random, key = null } = {}) {
   const t = p.tendencies, r = reach(p, topic, dir), sign = dir === 'up' ? 1 : -1;
   if (!t || rng() < r.deaf) return [];
   const o = orig || t;
+  // A talk about one habit (the one named on the card) moves only that habit: a coachable or young player takes a
+  // bigger step on it (2), everyone else 1.
+  if (key && t[key] !== undefined) {
+    const step = r.n >= 3 ? 2 : 1;
+    const to = clampT(Math.max((o[key] ?? 0) - lim, Math.min((o[key] ?? 0) + lim, t[key] + sign * step)));
+    if (to === t[key]) return [];
+    const out = [[key, t[key], to]];
+    t[key] = to;
+    return out;
+  }
   // The habits out of line in this direction; when none are, the one closest to it (he still hears the message).
   const all = gaps(p, topic).sort((a, b) => sign * (b.gap - a.gap) || sign * (b.r - a.r));
   const order = all.filter(x => sign * x.gap >= 1).length ? all.filter(x => sign * x.gap >= 1) : all.slice(0, 1);

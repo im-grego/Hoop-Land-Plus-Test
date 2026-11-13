@@ -210,7 +210,8 @@ export const draftYear = league => league.season.currentYear - (league.leagueTyp
 
 // Regression starts once a player's age passes their regressionAge.
 export const POT_MIN = 4;
-export const POT_MAX = 10; // 11 exists as a secret level; never set by the app
+export const POT_MAX = 10; // the most a player ever reaches on his own (growth, progression, classes)
+export const POT_EDIT_MAX = 12; // by hand in the editor only (11 is the game's secret level)
 export const regressionYear = p => p.age - p.regressionAge; // 1 = first year of decline
 
 // Injury type: body area + code (core 1-5, upperBody 1-6, lowerBody 1-10),
@@ -450,7 +451,7 @@ export function undoJerseyNumbers(changes) {
 const SKILL_KEYS = ['LAY', 'DNK', 'INS', 'MID', 'TPT', 'FTS', 'DRB', 'PAS', 'ORE', 'DRE', 'STL', 'BLK'];
 // Potential as a total: the 12 skill ceilings a player can reach add up to 168 at potential 10 and 14 less for every
 // half star below (154 at 9, 140 at 8, ... 84 at 4), 182 for the secret legend tier. The game's own ceilings sit on it.
-export const potCap = p => (p.pot >= 11 ? 182 : 168 - 14 * (10 - (p.pot || 0)));
+export const potCap = p => 168 - 14 * (10 - Math.min(12, p.pot || 0));   // 11: 182, 12: 196 (set by hand)
 export const ceilTotal = p => SKILL_KEYS.reduce((a, k) => a + (p.attributes?.[k]?.[1] ?? 0), 0);
 // Can this skill rating go up a point? Under its ceiling always; at the ceiling only while his ceilings still have
 // room under his potential (the ceiling rises with it). Physicals have no ceiling: they move freely.

@@ -73,7 +73,8 @@ let SCARCE = new Map(), GROUP = () => null;
 export function setScarcity(map, groupFn) { SCARCE = map || new Map(); GROUP = groupFn || (() => null); }
 export const scarcityOf = p => SCARCE.get(GROUP(p)) ?? 1;
 // Each half-star of ceiling roughly doubles what youth is worth at the top: 4.5 stars about twice 4, 5 about twice 4.5.
-const POT_WEIGHT = { 6: 0.5, 7: 1.5, 8: 3, 9: 6, 10: 12 };
+// Each step up doubles from 4 stars (8) on, the same jump as 4.5 to 5 stars; 11 and 12 are set by hand only.
+const POT_WEIGHT = { 6: 0.5, 7: 1.5, 8: 3, 9: 6, 10: 12, 11: 24, 12: 48 };
 export function playerValue(p, leagueIdx, year) {
   const l = seasonLine(p, leagueIdx, year);
   const gs = l ? Math.max(0, l.gs) * Math.min(1, l.gp / 40) : 0;
