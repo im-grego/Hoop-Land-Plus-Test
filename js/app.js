@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.29';
+const APP_VERSION = '0.365.30';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2820,17 +2820,19 @@ const NBA_SETUP = [
   { k: 'rules', title: 'Complete trade rules', text: 'Salary matching, the Stepien rule, pick protections, no-trade clauses and trade requests.' },
   { k: 'picks', title: 'Real draft picks', text: 'Every traded pick (2027-2033) moves to the team that really owns it, with its protections and swaps.' },
   { k: 'dead', title: 'Real dead cap', text: 'Stretched contracts on the books: Lillard on Milwaukee, Beal on Phoenix.' },
-  { k: 'history', title: 'History from 1977', text: 'The save starts its history at the merger, so you can scroll back through every season\'s standings, awards and stats since.' },
   { k: 'expansion', title: 'Expansion after the 2029 season', text: 'The Seattle Sonics and Las Vegas Venom join in the 2029 offseason (a summer after the Olympics): protected lists and the expansion draft after the lottery, and they play from the 2030 season.' },
-  { k: 'classes', title: 'Realistic draft classes', text: `Hand-built classes for the ${RDC.REAL_CLASS_YEARS.join(', ')} drafts, varied every time (ratings, play-style tendencies re-rolled, personality, a few potentials up or down a step) with the same number of 5-star and 4.5-star players.` },
+  ...RDC.REAL_CLASS_YEARS.map(y => ({ k: `class${y}`, title: `Realistic ${y} draft class`, text: `Replaces the game's ${y} class when the save reaches that draft, varied for this save.` })),
+  { k: 'history', title: 'History from 1977', text: 'The save starts its history at the merger, so you can scroll back through every season\'s standings, awards and stats since.' },
 ];
+// Which realistic classes this device puts in (all three unless some were turned off).
+const realClassYears = () => (Array.isArray(state.params.realClassYears) ? state.params.realClassYears : RDC.REAL_CLASS_YEARS);
 // Realistic draft classes (realclasses.js): when a save reaches the offseason before one of those drafts (before the
 // draft itself), the hand-built class replaces the game's, varied for this save. Once per save and year; a year whose
 // file isn't in data/classes yet is skipped quietly.
 async function realClassCheck() {
   if (!state.data || isCollege() || state.params.realClasses !== true) return;
   const L = league(), yr = draftYear(L), f = setupFlags();
-  if (!RDC.REAL_CLASS_YEARS.includes(yr) || ![2, 4].includes(L.season.phase) || f[`realclass${yr}`]) return;
+  if (!RDC.REAL_CLASS_YEARS.includes(yr) || !realClassYears().includes(yr) || ![2, 4].includes(L.season.phase) || f[`realclass${yr}`]) return;
   if ((state.realClassTried ||= new Set()).has(`${saveTag()}:${yr}`)) return;
   state.realClassTried.add(`${saveTag()}:${yr}`);
   let json = null;
@@ -2877,7 +2879,7 @@ function nbaSetupCard() {
     <button class="btn tiny off" data-act="nbaSetupSkip" aria-label="Not now">✕</button></div>`;
 }
 screens.nbaSetup = () => {
-  const f = setupFlags(), on = state.nbaSel ||= Object.fromEntries(NBA_SETUP.map(x => [x.k, x.k !== 'history']));
+  const f = setupFlags(), on = state.nbaSel ||= Object.fromEntries(NBA_SETUP.map(x => [x.k, true]));
   const done = k => (k === 'picks' && f.picks) || (k === 'dead' && f.dead) || (k === 'expansion' && !!expStore()?.real);
   layout({
     title: 'Realistic NBA',
@@ -2887,10 +2889,16 @@ screens.nbaSetup = () => {
     action: { act: 'nbaSetupApply', label: 'Apply' },
   });
 };
-actions.nbaSetupToggle = d => { const on = state.nbaSel ||= Object.fromEntries(NBA_SETUP.map(x => [x.k, x.k !== 'history'])); on[d.k] = !on[d.k]; render(); };
+actions.nbaSetupToggle = d => { const on = state.nbaSel ||= Object.fromEntries(NBA_SETUP.map(x => [x.k, true])); on[d.k] = !on[d.k]; render(); };
+actions.setRealYear = d => {
+  const y = +d.y, cur = realClassYears();
+  state.params.realClassYears = cur.includes(y) ? cur.filter(x => x !== y) : [...cur, y].sort();
+  if (!state.params.realClassYears.length) state.params.realClasses = false;
+  saveParams(); render();
+};
 actions.nbaSetupSkip = () => { setSetupFlag('nbaSkip'); render(); };
 actions.nbaSetupApply = () => {
-  const on = state.nbaSel || Object.fromEntries(NBA_SETUP.map(x => [x.k, x.k !== 'history'])), f = setupFlags();
+  const on = state.nbaSel || Object.fromEntries(NBA_SETUP.map(x => [x.k, true])), f = setupFlags();
   checkpoint('Realistic NBA setup');
   state.params.capSystem = !!on.cap;
   setDepth(on.rules ? 'complete' : 'simple');
@@ -2900,9 +2908,11 @@ actions.nbaSetupApply = () => {
   if (on.picks && !f.picks) { const r = applyRealPicksNow(); out.push(`${r.moved} picks moved`); }
   if (on.dead && !f.dead) { const n = addRealDeadNow(); if (n) out.push('dead cap added'); }
   if (on.expansion) { const r = realExpansionPlan(); if (r === 'set') out.push('Seattle and Las Vegas join after the 2029 season'); else if (r === 'past') out.push('the 2029 expansion has already passed in this save'); }
-  state.params.realClasses = !!on.classes;
+  const yrs = RDC.REAL_CLASS_YEARS.filter(y => on[`class${y}`]);
+  state.params.realClassYears = yrs;
+  state.params.realClasses = yrs.length > 0;
   saveParams();
-  if (on.classes) realClassCheck();
+  if (yrs.length) realClassCheck();
   setSetupFlag('nbaSetup');
   state.dirty = true;
   goHome();
@@ -13375,7 +13385,7 @@ screens.settings = (args) => {
         options('Commissioner mode', 'commissioner', [[false, 'Off'], [true, 'On']], 'Trade for any team, force trades, undo and reset.'),
       ])}
       ${pro && !CAR.isCareer(league()) ? setGroup('Draft Picks', ['<button class="btn" data-act="resetPicks">↩️ Reset All Picks</button>', '<span class="note muted small">Every pick goes back to its own team, every year: trades, protections and swaps undone, missing picks restored. This year\'s draft order (after the lottery) is kept.</span>', '<button class="btn" data-act="applyRealPicks">🏀 Apply Real Picks</button>', '<span class="note muted small">Then, if you like, the real-world holders (2027-2033) on top.</span>']) : ''}
-      ${pro && !CAR.isCareer(league()) ? setGroup('Expansion & Fantasy', [`<button class="btn" data-act="nav" data-to="fantasy">🎲 Fantasy Draft${fanStore()?.status === 'draft' ? ' · in progress' : ''}</button>`, '<span class="note muted small">A start-of-season save: every team drafts its roster from the whole league, 12 rounds, snake order.</span>', `<button class="btn" data-act="nav" data-to="expansion">🏟️ Expansion${(() => { const x = expStore(); return x && x.status && !['none', 'done'].includes(x.status) ? ` · ${x.yr}` : ''; })()}</button>`, '<span class="note muted small">Add two teams: protected lists, a coin flip and an expansion draft after the lottery.</span>', options('Realistic draft classes', 'realClasses', [[true, 'On'], [false, 'Off']], `Hand-built classes for the ${RDC.REAL_CLASS_YEARS.join(', ')} drafts replace the game's, varied a little each save. They go in when the save reaches that offseason, before the draft.`)]) : ''}
+      ${pro && !CAR.isCareer(league()) ? setGroup('Expansion & Fantasy', [`<button class="btn" data-act="nav" data-to="fantasy">🎲 Fantasy Draft${fanStore()?.status === 'draft' ? ' · in progress' : ''}</button>`, '<span class="note muted small">A start-of-season save: every team drafts its roster from the whole league, 12 rounds, snake order.</span>', `<button class="btn" data-act="nav" data-to="expansion">🏟️ Expansion${(() => { const x = expStore(); return x && x.status && !['none', 'done'].includes(x.status) ? ` · ${x.yr}` : ''; })()}</button>`, '<span class="note muted small">Add two teams: protected lists, a coin flip and an expansion draft after the lottery.</span>', options('Realistic draft classes', 'realClasses', [[true, 'On'], [false, 'Off']], `Hand-built classes for the ${RDC.REAL_CLASS_YEARS.join(', ')} drafts replace the game's, varied a little each save. They go in when the save reaches that offseason, before the draft.`), ...(state.params.realClasses === true ? [`<div class="set-row col"><span class="grow">Which classes</span><div class="seg">${RDC.REAL_CLASS_YEARS.map(y => `<button class="btn small ${realClassYears().includes(y) ? 'on focus' : 'off'}" data-act="setRealYear" data-y="${y}">${y}</button>`).join('')}</div></div>`] : [])]) : ''}
       ${pro ? setGroup('Your Job', [options('You can be fired', 'canBeFired', [[true, 'On'], [false, 'Off']], 'On: two owner meetings under 30 trust bring an ultimatum (make the playoffs), and missing it gets you fired; you pick a new team from the offers. Off: no ultimatums or firings (extensions still come). CPU coach firings are under League AI → Coaching changes.')]) : ''}
       ${setGroup('Look', [options('Button icons', 'pixelIcons', [[true, 'Pixel'], [false, 'Emoji']], 'Pixel: white pixel icons like the game\'s. Emoji: the colored emoji.'), state.data ? `<button class="btn" data-act="nav" data-to="faces">🙂 Player Faces${state.faces?.size ? ` · ${state.faces.size}` : ''}</button><span class="note muted small">Cut players' faces from screenshots of the game's roster screen.</span>` : ''])}`;
   } else if (tab === 'ai') {
