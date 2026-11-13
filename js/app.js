@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.60';
+const APP_VERSION = '0.365.61';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3901,7 +3901,7 @@ screens.startTeam = () => {
       ${top.map(p => { const l = seasonLine(p, 0, yr); const hurt = p.season?.injury?.gamesOut > 0, sk = streaks.get(p.id);
         const lvS = sk ? `<sup class="${sk.lv > 0 ? 'up' : 'down'} lv-streak">${sk.lv > 0 ? '+' : ''}${sk.lv}</sup> ${sk.kind === 'hot' ? '🔥' : '❄️'}` : '';
         const lvNow = sk ? `<span class="${declining(p) ? 'small down' : 'gold small'}">Lv ${(declining(p) ? shownLevel(p) : levelOf(p)) + sk.lv}</span>` : lvTag(p);
-        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvNow}${lvS}${hurt ? ' <span class="down" title="Injured">🩹</span>' : ''}</span><span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}</span></div>`; }).join('')}
+        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvNow}${lvS}${injMark(p)}</span><span class="meta">${hurt ? '<span class="down">Out</span> · ' : ''}${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}</span></div>`; }).join('')}
       <button class="btn focus" data-act="startTeam" data-id="${t.id}">🏀 Take over the ${esc(t.name || t.shortName)}</button></div></fieldset>`;
   };
   layout({
@@ -9421,7 +9421,7 @@ screens.lineup = (args = {}) => {
     const sv = sug.get(p.id) ?? 0, diff = sv - r.minutes[0];
     return `<div class="lu-tr ${r.linePos < 5 ? 'lu-st' : ''} ${inRot ? '' : 'out'} ${r.div ? 'lu-div' : ''} ${args.sel != null && +args.sel === p.id ? 'lu-sel' : ''}">
       <button class="lu-c-slot lu-pick" data-act="luTap" data-id="${p.id}" aria-label="Select to swap">${r.linePos < 5 ? LU.SLOTS[r.slot] : inRot ? (byPos ? LU.SLOTS[r.slot] : r.num ?? r.linePos + 1) : '—'}</button>
-      <span class="lu-c-name" data-act="luTap" data-id="${p.id}"><span class="lu-nm"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(p.ln || playerName(p))}</b>${hotCold(p)}</span>${split}
+      <span class="lu-c-name" data-act="luTap" data-id="${p.id}"><span class="lu-nm"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(p.ln || playerName(p))}</b>${hotCold(p)}${injMark(p)}</span>${split}
         <span class="lu-bar2"><i style="width:${(r.minutes[0] / game * 100).toFixed(1)}%"></i></span></span>
       <span class="lu-c-ovr" data-act="luTap" data-id="${p.id}">${shownLevel(p)}</span>
       <span class="lu-c-min"><button class="lu-step" data-hold="luMin" data-id="${p.id}" data-d="-${step}" aria-label="Fewer minutes" ${inRot || r.hand ? '' : 'disabled'}>−</button><b>${r.minutes[0]}</b><button class="lu-step" data-hold="luMin" data-id="${p.id}" data-d="${step}" aria-label="More minutes">+</button></span>
@@ -9455,7 +9455,7 @@ screens.lineup = (args = {}) => {
     layout({
       title: 'Edit Minutes',
       body: `<div class="grid2 lu-acts"><button class="btn off" data-act="luOpt" data-k="clear">Clear All</button><button class="btn focus" data-act="luEditDone">✅ Save</button></div>
-        ${strip}<fieldset class="frame lu-frame"><legend>${esc(p.ln || playerName(p))}${hotCold(p)}</legend>
+        ${strip}<fieldset class="frame lu-frame"><legend>${esc(p.ln || playerName(p))}${hotCold(p)}${injMark(p)}</legend>
         <p class="note small muted">${esc(POSITIONS[p.pos] || posName(p))} · Lv ${shownLevel(p)} · ${r.minutes[0]} minutes in all${(p.season?.injury?.gamesOut || 0) > 0 ? ` · <span class="down">${esc(injLong(p))}</span>` : ''}</p>
         <div class="lu-list">${[0, 1, 2, 3, 4].map(slotRow).join('')}</div>
         ${args.lock && total < full ? `<p class="note small gold lu-free">${full - total} minute${full - total === 1 ? '' : 's'} to hand out.</p>` : ''}</fieldset>
@@ -9503,6 +9503,8 @@ actions.luBenchSort = d => {
   render();
 };
 // The game's own hot and cold streaks (gameStatus.streak).
+// Hurt: a white cross by the name (team picker, lineup).
+const injMark = p => ((p?.season?.injury?.gamesOut || 0) > 0 ? ' <span class="inj-x" title="Injured">✚</span>' : '');
 const hotCold = p => { const k = p ? streakOf(p.id) : null; return k === 'hot' ? ' <span class="hc" title="Hot streak">🔥</span>' : k === 'cold' ? ' <span class="hc" title="Cold streak">❄️</span>' : ''; };
 const luTeam = a => league().teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
 const luHealthyKey = t => `hlc:luHealthy:${saveTag()}:${t.id}`;

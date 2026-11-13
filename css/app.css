@@ -2524,3 +2524,6 @@ body::after {
 /* Dropbox upload progress */
 .dbx-bar { height: 14px; border: 2px solid var(--btn-edge, #1b5fc1); background: #0b2f6b; margin: 6px 0 4px; }
 .dbx-bar > i { display: block; height: 100%; background: var(--up, #4ade80); transition: width 0.15s linear; }
+
+/* Injured: a white cross by the name */
+.inj-x { margin-left: 3px; color: #fff; font-weight: 900; font-size: 0.95em; text-shadow: 0 1px 0 #0008; }
