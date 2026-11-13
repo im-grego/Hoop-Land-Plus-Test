@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.44';
+const APP_VERSION = '0.365.45';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -252,12 +252,16 @@ function madeStore() {
   if (madeCache?.key !== madeKey()) { let m = {}; try { m = JSON.parse(localStorage.getItem(madeKey())) || {}; } catch { m = {}; } madeCache = { key: madeKey(), m }; }
   return madeCache.m;
 }
+// An overseas prospect's league, by country (filled in as the real leagues come in); "Professional league" otherwise.
+const INTL_LEAGUES = {};
+const intlLeague = ped => { const c = /International \(([^)]+)\)/.exec(ped || '')?.[1]; return (c && INTL_LEAGUES[c]) || ''; };
 function makeClassLines(cls, yr, meta = labMeta()) {
   const need = cls.filter(p => !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0)));
   if (!need.length) return;
   const m = madeStore();
   // Placed against the whole class (made-up and real alike), so a real season and a made-up one sit on the same scale.
-  const lines = makeLines(cls, { yr, pedOf: p => meta[p.id]?.ped || '', salt: saveSalt() });
+  const sch = assignSchools(cls, meta), progs = collegePrograms(), tierOf = p => { const s = sch[p.id]; return progs.find(x => x.li === s?.li && x.tid === s?.tid)?.kind || 'mid'; };
+  const lines = makeLines(cls, { yr, pedOf: p => meta[p.id]?.ped || '', salt: saveSalt(), tierOf, styleOf: p => meta[p.id]?.style || '', leagueOf: p => intlLeague(meta[p.id]?.ped || ''), rankOf: p => meta[p.id]?.rank ?? null });
   for (const p of need) if (!m[p.id]) m[p.id] = lines.get(p.id);
   try { localStorage.setItem(madeKey(), JSON.stringify(m)); } catch { /* storage full or blocked: lines stay for this session */ }
 }
@@ -297,7 +301,7 @@ function collegePrograms() {
   rest.slice(0, Math.round(rest.length / 4)).forEach(x => { x.kind = 'mid'; });
   return out;
 }
-function assignSchools(cls) {
+function assignSchools(cls, meta = labMeta()) {
   const st = schoolStore(), progs = collegePrograms();
   if (!progs.length) return st;
   const need = cls.filter(p => !st[p.id] && !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0))).sort((a, b) => (b.pot || 0) - (a.pot || 0) || levelOf(b) - levelOf(a));
@@ -305,7 +309,7 @@ function assignSchools(cls) {
   const used = new Map(Object.values(st).map(s => [`${s.li}:${s.tid}`, 0]));
   const W = pot => (pot >= 9 ? { power: 0.75, mid: 0.25, other: 0 } : pot >= 8 ? { power: 0.5, mid: 0.35, other: 0.15 } : pot >= 7 ? { power: 0.25, mid: 0.3, other: 0.45 } : { power: 0.1, mid: 0.25, other: 0.65 });
   for (const p of need) {
-    const ped = labMeta()[p.id]?.ped || '';
+    const ped = meta[p.id]?.ped || '';
     if (/International \(/.test(ped)) continue;   // overseas: his pro club
     const rng = CG.mulberry((saveSalt() ^ Math.imul(p.id, 2654435761)) >>> 0), w = W(p.pot || 6);
     let roll = rng(), kind = roll < w.power ? 'power' : roll < w.power + w.mid ? 'mid' : 'other';
@@ -322,7 +326,7 @@ function assignSchools(cls) {
   return st;
 }
 function withSchool(p, line) {
-  if (!line || /^Pro club/.test(line.team || '')) return line;
+  if (!line || line.intl || /^Pro club/.test(line.team || '')) return line;
   let s = schoolStore()[p.id];
   if (!s) { const L = league(); s = assignSchools((L.draftClass || []).includes(p) ? L.draftClass : [p])[p.id]; }
   const t = s && state.data.seasonLeagues[s.li]?.teams?.find(x => x.id === s.tid);
@@ -2859,7 +2863,7 @@ async function realClassCheck() {
   const nm = p => `${p.fn} ${p.ln}`.trim().toLowerCase();
   const here = new Map();
   for (const lg of state.data.seasonLeagues) for (const q of [...(lg.draftClass || []), ...lg.teams.flatMap(t => t.roster)]) if ((q.stats || []).some(st => st.league > 0)) here.set(nm(q), q);
-  for (const p of cls) { const q = here.get(nm(p)); if (q) p.stats = JSON.parse(JSON.stringify(q.stats)); }
+  void here;   // the game's simulated college seasons aren't used: every prospect gets a line built from who he is
   // No college season here (an NBA-only save, or a player not on a college roster): a made-up one, so every prospect
   // has production to judge.
   makeClassLines(cls, yr, meta);
@@ -15420,7 +15424,7 @@ function collegeBox(p) {
   // His college team's own logo and colors (like the draft's team boxes); the league ball when there's no team.
   const sc = c.li != null && c.tid != null ? { li: c.li, tid: c.tid } : c.school;
   const team = sc ? state.data.seasonLeagues[sc.li]?.teams?.find(x => x.id === sc.tid) : null, tint = team ? teamTint(team) : '';
-  return `<div class="outlook col-box" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${team ? logoImg(team) : COLLEGE_LOGO}<b>${esc(c.team)}</b><span class="status">${c.made && /^Pro club/.test(c.team) ? 'Overseas' : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div>
+  return `<div class="outlook col-box" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${team ? logoImg(team) : COLLEGE_LOGO}<b>${esc(c.team)}</b><span class="status">${c.made && (c.intl || /^Pro club/.test(c.team)) ? 'Overseas' : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div>
     <p class="note small muted" style="margin:0">${c.gp} games · ${f(c.mpg)} MPG</p>
     <div class="statline">
       ${[['PTS', f(c.pts)], ['REB', f(c.reb)], ['AST', f(c.ast)], ['STL', f(c.stl)], ['BLK', f(c.blk)],
@@ -15465,7 +15469,7 @@ screens.prospect = (args) => {
       <div class="pros-head">
         <button class="mvbtn pros-add ${onBoard(p.id) ? 'on' : ''}" data-act="toggleBoard" data-id="${p.id}" aria-label="${onBoard(p.id) ? 'Remove from' : 'Add to'} your board">${onBoard(p.id) ? '✓' : '+'}</button>
         <h2 class="team-title">${esc(playerName(p))}</h2>
-        <p class="note">${esc((c => !c ? 'Prospect' : c.made ? (/^Pro club/.test(c.team) || c.school ? c.team : 'College') : c.team)(collegeLine(p, state.data.seasonLeagues)))} · ${esc(posName(p))} · ${heightStr(p.ht)} · ${p.wt} lb</p>
+        <p class="note">${esc((c => !c ? 'Prospect' : c.made ? (c.intl || /^Pro club/.test(c.team) || c.school ? c.team : 'College') : c.team)(collegeLine(p, state.data.seasonLeagues)))} · ${esc(posName(p))} · ${heightStr(p.ht)} · ${p.wt} lb</p>
         <p class="note small pros-chips"><span class="age-chip">Age ${p.age} · ${classYear(p)}</span> ${valueChip(p)} ${state.params.readiness === 'age' ? '' : readyChip(p)}</p>
         ${(() => { const z = collegeZ(p), w = productionWord(z), b = bodyZ(p); if (!w && !b) return ''; const fw = b ? (b.frame >= 0.5 ? 'pro-ready frame' : b.frame <= -0.5 ? 'slight frame' : 'average frame') : ''; return `<p class="note small">${w ? `College production vs the ${p.pos <= 2 ? 'guards' : p.pos <= 5 ? 'wings' : 'bigs'} in his class: <b class="${z >= 0.5 ? 'up' : z <= -0.5 ? 'down' : ''}">${w}</b>` : ''}${w && fw ? ' · ' : ''}${fw ? `<span class="${b.frame >= 0.5 ? 'up' : b.frame <= -0.5 ? 'down' : 'muted'}">${fw}</span>` : ''}</p>`; })()}
         ${labStoryLine(p)}
