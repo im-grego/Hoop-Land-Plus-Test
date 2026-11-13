@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.37';
+const APP_VERSION = '0.365.38';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -10911,7 +10911,6 @@ screens.roster = (args) => {
         ${many ? `<button class="nav-btn" data-act="nav" data-replace="1" data-to="roster" data-arg="${nextT.id}" aria-label="Next team">▶</button>` : '<span></span>'}
       </div>
       ${teamHeader(t)}
-      ${rosterCoachLine(t)}
       ${!isCollege() ? `<div class="${isUserTeam(t) ? 'grid3' : 'grid2'} team-links">${isUserTeam(t) ? '<button class="btn small" data-act="nav" data-to="coaching">🧑‍🏫 My Coach</button>' : ''}<button class="btn small" data-act="nav" data-to="history" data-arg="${t.id}">📜 History</button><button class="btn small" data-act="nav" data-to="payroll" data-arg="${t.id}">🤝 Contracts</button></div>` : ''}
       ${isUserTeam(t) && t.frontOffice && isComplete() && !isCollege() ? (() => { const ch = chemOf(t); return `<div class="grid2 team-mini">
         <button class="btn left small mini-box" data-act="nav" data-to="fanLog"><span class="ico">👥</span> <span>Fans <b>${t.frontOffice.fans ?? 50}</b><br>${(() => { const mv = fanLog().filter(x => x.tid === t.id && x.yr === league().season.currentYear); const up = mv.filter(x => x.d > 0).reduce((a, x) => a + x.d, 0), dn = mv.filter(x => x.d < 0).reduce((a, x) => a - x.d, 0); return mv.length ? `<span class="small"><span class="up">▲${up}</span> <span class="down">▼${dn}</span></span>` : '<span class="muted small">/ 100</span>'; })()}</span></button>
@@ -12217,14 +12216,7 @@ function profileReport(p, team) {
   if (prod) add('prod', prod.trim());
   // What he's paid
   const c = p.contract;
-  if (c?.sal && c.yrs) {
-    const fair = fairSalary(shownLevel(p)), gap = tagGap(fair);
-    const worth = c.sal - fair >= gap ? 'overpaid' : fair - c.sal >= gap ? 'underpaid' : 'fairly paid';
-    const opt = c.opt === 1 ? ', with a team option on the last year' : c.opt === 2 ? ', with a player option on the last year' : '';
-    add('paid', `He is ${worth} for ${c.yrs} more season${c.yrs > 1 ? 's' : ''}${opt}.`);
-  }
-  const ex = p.contract?.ext;
-  if (ex?.yrs > 0) add('ext', `He has signed an extension: $${ex.sal}M × ${ex.yrs}${ex.opt === 2 ? ' with a player option' : ex.opt === 1 ? ' with a team option' : ''}.`);
+  void c;   // the deal itself is in the header, not the report
   // "He ..." development sentences join with "and", two at a time (developing and potential); his game and character
   // come already joined up.
   const merged = [];
@@ -12304,11 +12296,9 @@ function newsBox(p) {
 function playerTags(p) {
   const c = p.contract || {}, t = [];
   const add = (label, cls = '') => t.push(`<span class="badge ${cls}">${label}</span>`);
-  if (c.sal && c.yrs) { add(esc(contractText(p, true))); const v = contractBadge(p).trim(); if (v) t.push(v); }
   // His agent, when it's one that changes the talks.
   if (isComplete() && !isCollege() && p.status !== 1) { const ag = FA.agentOf(p); if (ag !== 'fair') add(`${FA.AGENTS[ag].icon} ${FA.AGENTS[ag].label}`, ag === 'shark' ? 'down-b' : 'lvl'); }
   if (p.yrs === 0) add('Rookie', 'new');
-  if (declining(p)) add('Declining', 'down-b');
   const inj = p.season?.injury?.gamesOut > 0 ? p.season.injury.gamesOut : 0;
   if (inj) add(`Injured · ${inj} g`, 'down-b');
   if (p.status === 4) add('Expiring', 'lvl');
@@ -12318,7 +12308,6 @@ function playerTags(p) {
   else if (p.status === FA.STATUS_SIGNED && c.yrs === 1 && c.canExt !== false && !(c.opt > 0)) add('Extension Eligible', 'new');   // the game flags nearly everyone: the app's rule (final year, no option) decides
   if (inGL(p)) add('🏀 G League', 'lvl');
   if (p.season?.onTradeBlock === 1) add('On the Block', 'lvl');
-  if (isComplete() && p.tid != null && frictionFor(p)?.clash) add('Clashing With Coach', 'down-b');
   if (p.season?.onTradeBlock === 2) add('Untouchable', 'you');
   return t.join('');
 }
