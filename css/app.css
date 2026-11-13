@@ -2516,3 +2516,4 @@ body::after {
 
 /* College/club box: the flag sits in the right corner */
 .col-box .outlook-top .col-flag { margin-left: auto; display: flex; align-items: center; }
+.logo-halo { filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff); }

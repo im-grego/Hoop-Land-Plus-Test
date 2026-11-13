@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.52';
+const APP_VERSION = '0.365.53';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -15486,6 +15486,8 @@ function collegeRank(p, c, k) {
 
 const FLAG_CODE = { Spain: 'ES', Serbia: 'RS', France: 'FR', Germany: 'DE', Lithuania: 'LT', Turkey: 'TR', Italy: 'IT', Greece: 'GR', Israel: 'IL', Slovenia: 'SI', Australia: 'AU', 'New Zealand': 'NZ', USA: 'US', Canada: 'CA', Croatia: 'HR' };
 // The school logos bundled with the app (img/logos/college), named by the school.
+// Logos drawn in the school's own main color get a thin white outline so they show on that color.
+const LOGO_HALO = new Set(["Arizona State", "Iowa State", "Ohio State", "TCU", "Providence", "Nebraska", "SMU", "Houston", "Texas Tech", "Purdue", "Syracuse", "USC", "Arkansas", "St. John's", "Illinois", "Maryland", "Wisconsin", "Villanova", "Kansas"]);
 const schoolSlug = name => String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 function collegeBox(p) {
   const c = collegeLine(p, state.data.seasonLeagues);
@@ -15499,7 +15501,7 @@ function collegeBox(p) {
   // Overseas: the club on the left, its country's flag on the right; college: the school's logo, name and colors.
   const pro = c.made && (c.intl || /^Pro club/.test(c.team)), clubCt = pro ? (c.team.split(' · ')[1] || '') : '';
   const flag = pro ? OLY.flagHtml(FLAG_CODE[clubCt] || '', 2.4) : '';
-  return `<div class="outlook col-box ${pro ? 'col-pro' : ''}" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${pro ? '' : real ? `<img class="logo-sm" src="img/logos/college/${schoolSlug(c.school.name)}.png" alt="" width="34" height="34" decoding="async" onerror="this.remove()">` : team ? logoImg(team) : COLLEGE_LOGO}<div class="col-hd"><b>${esc(pro ? c.team.split(' · ')[0] : c.team)}</b><span class="status">${pro ? `${esc(c.lg || 'Overseas')}${clubCt ? ` · ${esc(clubCt)}` : ''}` : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div>${flag ? `<span class="col-flag">${flag}</span>` : ''}</div>
+  return `<div class="outlook col-box ${pro ? 'col-pro' : ''}" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${pro ? '' : real ? `<img class="logo-sm ${LOGO_HALO.has(c.school.name) ? 'logo-halo' : ''}" src="img/logos/college/${schoolSlug(c.school.name)}.png" alt="" width="34" height="34" decoding="async" onerror="this.remove()">` : team ? logoImg(team) : COLLEGE_LOGO}<div class="col-hd"><b>${esc(pro ? c.team.split(' · ')[0] : c.team)}</b><span class="status">${pro ? `${esc(c.lg || 'Overseas')}${clubCt ? ` · ${esc(clubCt)}` : ''}` : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div>${flag ? `<span class="col-flag">${flag}</span>` : ''}</div>
     <p class="note small muted" style="margin:0">${c.gp} games · ${f(c.mpg)} MPG</p>
     <div class="statline">
       ${[['PTS', f(c.pts)], ['REB', f(c.reb)], ['AST', f(c.ast)], ['STL', f(c.stl)], ['BLK', f(c.blk)],
