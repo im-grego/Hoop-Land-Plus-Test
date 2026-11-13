@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.48';
+const APP_VERSION = '0.365.49';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -95,7 +95,7 @@ const DEVLOG = [
       'Hoop Gram rebuilt like the game\'s: Feed, Team (every final and roster move) and Mentions (what people say about you)',
       'Media Availability: the beat reporters ask about your team each new day, and every answer has a cost',
       'Hoop Gram button in the top corner with a red dot when someone mentions you',
-      'My League: stats, standings, team stats, award races, the Record Book, the injury report and league history',
+      'League: stats, standings, team stats, award races, the Record Book, the injury report and league history',
       'Team page shows points for, points against and margin with league ranks',
       'Trade machine: team logos, live cap bars, record and team tag, and a trade recap',
       'Lineup editor like the game\'s: swap players, set minutes by position, Optimize Lineup and Optimize Minutes',
@@ -3999,7 +3999,7 @@ screens.main = () => {
       ${!isCollege() && !isFranchise() && !CAR.isCareer(L) && state.userTeams.size ? `<div class="grid2"><button class="btn left" data-act="nav" data-to="myteams"><span class="ico">🗂️</span> My Teams <span class="note small">${state.userTeams.size}${state.autoTeams.size ? ` · ${state.autoTeams.size} on autopilot` : ''}</span></button></div>` : ''}
       <div class="grid3 menu-sys">
         <button class="btn" data-act="nav" data-to="settings"><span class="ico">☰</span> Settings</button>
-        <button class="btn" data-act="${isCollege() ? 'nav' : 'myLeague'}" data-to="${isCollege() ? 'editor' : 'leaders'}"><span class="ico">🏀</span> My League</button>
+        <button class="btn" data-act="${isCollege() ? 'nav' : 'myLeague'}" data-to="${isCollege() ? 'editor' : 'leaders'}"><span class="ico">🏀</span> League</button>
         <button class="btn" data-act="nav" data-to="export"><span class="ico">💾</span> Export</button>
       </div>
       ${communityRow()}`,
@@ -9523,8 +9523,12 @@ actions.luTap = d => {
     toast(`🔁 ${inR.p.ln} in, ${outR.p.ln} out`, outR.minutes[0] ? `${outR.minutes[0]} minute${outR.minutes[0] === 1 ? '' : 's'} to hand out.` : '', 2200);
     luCommit(a); return;
   }
-  if (!inRot(rA) && !inRot(rB)) { toast('Neither one plays', 'Pick a player in the rotation to swap him with.', 2000); replace('lineup', a); return; }
-  if (rA.linePos >= 5 && rB.linePos >= 5) { toast('Both on the bench', 'The bench runs in order of minutes: give one more to move him up.', 2200); replace('lineup', a); return; }
+  // Two bench players (or two who don't play): they trade places in the list, whatever sort it's in.
+  if ((!inRot(rA) && !inRot(rB)) || (rA.linePos >= 5 && rB.linePos >= 5)) {
+    const o = luOrderOf(t, plan), x = o.indexOf(rA.p.id), y = o.indexOf(rB.p.id);
+    if (x >= 0 && y >= 0) { o[x] = rB.p.id; o[y] = rA.p.id; }
+    replace('lineup', a); return;
+  }
   const hurt = r => (r.p.season?.injury?.gamesOut || 0) > 0;
   if ((rA.linePos < 5 && hurt(rB)) || (rB.linePos < 5 && hurt(rA))) { toast('He\'s hurt', 'An injured player can\'t start.', 1800, true); replace('lineup', a); return; }
   const st = Object.fromEntries(Object.entries(a.start || {}).filter(([, v]) => +v !== rA.p.id && +v !== rB.p.id));
@@ -23657,7 +23661,7 @@ screens.editor = (args = {}) => {
       ${view ? '' : `<fieldset class="frame"><legend>Export</legend><p class="note small">Writes the league file with your edits. Start a new save from it in the game.</p><button class="btn focus" data-act="${state.leagueFile ? 'download' : 'downloadLeague'}">💾 Download League File</button></fieldset>`}
       ${state.leagueFile ? '' : '<fieldset class="frame"><legend>Stats</legend><button class="btn" data-act="openLeaders" data-m="ratings">🏀 League Leaders</button></fieldset>'}`;
   }
-  layout({ title: view ? 'My League' : 'League Editor', body: head + body });
+  layout({ title: view ? 'League' : 'League Editor', body: head + body });
 };
 // The app's own read of a team next to the game's tag (its extra steps are Favorites and Selling).
 function appTier(t) {
