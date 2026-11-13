@@ -844,7 +844,12 @@ export function cpuPick(team, available, valueOf = p => prospectValue(p), rng = 
 // A made-up season (madeprod.js) for a prospect the save has no college stats for; the app sets the lookup.
 let madeLineOf = null;
 export const setMadeLines = f => { madeLineOf = f; };
+// A prospect from a class the app built (the Lab, a realistic class) always reads his generated season, never the
+// game's simulated one.
+let preferMade = () => false;
+export const setPreferMade = f => { preferMade = f; };
 export function collegeLine(p, leagues) {
+  if (madeLineOf && preferMade(p)) { const m = madeLineOf(p); if (m) return m; }
   let best = null;
   (p.stats || []).forEach(s => {
     const L = leagues[s.league];

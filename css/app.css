@@ -2495,3 +2495,10 @@ body::after {
   background: var(--bg) url("../icons/bg-tile.jpg") 0 0 / 300px 200px repeat; image-rendering: pixelated;
 }
 #app { min-height: 100vh; min-height: 100lvh; box-sizing: border-box; }
+
+/* College / overseas box header: logo or flag, then the name on its own line and the tag under it */
+.col-hd { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; flex: 1; min-width: 0; }
+.col-hd b { white-space: nowrap; overflow: hidden; max-width: 100%; font-size: 18px; }
+.col-box .outlook-top .col-hd .status { margin-left: 0; }
+.col-box .outlook-top .flag { flex: none; box-shadow: 0 0 0 2px #0b2f6b; }
+.col-box.col-pro .outlook-top { background: linear-gradient(90deg, #14101e, #0b2f6b); margin: -12px -12px 4px; padding: 12px; border-bottom: 5px solid var(--gold); }

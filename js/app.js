@@ -3,7 +3,7 @@ import {
   setBlessed, playerName, heightStr, avgRating, lastSeasonMpg, leaguePlayers, snapshot, restore, diffPlayer, jerseyClashes, fixJerseyNumbers, undoJerseyNumbers, levelOf, cloneData, MINOR_INJURY, potCap, ceilTotal, canGrow,
 } from './savefile.js';
 import { collegeProduction, productionWord, setDevPlans, PLAN_ATTRS, DEFAULT_PARAMS, runProgression, buildSkillProfiles, rankSkillsFor, unlockSkill, mulberry32, runRookieBump, injuryRisk, earnsNaturalLongevity, productionScores, spendHeldPoints } from './progression.js';
-import { setMadeLines, groupOf as posGroupOf } from './draft.js';
+import { setMadeLines, setPreferMade, groupOf as posGroupOf } from './draft.js';
 import { LOGO_MAP } from './logomap.js';
 import { setMadeGameScores, collegeGameScore } from './progression.js';
 import { makeLines, clubFor } from './madeprod.js';
@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.46';
+const APP_VERSION = '0.365.47';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -258,7 +258,7 @@ const INTL_LEAGUES = {};
 const COUNTRY = { FR: 'France', ES: 'Spain', RS: 'Serbia', CA: 'Canada', AU: 'Australia', NZ: 'New Zealand', US: 'USA', HU: 'Hungary', LT: 'Lithuania', LK: 'Lithuania', DE: 'Germany', GR: 'Greece', TR: 'Turkey', IT: 'Italy', SI: 'Slovenia', HR: 'Croatia' };
 const intlLeague = ped => { const c = /International \(([^)]+)\)/.exec(ped || '')?.[1]; return (c && INTL_LEAGUES[c]) || ''; };
 function makeClassLines(cls, yr, meta = labMeta()) {
-  const need = cls.filter(p => !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0)));
+  const need = cls.filter(p => meta[p.id] || !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0)));
   if (!need.length) return;
   const m = madeStore();
   // Placed against the whole class (made-up and real alike), so a real season and a made-up one sit on the same scale.
@@ -307,7 +307,7 @@ function collegePrograms() {
 function assignSchools(cls, meta = labMeta()) {
   const st = schoolStore(), progs = collegePrograms();
   if (!progs.length) return st;
-  const need = cls.filter(p => !st[p.id] && !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0))).sort((a, b) => (b.pot || 0) - (a.pot || 0) || levelOf(b) - levelOf(a));
+  const need = cls.filter(p => !st[p.id] && (meta[p.id] || !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0)))).sort((a, b) => (b.pot || 0) - (a.pot || 0) || levelOf(b) - levelOf(a));
   if (!need.length) return st;
   const used = new Map(Object.values(st).map(s => [`${s.li}:${s.tid}`, 0]));
   const W = pot => (pot >= 9 ? { power: 0.75, mid: 0.25, other: 0 } : pot >= 8 ? { power: 0.5, mid: 0.35, other: 0.15 } : pot >= 7 ? { power: 0.25, mid: 0.3, other: 0.45 } : { power: 0.1, mid: 0.25, other: 0.65 });
@@ -337,6 +337,7 @@ function withSchool(p, line) {
   return { ...line, team: `${t.city ? `${t.city} ` : ''}${t.name || ''}`.trim() || t.shortName, cl: (line.team || '').replace(/ season$/, ''), school: { li: s.li, tid: s.tid } };
 }
 setMadeLines(madeLineOf);
+setPreferMade(p => { if (!state.data || isCollege()) return false; const L = league(); return (L.draftClass || []).includes(p) ? !!labMeta()[p.id] : !!madeStore()[p.id]; });
 setMadeGameScores(p => madeLineOf(p)?.gs ?? null);
 // Body: frame (strength, and weight for his height against the group's fit) and pedigree, as z within his group.
 function bodyZ(p) {
@@ -925,7 +926,7 @@ function render() {
 }
 
 // Names never wrap or get cut off: a name too long for its spot gets a smaller font, as big as still fits.
-const FIT_NAMES = '.pl-name, .lu-nm b, .lu-c-name > b, .ir-name, .mu-tr > span, .prow .name, .lu-frame > legend, .lu-cycle b, .ts-team b, .start-detail .sd-line';
+const FIT_NAMES = '.col-hd b, .pl-name, .lu-nm b, .lu-c-name > b, .ir-name, .mu-tr > span, .prow .name, .lu-frame > legend, .lu-cycle b, .ts-team b, .start-detail .sd-line';
 function fitText(root = $app) {
   try {
     const els = new Set(root.querySelectorAll(FIT_NAMES));
@@ -15420,6 +15421,7 @@ function collegeRank(p, c, k) {
   return `<span class="small ${n <= 10 ? 'gold' : n <= 30 ? 'up' : 'muted'}">${ord}</span>`;
 }
 
+const FLAG_CODE = { Spain: 'ES', Serbia: 'RS', France: 'FR', Germany: 'DE', Lithuania: 'LT', Turkey: 'TR', Italy: 'IT', Greece: 'GR', Israel: 'IL', Slovenia: 'SI', Australia: 'AU', 'New Zealand': 'NZ', USA: 'US', Canada: 'CA', Croatia: 'HR' };
 function collegeBox(p) {
   const c = collegeLine(p, state.data.seasonLeagues);
   if (!c) return '';
@@ -15427,7 +15429,10 @@ function collegeBox(p) {
   // His college team's own logo and colors (like the draft's team boxes); the league ball when there's no team.
   const sc = c.li != null && c.tid != null ? { li: c.li, tid: c.tid } : c.school;
   const team = sc ? state.data.seasonLeagues[sc.li]?.teams?.find(x => x.id === sc.tid) : null, tint = team ? teamTint(team) : '';
-  return `<div class="outlook col-box" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${team ? logoImg(team) : COLLEGE_LOGO}<b>${esc(c.team)}</b><span class="status">${c.made && (c.intl || /^Pro club/.test(c.team)) ? esc(c.lg || 'Overseas') : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div>
+  // Overseas: his club's country flag and the club, with the league in the tag; college: the school's logo and colors.
+  const pro = c.made && (c.intl || /^Pro club/.test(c.team)), clubCt = pro ? (c.team.split(' · ')[1] || '') : '';
+  const flag = pro ? OLY.flagHtml(FLAG_CODE[clubCt] || '', 2.4) : '';
+  return `<div class="outlook col-box ${pro ? 'col-pro' : ''}" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${pro ? (flag || '') : team ? logoImg(team) : COLLEGE_LOGO}<div class="col-hd"><b>${esc(pro ? c.team.split(' · ')[0] : c.team)}</b><span class="status">${pro ? `${esc(c.lg || 'Overseas')}${clubCt ? ` · ${esc(clubCt)}` : ''}` : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div></div>
     <p class="note small muted" style="margin:0">${c.gp} games · ${f(c.mpg)} MPG</p>
     <div class="statline">
       ${[['PTS', f(c.pts)], ['REB', f(c.reb)], ['AST', f(c.ast)], ['STL', f(c.stl)], ['BLK', f(c.blk)],
@@ -15435,7 +15440,7 @@ function collegeBox(p) {
         .map(([k, v], i) => i < 5 && c.li != null
           ? `<button class="stat-cell" data-act="openLeaders" data-m="college" data-k="${RANK_STATS[i][0]}" data-li="${c.li}" data-yr="${c.yr}" aria-label="College ${RANK_STATS[i][1]} leaders"><span class="muted small">${k}</span><b>${v}</b>${collegeRank(p, c, RANK_STATS[i][0])}</button>`
           : `<div><span class="muted small">${k}</span><b>${v}</b>${i < 5 ? collegeRank(p, c, RANK_STATS[i][0]) : ''}</div>`).join('')}
-    </div>${c.li != null && seasonRanks(c.yr, c.li).ranks.get(p.id)?.qualified ? (sr => `<p class="note muted small" style="margin-top:6px">Ranks among ${sr.of} qualified college players.</p>`)(seasonRanks(c.yr, c.li)) : ''}${c.made ? '<p class="note muted small" style="margin-top:6px">Simulated season: this save has no college stats for him.</p>' : ''}</div>`;
+    </div>${c.li != null && seasonRanks(c.yr, c.li).ranks.get(p.id)?.qualified ? (sr => `<p class="note muted small" style="margin-top:6px">Ranks among ${sr.of} qualified college players.</p>`)(seasonRanks(c.yr, c.li)) : ''}</div>`;
 }
 
 // Where the prospect would slot on each of your teams, as a rookie and at
