@@ -30,7 +30,13 @@ const maxedVet = p => p.age >= 27 && (p.pot || 0) <= starsOf(p);
 // push wherever he's meant to play.
 export function playScore(p, mode, deep = false) {
   const lv = levelOf(p), pro = isProspect(p) && prospectsPlay(mode, deep);
-  if (mode === 'develop') return lv + (p.age <= 24 ? Math.max(0, (p.pot || 0) - 5) * 3 : 0) + (p.age <= 25 ? 3 : 0) - (p.age >= 30 ? 6 : 0) - (maxedVet(p) ? 5 : 0);
+  if (mode === 'develop') {
+    // Room to grow (potential over where he is now) counts most, then raw potential, then youth; a maxed veteran gives
+    // a little back. About 10-15 levels of edge for a young 4-4.5 star, so a much better veteran still plays.
+    const pot = p.pot || 0, room = Math.max(0, pot - starsOf(p)), young = p.age <= 25;
+    const youth = p.age <= 21 ? 5 : p.age <= 23 ? 3 : p.age <= 25 ? 1 : p.age >= 31 ? -5 : p.age >= 28 ? -2 : 0;
+    return lv + youth + (young ? room * 2.5 + Math.max(0, pot - 6) * 1.5 : room * 0.75) - (maxedVet(p) ? 4 : 0);
+  }
   if (mode === 'normal') return lv + (p.age <= 22 ? Math.max(0, (p.pot || 0) - 6) : 0) + (pro ? 6 : 0);
   return lv + (pro ? 3 : 0);
 }
@@ -63,7 +69,36 @@ function pickStarters(cands, score) {
     }
   };
   go(0, new Set(), [], 0);
-  return best || cands.slice(0, 5);
+  return fixSlots(best || cands.slice(0, 5));
+}
+// Who plays which of two neighbouring spots, when both can play either:
+//  PG/SG, two combo guards (G): the better passer runs the point.
+//  SG/SF, two GFs: the taller plays the 3 when they're within 10 lb; past that, the heavier if they're within 2 inches,
+//   else the taller. A GF with an SF: the GF plays the 2. A G with a GF or an SF: the G plays the 2.
+//  SF/PF, two forwards (F): the heavier plays the 4 when they're within 2 inches, else the taller.
+const PAS = p => p.attributes?.PAS?.[0] || 0;
+function lowerSpot(a, b, s) {   // true: a belongs at spot s and b at s + 1
+  const pa = a.pos ?? 4, pb = b.pos ?? 4, dh = (a.ht || 0) - (b.ht || 0), dw = (a.wt || 0) - (b.wt || 0);
+  const bigger = () => (Math.abs(dh) <= 2 && Math.abs(dw) > 0 ? (dw > 0 ? a : b) : dh > 0 ? a : dh < 0 ? b : dw >= 0 ? a : b);
+  if (s === 0 && pa === 1 && pb === 1) return PAS(a) >= PAS(b);
+  if (s === 1) {
+    if (pa === 3 && pb === 3) { const up = Math.abs(dw) <= 10 ? (dh >= 0 ? a : b) : Math.abs(dh) <= 2 ? (dw > 0 ? a : b) : (dh >= 0 ? a : b); return up === b; }
+    if (pa === 3 && pb === 4) return true;
+    if (pa === 4 && pb === 3) return false;
+    if (pa === 1 && (pb === 3 || pb === 4)) return true;
+    if (pb === 1 && (pa === 3 || pa === 4)) return false;
+  }
+  if (s === 2 && pa === 5 && pb === 5) return bigger() === b;
+  return null;
+}
+function fixSlots(five) {
+  const f = [...five];
+  for (let pass = 0; pass < 3; pass++) for (let s = 0; s < 4; s++) {
+    const a = f[s], b = f[s + 1];
+    if (!a || !b || !inPos(a, s + 1) || !inPos(b, s)) continue;
+    if (lowerSpot(a, b, s) === false) { f[s] = b; f[s + 1] = a; }
+  }
+  return f;
 }
 // Minutes each: by the mode's weights, scaled to 5 games' worth of slots, kept between 12% and 80% of a game. With a
 // share (the starters' part of all minutes, e.g. 0.65), the starters split that part and the bench the rest.
@@ -71,7 +106,7 @@ function pickStarters(cands, score) {
 // when they'd leave the rest less than a bench minimum, they all give back in proportion), and the rest split
 // what's left by the weights.
 function minutesFor(rot, mode, game, over, share = null, deep = false, promised = {}, lowCap = 0) {
-  const W = MODES[mode].w, total = 5 * game, lo = Math.round(game * 0.12), hi = Math.round(game * (MODES[mode].hi || 0.8));
+  const W = MODES[mode].w, total = 5 * game, lo = Math.round(game * 0.12), hi = Math.min(game, Math.max(Math.round(game * (MODES[mode].hi || 0.8)), Math.ceil(total / Math.max(1, rot.length)) + Math.round(game / 12)));
   // A guide, not a rule: a player rated 79 or lower is pointed at 20 minutes or fewer (on a 48-minute game), unless the
   // team has nobody better; the positions can still call for more.
   const capOf = p => (lowCap && rot.indexOf(p) >= 5 && levelOf(p) <= 79 ? Math.max(lo, Math.round(lowCap * game / 48)) : hi);   // the bench only: a starter plays a starter's minutes
@@ -275,7 +310,8 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
       const head = p => Math.max(0, top - base(p)), H = own.reduce((a, p) => a + head(p), 0), extra = room - sum;
       for (const p of own) over[p.id] = base(p) + (H ? extra * head(p) / H : 0);
     }
-    for (const p of own) over[p.id] = Math.max(Math.round(6 * k), Math.min(Math.round(game * 0.8), Math.round(over[p.id])));
+    const realHi = Math.min(game, Math.max(Math.round(game * 0.8), Math.ceil(total / Math.max(1, rot.length)) + Math.round(game / 12)));
+    for (const p of own) over[p.id] = Math.max(Math.round(6 * k), Math.min(realHi, Math.round(over[p.id])));
   }
   let { want, hi, cap } = minutesFor(rot, mode, game, over, share, deep, promised, lowCap), got = assign(rot, starters, want, hi, game, over, cap, pins);
   // Still out of position somewhere? Bring in a bench player who can play the spot, if he's within 14 levels of the
@@ -291,7 +327,7 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
     const covered = q => [0, 1, 2, 3, 4].every(t => !inPos(q, t) || rot.filter(r => r !== q && inPos(r, t)).length >= 2);
     // Real minutes: the rotation is the real one, so a player comes in only in place of another (it never grows).
     const drop = realOn || rot.length >= Math.min(12, size) ? [...rot.slice(5)].reverse().find(q => (realOn || over[q.id] == null) && !tried.has(q) && covered(q)) : null;
-    if (realOn && !drop) break;
+    if ((realOn || sizeSet) && !drop) break;   // a size you set never grows
     const nextRot = [...starters, ...[...rot.slice(5).filter(q => q !== drop), add].sort((a, b) => score(b) - score(a))];
     const m2 = minutesFor(nextRot, mode, game, over, share, deep, promised, lowCap), g2 = assign(nextRot, starters, m2.want, m2.hi, game, over, m2.cap, pins);
     if (offMinutes(nextRot, g2) < offMinutes(rot, got)) { rot = nextRot; want = m2.want; hi = m2.hi; cap = m2.cap; got = g2; }
@@ -308,6 +344,9 @@ export function planLineup(team, { mode = 'normal', size = 9, game = 48, over = 
       if (g2.slots.get(add).some(v => v > 0) && offMinutes(nextRot, g2) <= offMinutes(rot, got)) { rot = nextRot; want = m2.want; hi = m2.hi; cap = m2.cap; got = g2; swapped = true; break; }
     }
     if (!swapped) { rot = rot.filter(q => q !== idle); break; }
+  }
+  if (rot.length === 5 && !locked && !Object.keys(pins).length) {
+    got = { slots: new Map(rot.map(q => [q, [0, 1, 2, 3, 4].map(s => (starters[s] === q ? game : 0))])), need: [0, 0, 0, 0, 0] };
   }
   const { slots, need } = got;
   const order = [...rot, ...roster.filter(p => !rot.includes(p)).sort((a, b) => score(b) - score(a))];

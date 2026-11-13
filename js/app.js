@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.34';
+const APP_VERSION = '0.365.35';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;   // the test site shows its build number
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -840,7 +840,7 @@ const HOME_ICON = `<svg width="28" height="26" viewBox="0 0 9 8" shape-rendering
 actions.home = () => { const n = state.stack.length - 1; if (n < 1) return; state.goHome = true; history.go(-n); };
 function back() {
   const top = state.stack[state.stack.length - 1];
-  if (top?.name === 'lineup' && top.args?.edit != null) { actions.luEditDone(); return; }
+  if (top?.name === 'lineup' && top.args?.edit != null) { actions.luEditDone(); return; }   // (a lineup opened in Edit)
   if (state.stack.length > 1) history.back();
 }
 function replace(name, args = {}) {
@@ -940,6 +940,11 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 window.addEventListener('popstate', () => {
   if (state.stack.length < 2) return;
   if (state.goHome) { state.goHome = false; state.stack.splice(1); render(); return; }
+  // Out of Edit Minutes: the lineup underneath takes what you did there, saved once every minute is handed out.
+  const top = state.stack[state.stack.length - 1], below = state.stack[state.stack.length - 2];
+  if (top?.name === 'lineup' && top.args?.edit != null && below?.name === 'lineup') {
+    const a = { ...top.args }; delete a.edit; below.args = a; state.stack.pop(); render(); luSaveArgs(a); return;
+  }
   state.stack.pop();
   render();
 });
@@ -9305,7 +9310,7 @@ screens.lineup = (args = {}) => {
   const posN = p => POSITIONS[p.pos] || '';
   // A table like a game's rotation screen: spot, name, position, level, minutes (a segmented bar, − and +) and the
   // suggested minutes (the real NBA rotation) with an arrow when yours differ.
-  const sug = new Map(defaultPlan(t).rows.map(r => [r.p.id, r.minutes[0]]));
+  const sug = new Map(luPlan(t, { mode: args.mode, size: args.size }).rows.map(r => [r.p.id, r.minutes[0]]));
   const row = r => {
     const p = r.p, inRot = r.minutes[0] > 0 || (args.keep || []).includes(p.id) || r.linePos < 5, spots = r.minutes.slice(1).map((v, k) => (v ? [LU.SLOTS[k], v, LU.inPos(p, k)] : null)).filter(Boolean);
     const split = spots.length > 1 ? `<span class="lu-split">${spots.map(([s, v, ok]) => `<span class="${ok ? '' : 'down'}">${s} ${v}</span>`).join(' · ')}</span>` : spots.length && !spots[0][2] ? `<span class="lu-split down">at ${spots[0][0]}</span>` : '';
@@ -9406,6 +9411,9 @@ function luFromSave(t) {
 // Every change saves: once every minute is handed out, the lineup goes into the save.
 function luCommit(a) {
   replace('lineup', a);
+  luSaveArgs(a);
+}
+function luSaveArgs(a) {
   const t = luTeam(a); if (!t) return;
   const plan = luPlan(t, a);
   if (plan.rows.reduce((s, r) => s + r.minutes[0], 0) < 5 * gameMinutes()) return;
@@ -9493,8 +9501,12 @@ actions.luTap = d => {
   if (a.lock) { a.over = { ...a.over }; for (const r of [rA, rB]) if (!(a.over[r.p.id] > 0) && r.linePos >= 5) a.over[r.p.id] = 0; }
   luCommit(a);
 };
-actions.luEdit = d => { const a = { ...luArgs(), edit: +d.id }; delete a.sel; replace('lineup', a); };
-actions.luEditDone = () => { const a = { ...luArgs() }; delete a.edit; luCommit(a); };
+actions.luEdit = d => { const was = luArgs(), a = { ...was, edit: +d.id }; delete a.sel; if (was.edit != null) replace('lineup', a); else go('lineup', a); };
+actions.luEditDone = () => {
+  const below = state.stack[state.stack.length - 2];
+  if (below?.name === 'lineup' && below.args?.edit == null) { history.back(); return; }
+  const a = { ...luArgs() }; delete a.edit; luCommit(a);
+};
 // One player's minutes at one position: they come from (and go back to) the minutes still to hand out.
 actions.luSlot = d => {
   const a = { ...luArgs() }, L = league(), t = L.teams.find(x => x.id === +(a.arg ?? a.tid)) || myTeam();
@@ -9559,6 +9571,7 @@ actions.luStartPick = d => {
 actions.luSet = d => {
   const a = { ...luArgs() };
   if (d.k === 'over' || d.k === 'mode') { a.over = {}; a.lock = false; delete a.size; delete a.pins; delete a.pinAll; delete a.sel; delete a.edit; delete a.keep; if (d.k === 'mode') delete a.start; }   // reset: back to the suggestion
+  if (d.k === 'size') { a.over = {}; a.lock = false; delete a.pins; delete a.pinAll; delete a.keep; delete a.sel; }
   if (d.k !== 'over') a[d.k] = d.k === 'size' ? +d.v : d.v;
   luCommit(a);
 };
