@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.67';
+const APP_VERSION = '0.365.68';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -85,6 +85,7 @@ const DEVLOG = [
       'The Expansion Draft step can be skipped',
       'Team stats show shot volume next to efficiency: shots, threes taken, the share of shots from three and free throws a game (Scouting Report and League → Teams)',
       'Scouting Report reads volume and efficiency together: a team that rarely shoots threes but makes them is called inside-out, not a three-point team',
+      'Scouting Report team stats are colored green or red only when the gap is real; close numbers stay white',
     ]],
     ['Bug Fixes', [
       'A step whose screen breaks now offers a Skip instead of leaving you stuck',
@@ -2706,7 +2707,12 @@ screens.projections = () => {
   const all = leaguePlayers(L, false), lv = p => shownLevel(p);
   const pick = (list, score, k = 3) => [...list].sort((a, b) => score(b) - score(a)).slice(0, k);
   const mvp = pick(all.filter(e => lv(e.p) >= 80), e => lv(e.p) + 4 * (teamZ.get(e.team.id) || 0));
-  const dpoy = pick(all.filter(e => lv(e.p) >= 72), e => (regressed(e.p, 'DRE') + regressed(e.p, 'STL') * 1.2 + regressed(e.p, 'BLK') * 1.3) + (e.p.ht - 78) * 0.3);
+  // Defensive Player: a track record, not just ratings. No rookies; real minutes last season (24+ a game); what he did
+  // on defense then (steals, blocks, boards) counts as much as the ratings, and a past Defensive Player award adds more.
+  const lastYr = lastSeasonYear(), dLine = e => seasonLine(e.p, state.leagueIdx, lastYr);
+  const dWon = e => (e.p.awards || []).filter(a => a.id === 3 && (a.league == null || a.league === 0)).reduce((s, a) => s + (a.yearsWon || []).length, 0);
+  const dpoy = pick(all.filter(e => lv(e.p) >= 75 && proSeasons(e.p) >= 1 && (dLine(e)?.mpg || 0) >= 24),
+    e => { const l = dLine(e); return (regressed(e.p, 'DRE') + regressed(e.p, 'STL') * 1.2 + regressed(e.p, 'BLK') * 1.3) * 0.6 + (e.p.ht - 78) * 0.3 + ((l?.spg || 0) * 3 + (l?.bpg || 0) * 3.5 + (l?.rpg || 0) * 0.4) + Math.min(2, dWon(e)) * 4; });
   const roy = pick(all.filter(e => (e.p.yrs ?? 0) === 0), e => lv(e.p) + (e.p.pot || 0));
   const sixth = pick(L.teams.flatMap(t => FA.signedRoster(t).sort((a, b) => lv(b) - lv(a)).slice(5, 8).map(p => ({ p, team: t }))), e => lv(e.p));
   const gain = e => { try { return diffPlayer(e.p, snapOf(e.p)).points; } catch { return 0; } };
@@ -3862,7 +3868,9 @@ screens.matchup = () => {
   const fmt = (k, v) => (k === 'diff' ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}` : v.toFixed(1));
   const statRow = ([k, lbl, , low]) => {
     const a = muRank(me, k), b = muRank(opp, k); if (!a || !b) return '';
-    const win = ['pace', 'fga', 'tpa', 'tpr', 'fta'].includes(k) ? 0 : a.rank < b.rank ? 1 : a.rank > b.rank ? -1 : 0;
+    // Colored only when the gap is real (8+ places in a 30-team league); close stays white.
+    const gap = b.rank - a.rank, big = Math.abs(gap) >= Math.max(3, Math.round(a.of * 0.27));
+    const win = ['pace', 'fga', 'tpa', 'tpr', 'fta'].includes(k) || !big ? 0 : gap > 0 ? 1 : -1;
     return `<div class="mu-tr"><span class="${win > 0 ? 'up' : ''}">${fmt(k, a.v)} <small>${ord(a.rank)}</small></span><span class="mu-lbl">${lbl}</span><span class="${win < 0 ? 'down' : ''}">${fmt(k, b.v)} <small>${ord(b.rank)}</small></span></div>`;
   };
   const a = muFive(me), b = muFive(opp);
