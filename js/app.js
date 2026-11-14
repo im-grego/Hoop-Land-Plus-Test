@@ -74,7 +74,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.82';
+const APP_VERSION = '0.365.83';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3440,9 +3440,10 @@ const ROADMAP = [
     ['The full offseason', 'Lottery, scouting, the draft, contracts, free agency, trades, training camp and final cuts, for Franchise saves.'],
   ]],
   ['🔜 Coming soon', 'gold', [
-    ['In-season mode', 'Check-ins during the regular season: trades, G League call-ups, morale and the deadline.'],
-    ['All-Star break check-in', 'All-Star weekend, mid-season awards races and a look at where your season stands.'],
-    ['Playoff check-in', 'The bracket, title odds, a scouting report on your opponent and playoff risers.'],
+    ['Draft class overhaul', 'Deeper, more realistic draft classes: real prospects, better ratings and potential, and classes that feel different year to year.'],
+    ['Scouting', 'A full scouting department: send scouts out, narrow down ceilings, and learn which prospects are real before draft night.'],
+    ['Olympics', 'The Olympic tournament in the summer: national team rosters, the bracket and medals for your players.'],
+    ['In-season tournament', 'The NBA Cup: group play, the knockout rounds and a champion crowned in December.'],
   ]],
   ['🔭 Further down the line', '', [
     ['College offseason', 'Recruiting, the transfer portal, NIL and the coaching carousel for College saves.'],
