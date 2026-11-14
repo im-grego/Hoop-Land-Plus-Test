@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.69';
+const APP_VERSION = '0.365.70';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -607,11 +607,21 @@ function logoUrl(url) {
   return url;
 }
 // Player faces cut from the game's roster screens (a face pack), keyed by player id. Nothing shows without one.
-const faceOf = p => (p && state.faces?.get?.(p.id)) || '';
+// Faces bundled with the app (data/faces/nba.json, cut from the game's own roster screens) for the pro league, by name
+// (player ids differ from save to save). A face you import yourself wins.
+const faceName = p => `${p?.fn || ''} ${p?.ln || ''}`.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+let bundledFaces = null;
+function loadBundledFaces() {
+  if (bundledFaces) return;
+  bundledFaces = new Map();
+  fetch('data/faces/nba.json').then(r => (r.ok ? r.json() : {})).then(m => { bundledFaces = new Map(Object.entries(m)); if (state.data && bundledFaces.size) render(); }).catch(() => {});
+}
+const faceOf = p => (p && (state.faces?.get?.(p.id) || (!isCollege() && bundledFaces?.get(faceName(p))))) || '';
 // Saved faces live in the browser per league (player ids carry over from save to save of the same league).
 const facesKey = () => `hlc:faces:${league().shortName}`;
 function facesStored() { try { return JSON.parse(localStorage.getItem(facesKey())) || {}; } catch { return {}; } }
 function loadFaces() {
+  if (state.data) loadBundledFaces();
   if (!state.data || state.facesFor === facesKey()) return;
   state.facesFor = facesKey();
   const m = facesStored();
