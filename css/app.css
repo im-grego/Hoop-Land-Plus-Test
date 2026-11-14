@@ -2546,7 +2546,7 @@ body::after {
 /* Player to Watch (Scouting Report): the face in his team's colors, the number and logo on the box's corners */
 .ptw-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: start; margin-top: 4px; }
 .ptw-face { position: relative; box-sizing: content-box; width: 84px; height: 76px; padding: 3px 3px 0; margin: 8px 0 0 8px; line-height: 0;
-  background: linear-gradient(180deg, var(--ptw-bg), color-mix(in srgb, var(--ptw-bg) 70%, #0d3d85)); border: 3px solid var(--ptw-edge); }
+  background: var(--panel); border: 3px solid var(--ptw-edge); }
 .ptw-clip { position: relative; width: 84px; height: 76px; overflow: hidden; contain: paint; display: grid; place-items: center; }
 .ptw-img { image-rendering: pixelated; max-width: none; visibility: hidden; }
 .ptw-logo-big { width: 60px !important; height: 60px !important; object-fit: contain; }

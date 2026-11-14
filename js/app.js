@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.70';
+const APP_VERSION = '0.365.71';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -4276,10 +4276,9 @@ screens.startFA = (args = {}) => {
     body: `<fieldset class="frame"><legend>${esc(t.shortName)} · ${n}/15</legend>${capBar(t)}</fieldset>
       <div class="tabs fa-tabs">${[['all', 'Best'], ['young', 'Young'], ['vets', 'Vets'], ['g', 'Guard'], ['w', 'Wing'], ['b', 'Big']].map(([k, l]) => `<button class="btn ${k === view ? 'on focus' : 'off'}" data-act="startFAView" data-v="${k}">${l}</button>`).join('')}</div>
       <div class="list">${rows.map(p => {
-        const now = seasonLine(p, state.leagueIdx, yr), l = now || seasonLine(p, state.leagueIdx, yr - 1);
-        return `<div class="prow tap" data-act="openPlayer" data-id="${p.id}"><span class="name">${esc(playerName(p))} ${lvTag(p)}</span>
+        return `<div class="prow tap" data-act="openPlayer" data-id="${p.id}"><span class="name">${faceImg(p)}${esc(playerName(p))}</span>
           <span class="right"><button class="btn small ${n < 15 ? 'focus' : ''}" data-act="startSign" data-id="${p.id}" ${n < 15 ? '' : 'disabled'}>✍️ $${FA.minFor(p)}M</button></span>
-          <span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${now ? '' : 'last season '}${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : ''}${p.season?.injury?.gamesOut > 0 ? ` · <span class="down">out ${injShort(p)}</span>` : ''}</span></div>`;
+          <span class="meta"><span class="stars">${potStars(p)}</span> ${lvRow(p)} · ${esc(posName(p))} · ${p.age}y${p.season?.injury?.gamesOut > 0 ? ` · <span class="down">out ${injShort(p)}</span>` : ''}</span></div>`;
       }).join('') || '<p class="note muted">Nobody here.</p>'}</div>
       ${!args.all && pool.length > 30 ? `<button class="btn small" data-act="startFAAll">Show all ${pool.length}</button>` : ''}`,
   });
@@ -17808,14 +17807,13 @@ screens.fa = (args = {}) => {
     const list = s.bids.get(m.p.id) || [];
     const best = faBest(s, m);
     const mineBid = list.find(b => isUserTeam({ id: b.tid }));
-    const l = seasonLine(m.p, state.leagueIdx, lastYear());
     const M = FA.MOTIVES[m.motive];
     const signed = s.signings.find(x => x.p === m.p);
     const rfa = FA.isRestricted(L, m.p);
     return `<button class="prow ${mineBid ? 'sel' : ''}" data-act="${ro ? 'openPlayer' : 'faOffer'}" data-id="${m.p.id}" ${!ro && (signedIds.has(m.p.id) || s.stage === 'done') ? 'disabled' : ''}>
       <span class="name">${faceImg(m.p)}${esc(playerName(m.p))}${rfa ? ' <span class="badge new">RFA</span>' : ''}${traitsSet(m.p) && tr(m.p, 'durability') <= 6 ? ' <span class="inj-x" title="Injury-prone">✚</span>' : ''}</span>
       <span class="right"><span class="small">Asks $${m.ask}M ${askLen(m)}</span><br><span class="small" title="${esc(M.text)}">${M.icon} ${esc(M.name)}</span></span>
-      <span class="meta">${lvRow(m.p)} · ${esc(posName(m.p))} · ${m.p.age}y${l ? ` · ${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : ''} · ${m.from ? esc(m.from.shortName) : 'FA'}${isAlpha(m.p) ? ' · 👑 wants a featured role' : ''}${isComplete() && FA.agentOf(m.p) !== 'fair' ? ` · ${FA.AGENTS[FA.agentOf(m.p)].icon} ${FA.AGENTS[FA.agentOf(m.p)].label.replace(' agent', '')}` : ''}</span>
+      <span class="meta"><span class="stars">${potStars(m.p)}</span> ${lvRow(m.p)} · ${esc(posName(m.p))} · ${m.p.age}y · ${m.from ? esc(m.from.shortName) : 'FA'}${isAlpha(m.p) ? ' · 👑 wants a featured role' : ''}${isComplete() && FA.agentOf(m.p) !== 'fair' ? ` · ${FA.AGENTS[FA.agentOf(m.p)].icon} ${FA.AGENTS[FA.agentOf(m.p)].label.replace(' agent', '')}` : ''}</span>
       ${signed ? `<span class="chg up">Signed: ${esc(signed.team.shortName)} ${offerText(signed.offer)}</span>`
       : list.length ? `<span class="chg">${list.length} team${list.length > 1 ? 's' : ''} interested · best ${esc(teamName(best.tid))} ${offerText(best)}${mineBid ? (best === mineBid ? ' · <span class="up">you lead</span>' : ' · <span class="down">you trail</span>') : ''}</span>` : ''}
     </button>`;
@@ -23496,10 +23494,9 @@ screens.latefa = (args = {}) => {
       ${done && log ? `<fieldset class="frame"><legend>Around the League</legend><div class="stack">${(calFlags().dumpLog || []).map(x => `<p class="note small">🔁 ${esc(x)}</p>`).join('')}${log.list.map(x => `<p class="note small"><b>${esc(x.name)}</b> ${esc(x.lv)} → ${esc(x.team)} · $${x.sal}M × ${x.yrs}</p>`).join('') || '<p class="note small muted">Nobody else signed.</p>'}</div></fieldset>` : ''}
       <div class="tabs fa-tabs">${[['all', 'Best'], ['young', 'Young'], ['vets', 'Vets']].map(([k, l]) => `<button class="btn ${k === view ? 'on focus' : 'off'}" data-act="lateView" data-v="${k}">${l}</button>`).join('')}</div>
       <div class="list">${rows.map(p => {
-        const l = seasonLine(p, state.leagueIdx, lastYear());
-        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvTag(p)}</span>
+        return `<div class="prow tap" data-act="openPlayer" data-id="${p.id}"><span class="name">${faceImg(p)}${esc(playerName(p))}</span>
           <span class="right">${done ? '' : `<button class="btn small ${mine.every(t => FA.signedRoster(t).length >= O.rosterMax) ? 'off' : 'focus'}" data-act="lateSign" data-id="${p.id}">✍️ $${lateMin(p)}M</button>`}</span>
-          <span class="meta">${esc(posName(p))} · ${p.age}y${l ? ` · ${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : ''}</span></div>`;
+          <span class="meta"><span class="stars">${potStars(p)}</span> ${lvRow(p)} · ${esc(posName(p))} · ${p.age}y</span></div>`;
       }).join('') || '<p class="note muted">Nobody left.</p>'}</div>
       ${!args.all && pool.length > 25 ? `<button class="btn small" data-act="lateAll">Show all ${pool.length}</button>` : ''}`,
     action: done ? { act: 'nav', label: 'On to Final Cuts', to: 'cuts' } : { act: 'lateFinish', label: 'Done Signing: Final Cuts' },
