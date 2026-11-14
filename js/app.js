@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.78';
+const APP_VERSION = '0.365.79';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3897,10 +3897,10 @@ function ptwTone(arr, v, highGood = true) {
   if (below <= 0.25) return highGood ? 'down' : 'up';
   return '';
 }
-// A 0-20 rating: 16+ green, 8 or less red.
-const ptwRate = v => `<span class="${v >= 16 ? 'up' : v <= 8 ? 'down' : ''}">${v}</span>`;
+// A 0-20 rating: 10 and up green, under 10 red (free throws top out at 15, but under 10 is still a weakness).
+const ptwRate = v => `<span class="${v >= 10 ? 'up' : 'down'}">${v}</span>`;
 // A habit: just "Habit +3" when it's the habit for the rating just before it (3-point, then his three habit), else named.
-const ptwHabit = (lbl, v) => `Habit ${v > 0 ? '+' : ''}${v}${lbl === 'Tendency' ? '' : ` ${lbl}`}`;
+const ptwHabit = (lbl, v) => (v ? `Habit <span class="${v > 0 ? 'up' : 'down'}">${v > 0 ? '+' : ''}${v}</span>${lbl === 'Tendency' ? '' : ` ${lbl}`}` : '');   // a 0 habit isn't worth a word
 // The three things that stop him, each with what he does (the stat), the rating behind it and the habit, in that order.
 // Each key is only on the table when he really is that player, and scores by how far out he is; the three picked come
 // from three different parts of his game. Two ways to say most of them, picked by the player so two alike read apart.
@@ -3946,10 +3946,10 @@ function ptwKeys(p, l, t, pools = {}, shown = new Set()) {
     ['He likes the mid-range jumper more than it likes him. Give him space for it.', 'Stay back and let him settle. The long two is the shot you want him taking.'],
     [twoLine(), `${ptwRate(A('MID'))} Mid-Range`, ptwHabit('Tendency', T('twoPoint'))]);
   // Free throws
-  if (fta >= 3 && ft != null && ft < 65) add('fts', 6 + (65 - ft) / 3 + fta / 2, 'Send him to the line',
+  if (fta >= 3 && ft != null && ft < 55) add('fts', 4 + (55 - ft) / 3 + fta / 2, 'Send him to the line',
     ['Foul him hard instead of giving up the easy two. He doesn\'t make them.', 'Late in a close game, he\'s the one to put on the line.'],
     [ftLine(), `${ptwRate(A('FTS'))} Free Throw`]);
-  if (fta >= 7 && (ft == null || ft >= 70) && T('pumpFake') >= 2) add('fts', 2 + (fta - 7) * 1.5 + T('pumpFake'), 'Stay down, don\'t foul',
+  if (fta >= 7 && (ft == null || ft >= 70) && T('pumpFake') >= 2) add('fts', 0.5 + (fta - 7) / 4, 'Stay down, don\'t foul',
     ['He hunts contact and the pump fake. Hands up, feet on the floor.', 'Every reach is two free points. Show your hands and don\'t bite on the fake.'],
     [ftLine(), ptwHabit('Pump Fake', T('pumpFake'))]);
   // Inside
@@ -4064,8 +4064,8 @@ function ptwCard(opp) {
   const keys = ptwKeys(p, l, t, pools, new Set(['PTS', ...two, 'MIN', 'TO', ...(ft != null ? ['FT'] : []), ...(tp != null && tpa >= 0.5 ? ['3P'] : [])]));
   return `<fieldset class="frame ptw-frame"><legend>Player to Watch</legend>
       <div class="ptw-top tap" data-act="openPlayer" data-id="${p.id}">
-        <div class="ptw-who"><div class="ptw-name">${esc(playerName(p))}</div>
-          <div class="ptw-meta">${p.num != null ? `#${esc(String(p.num))} · ` : ''}${lvTag(p, 'gold')} · ${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)} · ${p.wt} lb${rankHtml ? `<br>${rankHtml}` : ''}</div></div>
+        <div class="ptw-who"><div class="ptw-name">${esc(playerName(p))}${hotCold(p)}</div>
+          <div class="ptw-meta">${p.num != null ? `#${esc(String(p.num))} · ` : ''}${lvTag(p, 'gold')}${(sl => (sl ? `<sup class="${sl > 0 ? 'up' : 'down'} lv-streak">${sl > 0 ? '+' : ''}${sl}</sup>` : ''))(streakLv(p))} · ${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)} · ${p.wt} lb${rankHtml ? `<br>${rankHtml}` : ''}</div></div>
       </div>
       <div class="ptw-mpg">⏱ ${l.mpg.toFixed(1)} MPG · ${l.gp} games</div>
       <div class="ptw-stats">${['PTS', ...two].map(k => `<div><b>${pg[k].toFixed(1)}</b><span>${k}</span></div>`).join('')}</div>
