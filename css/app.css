@@ -2535,3 +2535,10 @@ body::after {
 .tm-bar.hi > i { background: #4ade80; }
 .tm-bar.mid > i { background: #38bdf8; }
 .tm-bar.lo > i { background: #f87171; }
+
+/* League team stats: eight columns. The table scrolls sideways when the screen is narrow, with the rank and team pinned. */
+.ts-row { grid-template-columns: 16px 56px repeat(8, minmax(38px, 1fr)); min-width: 410px; }
+.ts-row > span:nth-child(1), .ts-row > span:nth-child(2) { position: sticky; background: var(--panel, #0f4a9e); z-index: 1; }
+.ts-row > span:nth-child(1) { left: 0; }
+.ts-row > span:nth-child(2) { left: 22px; }
+.ts-row.mine > span:nth-child(1), .ts-row.mine > span:nth-child(2) { background: color-mix(in srgb, var(--panel, #0f4a9e) 85%, #ffc83c); }

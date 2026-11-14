@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.66';
+const APP_VERSION = '0.365.67';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -83,6 +83,8 @@ const DEVLOG = [
     ['Features', [
       'Resume: the save you\'re working on is kept on your device, so closing the app doesn\'t lose it. Pick up where you left off from the start screen',
       'The Expansion Draft step can be skipped',
+      'Team stats show shot volume next to efficiency: shots, threes taken, the share of shots from three and free throws a game (Scouting Report and League → Teams)',
+      'Scouting Report reads volume and efficiency together: a team that rarely shoots threes but makes them is called inside-out, not a three-point team',
     ]],
     ['Bug Fixes', [
       'A step whose screen breaks now offers a Skip instead of leaving you stuck',
@@ -3740,7 +3742,10 @@ function nextGame(t) {
 }
 const MU_STATS = [
   ['ppg', 'Points', r => r.PTS / r.GP, false], ['opp', 'Allowed', r => r.OPP / r.GP, true], ['diff', 'Margin', r => (r.PTS - r.OPP) / r.GP, false],
-  ['fg', 'FG%', r => (r.FGA ? r.FGM / r.FGA * 100 : 0), false], ['tp', '3P%', r => (r.TPA ? r.TPM / r.TPA * 100 : 0), false], ['tpa', '3s taken', r => r.TPA / r.GP, false],
+  ['fga', 'Shots', r => r.FGA / r.GP, false], ['fg', 'FG%', r => (r.FGA ? r.FGM / r.FGA * 100 : 0), false],
+  ['twop', '2P%', r => (r.FGA - r.TPA ? (r.FGM - r.TPM) / (r.FGA - r.TPA) * 100 : 0), false],
+  ['tp', '3P%', r => (r.TPA ? r.TPM / r.TPA * 100 : 0), false], ['tpa', '3s taken', r => r.TPA / r.GP, false],
+  ['tpr', '3s share %', r => (r.FGA ? r.TPA / r.FGA * 100 : 0), false], ['fta', 'Free throws', r => (r.FTA || 0) / r.GP, false],
   ['reb', 'Rebounds', r => r.REB / r.GP, false], ['ast', 'Assists', r => r.AST / r.GP, false], ['tov', 'Turnovers', r => r.TO / r.GP, true],
   ['stl', 'Steals', r => r.STL / r.GP, false], ['blk', 'Blocks', r => r.BLK / r.GP, false], ['pace', 'Pace', r => (r.POS || 0) / r.GP, false],
 ];
@@ -3795,7 +3800,7 @@ function muKeys(me, opp) {
   if (soft) keys.push(['🎯', soft()]);
   const blocker = best(opp, p => A(p, 'BLK')), thief = best(opp, p => A(p, 'STL')), passer = best(opp, p => A(p, 'PAS')), glass = best(opp, p => A(p, 'DRE'));
   const strength = {
-    shoot: () => `They live behind the arc${rk('tp') ? ` (${rk('tp')})` : ''}: run them off the three-point line${shooter ? `, and match it with ${nm(shooter)}` : ''}.`,
+    shoot: () => shootRead(opp, shooter ? nm(shooter) : ''),
     rim: () => `${blocker ? nm(blocker) : 'Their bigs'} protect${blocker ? 's' : ''} the rim: draw him out and kick to shooters.`,
     reb: () => `They win the glass${glass ? ` behind ${nm(glass)}` : ''}: box out on every shot.`,
     perim: () => `Active hands on the perimeter${thief ? ` (${nm(thief)})` : ''}: take care of the ball.`,
@@ -3812,12 +3817,28 @@ function muKeys(me, opp) {
   else { const hot = healthy(me).filter(p => streakOf(p.id) === 'hot').sort((x, y) => shownLevel(y) - shownLevel(x))[0]; if (hot) keys.push(['🔥', `Ride the hot hand: ${nm(hot)}.`]); }
   return keys;
 }
+// Their shooting with the volume behind it: a team that makes threes but rarely takes them plays inside-out.
+function shootRead(opp, match = '') {
+  const v = muRank(opp, 'tpr'), e = muRank(opp, 'tp'); if (!v || !e) return 'They can shoot it: run them off the three-point line.';
+  const n = v.of, hiV = v.rank <= Math.round(n / 3), loV = v.rank > n - Math.round(n / 3), hiE = e.rank <= Math.round(n / 3), loE = e.rank > n - Math.round(n / 3);
+  const vs = `${ord(v.rank)} in threes taken`, es = `${ord(e.rank)} in 3P%`;
+  if (hiV && hiE) return `They live behind the arc and make them (${vs}, ${es}): run them off the line${match ? `, and match it with ${match}` : ''}.`;
+  if (loV && hiE) return `Inside-out team: they don't take many threes (${vs}) but hit them when they do (${es}). Protect the paint first, then close out hard.`;
+  if (hiV && loE) return `They hoist threes (${vs}) without making many (${es}): live with the jumpers and protect the paint.`;
+  return `They can shoot it (${es}, ${vs}): don't leave shooters open.`;
+}
 // How a team plays, in a few words: tempo, threes, defense.
 function muStyle(tm) {
   const r = k => muRank(tm, k)?.rank, n = muRank(tm, 'ppg')?.of || 30, top = x => x && x <= Math.round(n * 0.27), low = x => x && x > n - Math.round(n * 0.27);
   const out = [];
   const pace = r('pace'); out.push(top(pace) ? `Fast (${ord(pace)} in pace)` : low(pace) ? `Slow, half-court (${ord(pace)} in pace)` : 'Average tempo');
-  const tpa = r('tpa'); if (top(tpa)) out.push(`Lots of threes (${ord(tpa)} in attempts)`); else if (low(tpa)) out.push(`Lives inside the arc (${ord(tpa)} in 3s taken)`);
+  const tpr = r('tpr'), tp = r('tp');
+  if (top(tpr)) out.push(top(tp) ? `Lots of threes, and they make them (${ord(tpr)} in threes taken, ${ord(tp)} in 3P%)` : low(tp) ? `Lots of threes, not many falling (${ord(tpr)} in threes taken, ${ord(tp)} in 3P%)` : `Lots of threes (${ord(tpr)} in threes taken)`);
+  else if (low(tpr)) out.push(top(tp) ? `Inside-out: few threes, but efficient when they take them (${ord(tpr)} in threes taken, ${ord(tp)} in 3P%)` : `Lives inside the arc (${ord(tpr)} in threes taken)`);
+  else if (top(tp)) out.push(`Efficient from three (${ord(tp)} in 3P%) on an average number of attempts`);
+  const fga = r('fga'); if (top(fga)) out.push(`Gets up a lot of shots (${ord(fga)} in attempts)`); else if (low(fga)) out.push(`Few shots a night (${ord(fga)} in attempts)`);
+  const twop = r('twop'); if (top(twop)) out.push(`Efficient inside the arc (${ord(twop)} in 2P%)`);
+  const fta = r('fta'); if (top(fta)) out.push(`Gets to the line (${ord(fta)} in free throws)`);
   const opp = r('opp'); if (top(opp)) out.push(`Tough defense (${ord(opp)} in points allowed)`); else if (low(opp)) out.push(`Leaky defense (${ord(opp)} in points allowed)`);
   const tov = r('tov'); if (low(tov)) out.push(`Careless with the ball (${ord(tov)} in turnovers)`);
   return out;
@@ -3841,7 +3862,7 @@ screens.matchup = () => {
   const fmt = (k, v) => (k === 'diff' ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}` : v.toFixed(1));
   const statRow = ([k, lbl, , low]) => {
     const a = muRank(me, k), b = muRank(opp, k); if (!a || !b) return '';
-    const win = k === 'pace' ? 0 : a.rank < b.rank ? 1 : a.rank > b.rank ? -1 : 0;
+    const win = ['pace', 'fga', 'tpa', 'tpr', 'fta'].includes(k) ? 0 : a.rank < b.rank ? 1 : a.rank > b.rank ? -1 : 0;
     return `<div class="mu-tr"><span class="${win > 0 ? 'up' : ''}">${fmt(k, a.v)} <small>${ord(a.rank)}</small></span><span class="mu-lbl">${lbl}</span><span class="${win < 0 ? 'down' : ''}">${fmt(k, b.v)} <small>${ord(b.rank)}</small></span></div>`;
   };
   const a = muFive(me), b = muFive(opp);
@@ -20918,7 +20939,8 @@ function confStandings(t, yr) {
 // Every team's numbers for a season, sortable, back as far as the save goes.
 const TEAM_STAT_COLS = [
   ['ppg', 'PPG', r => r.PTS / r.GP, false], ['opp', 'Opp', r => r.OPP / r.GP, true], ['margin', 'Diff', r => (r.PTS - r.OPP) / r.GP, false],
-  ['fg', 'FG%', r => (r.FGA ? (r.FGM / r.FGA) * 100 : 0), false], ['tp', '3P%', r => (r.TPA ? (r.TPM / r.TPA) * 100 : 0), false], ['ft', 'FT%', r => (r.FTA ? (r.FTM / r.FTA) * 100 : 0), false],
+  ['fga', 'FGA', r => r.FGA / r.GP, false], ['fg', 'FG%', r => (r.FGA ? (r.FGM / r.FGA) * 100 : 0), false],
+  ['tpa', '3PA', r => r.TPA / r.GP, false], ['tp', '3P%', r => (r.TPA ? (r.TPM / r.TPA) * 100 : 0), false], ['ft', 'FT%', r => (r.FTA ? (r.FTM / r.FTA) * 100 : 0), false],
 ];
 actions.lgHof = () => go('editor', { tab: 'hof' });
 actions.myLeague = () => go('leaders', { m: 'stats', k: 'PTS' });
