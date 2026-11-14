@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.77';
+const APP_VERSION = '0.365.78';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3899,8 +3899,8 @@ function ptwTone(arr, v, highGood = true) {
 }
 // A 0-20 rating: 16+ green, 8 or less red.
 const ptwRate = v => `<span class="${v >= 16 ? 'up' : v <= 8 ? 'down' : ''}">${v}</span>`;
-// A habit: "Tendency" when it's the habit for the rating just before it (3-point, then his three habit), else named.
-const ptwHabit = (lbl, v) => `${v > 0 ? '+' : ''}${v} ${lbl}`;
+// A habit: just "Habit +3" when it's the habit for the rating just before it (3-point, then his three habit), else named.
+const ptwHabit = (lbl, v) => `Habit ${v > 0 ? '+' : ''}${v}${lbl === 'Tendency' ? '' : ` ${lbl}`}`;
 // The three things that stop him, each with what he does (the stat), the rating behind it and the habit, in that order.
 // Each key is only on the table when he really is that player, and scores by how far out he is; the three picked come
 // from three different parts of his game. Two ways to say most of them, picked by the player so two alike read apart.
@@ -4041,7 +4041,7 @@ function ptwKeys(p, l, t, pools = {}, shown = new Set()) {
   for (const k of basics) if (out.length < 3) out.push({ score: 0, title: k.title, text: k.text, why: unshown(k.why) });
   // A habit or rating already in an earlier key (his step-back on two jumper keys) isn't said twice.
   const said = new Set();
-  for (const k of out) k.why = k.why.split(' · ').filter(b => b.includes('Tendency') || (!said.has(b) && said.add(b))).join(' · ');
+  for (const k of out) k.why = k.why.split(' · ').filter(b => /^Habit [+-]?\d+$/.test(b.replace(/<[^>]+>/g, '')) || (!said.has(b) && said.add(b))).join(' · ');
   return out.slice(0, 3);
 }
 function ptwCard(opp) {
