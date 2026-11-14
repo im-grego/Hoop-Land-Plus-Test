@@ -2547,15 +2547,7 @@ body::after {
 .ts-row.mine > span:nth-child(1), .ts-row.mine > span:nth-child(2) { background: color-mix(in srgb, var(--panel, #0f4a9e) 85%, #ffc83c); }
 
 /* Player to Watch (Scouting Report): the face in his team's colors, the number and logo on the box's corners */
-.ptw-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: start; margin-top: 4px; }
-.ptw-face { position: relative; box-sizing: content-box; width: 84px; height: 76px; padding: 3px 3px 0; margin: 8px 0 0 8px; line-height: 0;
-  background: var(--panel); border: 3px solid var(--ptw-edge); }
-.ptw-clip { position: relative; width: 84px; height: 76px; overflow: hidden; contain: paint; display: grid; place-items: center; }
-.ptw-img { image-rendering: pixelated; max-width: none; visibility: hidden; }
-.ptw-logo-big { width: 60px !important; height: 60px !important; object-fit: contain; }
-.ptw-no { position: absolute; z-index: 2; top: -10px; left: -10px; background: var(--ptw-edge); color: var(--ptw-ink); font-weight: 900; font-size: 14px; line-height: 1; padding: 3px 6px; box-shadow: 0 2px 0 #04173f; }
-.ptw-logo { position: absolute; z-index: 2; right: -12px; bottom: -12px; width: 30px; height: 30px; display: grid; place-items: center; background: #0b2f6b; border: 2px solid #3f86d0; border-radius: 50%; box-shadow: 0 2px 0 #04173f; }
-.ptw-logo-sm { width: 22px !important; height: 22px !important; object-fit: contain; }
+.ptw-top { display: block; margin-top: 4px; text-align: center; }
 .ptw-who { min-width: 0; }
 .ptw-name { color: #fff; font-size: 21px; font-weight: 900; line-height: 1.15; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ptw-meta { color: #8fd3ff; font-size: 13px; font-weight: 700; margin-top: 4px; line-height: 1.4; }

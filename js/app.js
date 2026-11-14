@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.73';
+const APP_VERSION = '0.365.74';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -4032,14 +4032,6 @@ function ptwKeys(p, l, t, pools = {}) {
   for (const k of basics) if (out.length < 3) out.push({ score: 0, title: k.title, text: k.text, why: k.why.join(' · ') });
   return out.slice(0, 3);
 }
-// His team's colors for the box: the darker one behind the face, the other as the border and the number badge.
-function ptwColors(tm) {
-  const cs = (tm.teamColors || []).filter(c => /^[0-9a-f]{6}$/i.test(c));
-  if (cs.length < 2) return { bg: '#0b2f6b', edge: '#3f86d0', ink: '#fff' };
-  const lum = c => { const v = parseInt(c, 16); return 0.299 * (v >> 16) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255); };
-  const [a, b] = lum(cs[0]) <= lum(cs[1]) ? [cs[0], cs[1]] : [cs[1], cs[0]];
-  return { bg: `#${a}`, edge: `#${b}`, ink: lum(b) > 150 ? '#141020' : '#fff' };
-}
 function ptwCard(opp) {
   const healthy = opp.roster.filter(p => (p.status === 3 || p.status === 2) && !((p.season?.injury?.gamesOut || 0) > 0));
   const yr = lastSeasonYear(), lines = healthy.map(p => [p, seasonLine(p, state.leagueIdx, yr)]).filter(([, l]) => l?.gp >= 3);
@@ -4057,73 +4049,17 @@ function ptwCard(opp) {
   const pct = (v, arr, extra = '') => (v == null ? '' : `<span class="${ptwTone(arr, v)}">${v.toFixed(1)}%</span>${extra}`);
   const shoot = [fg != null && `FG ${pct(fg, pools.fg)}`, tp != null && tpa >= 0.5 && `3P ${tpa >= 2 ? pct(tp, pools.tp) : `${tp.toFixed(1)}%`} on ${tpa.toFixed(1)}`,
     ft != null && `FT ${pct(ft, pools.ft)}`, `TO <span class="${ptwTone(pools.to, tov, false)}">${tov.toFixed(1)}</span>`].filter(Boolean).join(' · ');
-  const c = ptwColors(opp), url = '';   // no faces for now: the team logo in the box
-  const keys = ptwKeys(p, l, t, pools);
+    const keys = ptwKeys(p, l, t, pools);
   return `<fieldset class="frame ptw-frame"><legend>Player to Watch</legend>
       <div class="ptw-top tap" data-act="openPlayer" data-id="${p.id}">
-        <div class="ptw-face" style="--ptw-bg:${c.bg};--ptw-edge:${c.edge};--ptw-ink:${c.ink}">
-          <span class="ptw-no">#${esc(String(p.num ?? ''))}</span>
-          <div class="ptw-clip">${url ? `<img class="ptw-img" src="${url}" alt="" onload="hlcPtwPlace(this)">` : logoImg(opp, 'ptw-logo-big')}</div>
-          ${url ? `<span class="ptw-logo">${logoImg(opp, 'ptw-logo-sm')}</span>` : ''}
-        </div>
         <div class="ptw-who"><div class="ptw-name">${esc(playerName(p))}</div>
-          <div class="ptw-meta">${lvTag(p, 'gold')} · ${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)}${rankHtml ? `<br>${rankHtml}` : ''}</div></div>
+          <div class="ptw-meta">${p.num != null ? `#${esc(String(p.num))} · ` : ''}${lvTag(p, 'gold')} · ${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)}${rankHtml ? `<br>${rankHtml}` : ''}</div></div>
       </div>
       <div class="ptw-stats">${['PTS', ...two].map(k => `<div><b>${pg[k].toFixed(1)}</b><span>${k}</span></div>`).join('')}</div>
       <div class="ptw-shoot">⏱ ${l.mpg.toFixed(1)} MPG · ${l.gp} games<br>${shoot}</div>
     </fieldset>
     ${keys.length ? `<fieldset class="frame ptw-frame"><legend>🛡 How to Stop Him</legend>${keys.map((k, i) => `<div class="ptw-key"><span class="ptw-n">${i + 1}</span><div><b>${esc(k.title)}</b><p>${esc(k.text)}</p><span class="ptw-why">${k.why}</span></div></div>`).join('')}</fieldset>` : ''}`;
 }
-// Place an imported face in the card's box by its own features: the inner edge of the left eye (where his eye white and
-// pupil end, toward the nose) on the center line, the eye line at a set height, every face at one scale. Hair falls
-// where it falls and the box trims it.
-const PTW_BOX = { w: 84, h: 76, eye: 38, face: 78 };
-window.hlcPtwPlace = img => {
-  try {
-    const W = img.naturalWidth, H = img.naturalHeight; if (!W || !H) return;
-    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-    const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
-    const d = cx.getImageData(0, 0, W, H).data, at = (x, y) => (y * W + x) * 4;
-    const px = H / 52, reach = Math.max(2, Math.round(px * 4));   // half a game pixel in this image; the pupil within two game pixels (a recorded face is soft)
-    const dark = (x, y, lim = 90) => x >= 0 && x < W && d[at(x, y) + 3] > 0 && Math.max(d[at(x, y)], d[at(x, y) + 1], d[at(x, y) + 2]) < lim;
-    const PUPIL = 130;   // a light-skinned face's pupil is a mid brown
-    const whites = [];
-    // The eyes sit between 30% and 75% down: above that is hair or a headband.
-    for (let y = Math.floor(H * 0.3); y < Math.floor(H * 0.75); y++) for (let x = 0; x < W; x++) {
-      const i = at(x, y);
-      if (!d[i + 3] || Math.min(d[i], d[i + 1], d[i + 2]) <= 215) continue;
-      let pupil = false; for (let k = 1; k <= reach && !pupil; k++) pupil = dark(x - k, y, PUPIL) || dark(x + k, y, PUPIL);
-      // An eye white is a short run (about two game pixels); a headband or a jersey stripe runs long.
-      const wt = (xx, yy) => { const j = at(xx, yy); return d[j + 3] && Math.min(d[j], d[j + 1], d[j + 2]) > 215; };
-      let a = x, b = x; while (a > 0 && wt(a - 1, y)) a--; while (b + 1 < W && wt(b + 1, y)) b++;
-      if (pupil && b - a + 1 <= W * 0.15) whites.push([x, y]);
-    }
-    // Keep the band of rows with the most of them: the eyes, not a headband's corner or a stray glint.
-    if (whites.length) {
-      const ys = [...new Set(whites.map(([, y]) => y))].sort((a, b) => a - b), bands = [];
-      for (const y of ys) { const bd = bands[bands.length - 1]; if (bd && y - bd.y1 <= 1) bd.y1 = y; else bands.push({ y0: y, y1: y }); }
-      const n = bd => whites.filter(([, y]) => y >= bd.y0 && y <= bd.y1).length;
-      const top = bands.reduce((a, bd) => (n(bd) > n(a) ? bd : a));
-      whites.splice(0, whites.length, ...whites.filter(([, y]) => y >= top.y0 && y <= top.y1));
-    }
-    // No eye whites (goggles, shades): the middle of his head, at the usual eye line.
-    let x0 = W, x1 = 0; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[at(x, y) + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
-    let leftIn = x1 >= x0 ? (x0 + x1 + 1) / 2 : W / 2, eyeY = H * 0.52;
-    if (whites.length) {
-      const mid = whites.reduce((a, [x]) => a + x, 0) / whites.length, lw = whites.filter(([x]) => x < mid);
-      eyeY = whites.reduce((a, [, y]) => a + y, 0) / whites.length + 0.5;
-      if (lw.length) {
-        let inner = Math.max(...lw.map(([x]) => x)); const rows = [...new Set(lw.map(([, y]) => y))];
-        // Over the pupil (no wider than the white itself), stopping at the skin.
-        const ww = inner - Math.min(...lw.map(([x]) => x)) + 1, start = inner;
-        while (inner + 1 < mid && inner - start < ww && rows.some(y => dark(inner + 1, y, PUPIL))) inner++;
-        leftIn = inner + 1;
-      }
-    }
-    const s = PTW_BOX.face / H;
-    Object.assign(img.style, { position: 'absolute', height: `${PTW_BOX.face}px`, width: `${W * s}px`, left: `${PTW_BOX.w / 2 - leftIn * s}px`, top: `${PTW_BOX.eye - eyeY * s}px`, visibility: 'visible' });
-  } catch { img.style.visibility = 'visible'; }
-};
 screens.matchup = () => {
   const me = myTeam(), ng = nextGame(me);
   if (!ng) { layout({ title: 'Scouting Report', body: '<p class="note">No game coming up.</p>' }); return; }
