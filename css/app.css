@@ -2433,6 +2433,9 @@ body:has(.ticker) #app { padding-bottom: calc(34px + 4px + max(0px, calc(env(saf
 .mu-at { font-weight: 800; color: var(--dim, #b9c8e8); }
 .mu-key { margin: 4px 0; line-height: 1.3; }
 .mu-frame { padding-left: 8px; padding-right: 8px; }
+/* Matchups: the middle only holds a position, so the names get the room (and the level shrinks with the name) */
+.mu-mtch .mu-tr { grid-template-columns: 1fr 34px 1fr; }
+.mu-mtch .mu-tr small { font-size: .8em; }
 .mu-tr { display: grid; grid-template-columns: 1fr 96px 1fr; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-size: 14px; }
 .mu-tr:last-child { border-bottom: 0; }
 .mu-tr > span:first-child { text-align: right; }

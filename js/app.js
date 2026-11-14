@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.71';
+const APP_VERSION = '0.365.72';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -999,7 +999,7 @@ function render() {
 }
 
 // Names never wrap or get cut off: a name too long for its spot gets a smaller font, as big as still fits.
-const FIT_NAMES = '.col-hd b, .pl-name, .lu-nm b, .lu-c-name > b, .ir-name, .mu-tr > span, .prow .name, .lu-frame > legend, .lu-cycle b, .ts-team b, .start-detail .sd-line';
+const FIT_NAMES = '.ptw-name, .col-hd b, .pl-name, .lu-nm b, .lu-c-name > b, .ir-name, .mu-tr > span, .prow .name, .lu-frame > legend, .lu-cycle b, .ts-team b, .start-detail .sd-line';
 function fitText(root = $app) {
   try {
     const els = new Set(root.querySelectorAll(FIT_NAMES));
@@ -3992,22 +3992,39 @@ window.hlcPtwPlace = img => {
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
     const d = cx.getImageData(0, 0, W, H).data, at = (x, y) => (y * W + x) * 4;
-    const px = H / 52, reach = Math.max(1, Math.round(px * 2));   // one game pixel in this image, and two of them
-    const dark = (x, y) => x >= 0 && x < W && d[at(x, y) + 3] > 0 && Math.max(d[at(x, y)], d[at(x, y) + 1], d[at(x, y) + 2]) < 90;
+    const px = H / 52, reach = Math.max(2, Math.round(px * 4));   // half a game pixel in this image; the pupil within two game pixels (a recorded face is soft)
+    const dark = (x, y, lim = 90) => x >= 0 && x < W && d[at(x, y) + 3] > 0 && Math.max(d[at(x, y)], d[at(x, y) + 1], d[at(x, y) + 2]) < lim;
+    const PUPIL = 130;   // a light-skinned face's pupil is a mid brown
     const whites = [];
-    for (let y = 0; y < Math.floor(H * 0.75); y++) for (let x = 0; x < W; x++) {
+    // The eyes sit between 30% and 75% down: above that is hair or a headband.
+    for (let y = Math.floor(H * 0.3); y < Math.floor(H * 0.75); y++) for (let x = 0; x < W; x++) {
       const i = at(x, y);
       if (!d[i + 3] || Math.min(d[i], d[i + 1], d[i + 2]) <= 215) continue;
-      let pupil = false; for (let k = 1; k <= reach && !pupil; k++) pupil = dark(x - k, y) || dark(x + k, y);
-      if (pupil) whites.push([x, y]);
+      let pupil = false; for (let k = 1; k <= reach && !pupil; k++) pupil = dark(x - k, y, PUPIL) || dark(x + k, y, PUPIL);
+      // An eye white is a short run (about two game pixels); a headband or a jersey stripe runs long.
+      const wt = (xx, yy) => { const j = at(xx, yy); return d[j + 3] && Math.min(d[j], d[j + 1], d[j + 2]) > 215; };
+      let a = x, b = x; while (a > 0 && wt(a - 1, y)) a--; while (b + 1 < W && wt(b + 1, y)) b++;
+      if (pupil && b - a + 1 <= W * 0.15) whites.push([x, y]);
     }
-    let leftIn = W / 2, eyeY = H * 0.45;
+    // Keep the band of rows with the most of them: the eyes, not a headband's corner or a stray glint.
+    if (whites.length) {
+      const ys = [...new Set(whites.map(([, y]) => y))].sort((a, b) => a - b), bands = [];
+      for (const y of ys) { const bd = bands[bands.length - 1]; if (bd && y - bd.y1 <= 1) bd.y1 = y; else bands.push({ y0: y, y1: y }); }
+      const n = bd => whites.filter(([, y]) => y >= bd.y0 && y <= bd.y1).length;
+      const top = bands.reduce((a, bd) => (n(bd) > n(a) ? bd : a));
+      whites.splice(0, whites.length, ...whites.filter(([, y]) => y >= top.y0 && y <= top.y1));
+    }
+    // No eye whites (goggles, shades): the middle of his head, at the usual eye line.
+    let x0 = W, x1 = 0; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[at(x, y) + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+    let leftIn = x1 >= x0 ? (x0 + x1 + 1) / 2 : W / 2, eyeY = H * 0.52;
     if (whites.length) {
       const mid = whites.reduce((a, [x]) => a + x, 0) / whites.length, lw = whites.filter(([x]) => x < mid);
       eyeY = whites.reduce((a, [, y]) => a + y, 0) / whites.length + 0.5;
       if (lw.length) {
         let inner = Math.max(...lw.map(([x]) => x)); const rows = [...new Set(lw.map(([, y]) => y))];
-        while (inner + 1 < mid && rows.some(y => dark(inner + 1, y))) inner++;
+        // Over the pupil (no wider than the white itself), stopping at the skin.
+        const ww = inner - Math.min(...lw.map(([x]) => x)) + 1, start = inner;
+        while (inner + 1 < mid && inner - start < ww && rows.some(y => dark(inner + 1, y, PUPIL))) inner++;
         leftIn = inner + 1;
       }
     }
@@ -4041,7 +4058,7 @@ screens.matchup = () => {
       <fieldset class="frame"><legend>How They Play</legend>${muStyle(opp).map(s => `<p class="note small mu-key">• ${esc(s)}</p>`).join('')}
         <p class="note small mu-key">• Strength: <b>${esc(NEED_LABELS[Object.entries(needZ(opp)).sort((x, y) => y[1] - x[1])[0]?.[0]] || '—')}</b> · Weakness: <b>${esc(teamNeed(opp) || '—')}</b></p></fieldset>
       <fieldset class="frame mu-frame"><legend>Team Stats</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${MU_STATS.map(statRow).join('')}</fieldset>
-      <fieldset class="frame mu-frame"><legend>Matchups</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${[0, 1, 2, 3, 4].map(mRow).join('')}</fieldset>
+      <fieldset class="frame mu-frame mu-mtch"><legend>Matchups</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${[0, 1, 2, 3, 4].map(mRow).join('')}</fieldset>
       <fieldset class="frame"><legend>Injury Report</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b>${hurt(me)}</div><div><b class="small">${esc(opp.shortName)}</b>${hurt(opp)}</div></div></fieldset>
       <fieldset class="frame"><legend>Hot &amp; Cold</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b><span>🔥 ${streak(me, true)}</span><span>❄️ ${streak(me, false)}</span></div><div><b class="small">${esc(opp.shortName)}</b><span>🔥 ${streak(opp, true)}</span><span>❄️ ${streak(opp, false)}</span></div></div></fieldset>`,
   });
