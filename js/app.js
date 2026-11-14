@@ -74,7 +74,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.87';
+const APP_VERSION = '0.365.88';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -940,7 +940,8 @@ function render() {
       <p class="note small muted">Send this to get it fixed:</p><pre class="note small" style="white-space:pre-wrap;user-select:text">${esc(`v${SHOWN_VERSION} (build ${APP_VERSION}) · ${top.name}\n${err?.message || err}\n${String(err?.stack || '').split('\n').slice(0, 6).join('\n')}`)}</pre>
       ${(() => { try { const cur = state.data && currentStep(); return cur && (cur.key === top.name || (STEP_SCREENS[cur.key] || []).includes(top.name)) ? `<div class="grid2"><button class="btn focus" data-act="goHomeCuts">🏠 Home</button><button class="btn" data-act="skipBrokenStep">⏭ Skip ${esc(cur.title)}</button></div>` : ''; } catch { return ''; } })() || '<button class="btn focus" data-act="goHomeCuts">🏠 Home</button>'}` });
   }
-  let target = view === lastView ? y : top.y ?? 0;
+  // A screen you come back to (Back, Home) opens at its top, like any other new screen.
+  let target = view === lastView ? y : 0;
   if (view === lastView && state.anchor) {
     // The same button can show up twice (a player in the strip and in the list): keep the one nearest where you were.
     const ns = [...document.querySelectorAll(state.anchor.sel || `[data-anchor="${state.anchor.key}"]`)].filter(x => x.getClientRects().length);
