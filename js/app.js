@@ -73,12 +73,21 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.64';
+const APP_VERSION = '0.365.65';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
 // the player hasn't looked at yet.
 const DEVLOG = [
+  { v: 'Beta 0.2.1', sections: [
+    ['Features', [
+      'Resume: the save you\'re working on is kept on your device, so closing the app doesn\'t lose it. Pick up where you left off from the start screen',
+      'The Expansion Draft step can be skipped',
+    ]],
+    ['Bug Fixes', [
+      'A step whose screen breaks now offers a Skip instead of leaving you stuck',
+    ]],
+  ] },
   { v: 'Beta 0.2.0', sections: [
     ['Features', [
       'Start a Franchise right in the app: take control of a team, make your moves, then export it and load it into Hoop Land',
