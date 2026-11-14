@@ -74,7 +74,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.88';
+const APP_VERSION = '0.365.89';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -833,7 +833,7 @@ function leagueTabs() {
     return `<div class="tabs lg-tabs">${LEAGUE_TABS.map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="lgTab" data-t="${k}">${l}</button>`).join('')}</div>`;
   } catch { return ''; }
 }
-function layout({ title, left = '', right = '', body, action = null, actionLeft = null, bare = false }) {
+function layout({ title, left = '', right = '', body, action = null, actionLeft = null, extra = '', bare = false }) {
   const t = esc(title);
   body = leagueTabs() + body;
   keepLogos(() => { $app.innerHTML = `
@@ -848,7 +848,7 @@ function layout({ title, left = '', right = '', body, action = null, actionLeft 
     </div>`}
     <main class="panel ${bare ? 'bare' : ''}">${body}</main>
     ${tickerBar()}
-    ${action ? `<div class="bottom ${actionLeft ? 'two' : ''}">${actionLeft ? `<button class="btn action alt" data-act="${actionLeft.act}" data-id="${actionLeft.id}">${esc(actionLeft.label)}</button>` : ''}<button class="btn action" data-act="${action.act}"${action.k ? ` data-k="${esc(action.k)}"` : ''}${action.n != null ? ` data-n="${action.n}"` : ''}${action.to ? ` data-to="${esc(action.to)}"` : ''}>${esc(action.label)}</button></div>` : ''}`; });
+    ${action ? `<div class="bottom ${actionLeft || extra ? 'two' : ''}">${extra ? `<div class="bottom-extra">${extra}</div>` : ''}${actionLeft ? `<button class="btn action alt" data-act="${actionLeft.act}" data-id="${actionLeft.id}">${esc(actionLeft.label)}</button>` : ''}<button class="btn action" data-act="${action.act}"${action.k ? ` data-k="${esc(action.k)}"` : ''}${action.n != null ? ` data-n="${action.n}"` : ''}${action.to ? ` data-to="${esc(action.to)}"` : ''}>${esc(action.label)}</button></div>` : ''}`; });
   addHelp(title);
 }
 
@@ -12070,6 +12070,8 @@ function quickActions(p, team) {
   if (mine && glOpen() && (inGL(p) || !glWhyNot(p, team))) b.push(inGL(p) ? `<button class="btn small off" data-act="glRecall" data-id="${p.id}">↩ Recall from the G League</button>` : `<button class="btn small" data-act="glSend" data-id="${p.id}">🏀 Send to the G League</button>`);
   return b.length ? `<div class="opt-btns" style="flex-wrap:wrap;margin-top:6px">${b.join('')}</div>` : '';
 }
+// The same, for the bottom bar next to Done.
+const quickBar = (p, team) => (quickActions(p, team).match(/<button[\s\S]*?<\/button>/g) || []).join('');
 actions.quickTrade = d => {
   const e = findPlayer(+d.id), me = myTeam();
   if (!e?.team || !me) return;
@@ -12521,13 +12523,15 @@ function rankLine(p) {
   const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
   return `<p class="note small">${RANK_STATS.map(([k]) => `${k} ${r.pg[k].toFixed(1)}${r.rank[k] ? ` <span class="${r.rank[k] <= 10 ? 'gold' : 'muted'}">(${ord(r.rank[k])})</span>` : ''}`).join(' · ')}</p>`;
 }
-function rankBox(p, mpg = null) {
+function rankBox(p, mpg = null, slim = false) {
   const yr = lastSeasonYear();
   const { ranks, of } = seasonRanks(yr);
   const r = ranks.get(p.id);
   const prod = productionText(p);
   if (!r) return prod ? `<fieldset class="frame"><legend>${yr} Season</legend>${prod}</fieldset>` : '';
   const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+  // Slim: the line itself sits in the profile's header (headStats); here only the rank note and the production read.
+  if (slim) return `<fieldset class="frame"><legend>${yr} Season</legend><p class="note muted small">${r.qualified ? `League ranks among ${of} qualified players.` : `${r.gp} games: not enough to be ranked.`}</p>${prod}</fieldset>`;
   return `<fieldset class="frame"><legend>${yr} Season</legend>
     ${mpg ? `<div class="bio-grid season-mins"><div class="bio-box"><span class="glbl">Games</span><b>${mpg.gp}</b></div><div class="bio-box"><span class="glbl">MPG</span><b>${mpg.mpg.toFixed(1)}</b></div><div class="bio-box"><span class="glbl">Minutes</span><b>${Math.round(mpg.mpg * mpg.gp).toLocaleString()}</b></div></div>` : ''}
     <div class="statline rank-line">${RANK_STATS.map(([k, name]) => {
@@ -12537,6 +12541,16 @@ function rankBox(p, mpg = null) {
     <p class="note muted small" style="margin-top:6px">${r.qualified ? `League rank among ${of} qualified players.` : `${r.gp} games: not enough to be ranked.`}</p>
     ${prod}
   </fieldset>`;
+}
+
+// The profile's header: minutes and games over his five main stats (with his league rank), as on Player to Watch.
+function headStats(p, mpg) {
+  const yr = lastSeasonYear(), r = seasonRanks(yr).ranks.get(p.id);
+  if (!r) return '';
+  const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+  return `${mpg ? `<div class="ptw-mpg">⏱ ${mpg.mpg.toFixed(1)} MPG · ${mpg.gp} games</div>` : ''}
+    <div class="statline rank-line pl-head-stats">${RANK_STATS.map(([k, name]) => { const n = r.rank[k];
+      return `<button class="stat-cell" data-act="openLeaders" data-m="stats" data-k="${k}" aria-label="${name} leaders"><span class="muted small">${k}</span><b>${r.pg[k].toFixed(1)}</b><span class="small ${n && n <= 10 ? 'gold' : n && n <= 30 ? 'up' : 'muted'}">${n ? ord(n) : '—'}</span></button>`; }).join('')}</div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -13413,7 +13427,7 @@ function oldPlayerScreen(args) {
   const content = tab === 'attributes' ? `${ratings}${trainer}${apCard}`
     : tab === 'traits' ? `${personality}${playStyleBox(p)}${skills}`
     : tab === 'stats' ? statsTab(p, args)
-    : `${newsBox(p)}${rankBox(p, mpg)}<fieldset class="frame"><legend>Scouting Report</legend>
+    : `${newsBox(p)}${rankBox(p, mpg, true)}<fieldset class="frame"><legend>Scouting Report</legend>
         <p class="note small scout-p">${profileReport(p, team)}</p>
         ${playerTags(p) ? `<div class="pl-tags">${playerTags(p)}</div>` : ''}
       </fieldset>
@@ -13426,13 +13440,13 @@ function oldPlayerScreen(args) {
         <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
         <p class="note"><button class="linkish num-chip" data-act="numPick" data-id="${p.id}" title="Change his number">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</button> · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
         <p class="note small pl-meta"><span class="stars">${potStars(p)}</span>${[archName(p) && `<b class="arch">${esc(archName(p))}</b>`, isAllAmerican(p) && '<span class="gold">⭐ All-American</span>'].filter(Boolean).map(x => ` ${x}`).join(' ·')}</p>
-        ${identityChips(p) ? `<div class="style-chips pl-chips">${identityChips(p)}</div>` : ''}
-        ${quickActions(p, team)}
+        ${headStats(p, mpg)}
       </div>
       ${tabsRow}
       ${content}`,
     action: { act: 'back', label: 'Done' },
-    actionLeft: team && !isUserTeam(team) && ctrlTeams().size && isComplete() && !isCollege() ? { act: 'tradeFor', id: p.id, label: 'Trade For' } : null,
+    extra: quickBar(p, team),
+    actionLeft: !quickBar(p, team).includes('quickTrade') && team && !isUserTeam(team) && ctrlTeams().size && isComplete() && !isCollege() ? { act: 'tradeFor', id: p.id, label: 'Trade For' } : null,
   });
 }
 function newPlayerScreen(args) {
