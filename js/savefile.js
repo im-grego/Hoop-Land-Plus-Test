@@ -406,11 +406,11 @@ const tenure = (p, tid) => (p.stats || []).reduce((n, s) => n + (s.season || [])
 // Clear duplicate and retired numbers on every roster with jerseyNumber():
 // the longest-tenured player keeps a contested number. Updates the
 // new-season stats row too. Returns [{ p, team, from, to }].
-export function jerseyClashes(league) {
+export function jerseyClashes(league, first = () => false) {   // first(p): his number is settled (he keeps it)
   const out = [];
   for (const t of league.teams) {
     const retired = new Set((t.retiredNumbers || []).map(r => r.num));
-    const order = [...t.roster].sort((a, b) => tenure(b, t.id) - tenure(a, t.id) || (b.yrs || 0) - (a.yrs || 0));
+    const order = [...t.roster].sort((a, b) => first(b) - first(a) || tenure(b, t.id) - tenure(a, t.id) || (b.yrs || 0) - (a.yrs || 0));
     const kept = new Set();
     for (const p of order) {
       if ((!retired.has(p.num) || BLESSED(t, p, p.num)) && !kept.has(p.num)) { kept.add(p.num); continue; }
@@ -420,10 +420,10 @@ export function jerseyClashes(league) {
   return out;
 }
 
-export function fixJerseyNumbers(league) {
+export function fixJerseyNumbers(league, first) {
   const year = league.season.currentYear;
   const changes = [];
-  for (const { p, team } of jerseyClashes(league)) {
+  for (const { p, team } of jerseyClashes(league, first)) {
     const from = p.num;
     // Only count teammates already settled: others in the clash list move too.
     p.num = -1;

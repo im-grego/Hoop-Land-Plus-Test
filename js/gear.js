@@ -78,16 +78,11 @@ export function newLook(p, team, league) {
   const old = league.teams.find(t => t.id === was);
   return !old || targets(old).join() !== targets(team).join();
 }
-// Items a player keeps on purpose (the league file's own exceptions): f(p, jersey slot, item, color) -> true.
-let KEEP = () => false;
-export const setKeep = f => { KEEP = f; };
-// From a { name: [[slot, item, color]] } list.
-export const keepFrom = list => (p, i, key, val) => (list[`${p.fn} ${p.ln}`] || []).some(([j, k, c]) => j === i && k === key && String(val || '').toUpperCase() === c);
 // Recolor one team's players. `tattoos` maps a skin tone to its tattoo colors.
 // Returns [{ p, i, key, was }] for undo.
 export function matchTeam(team, known, tattoos = {}, only = () => true) {
   const want = targets(team), log = [];
-  const set = (p, a, i, key, val) => { if (a[key] !== val && !KEEP(p, i, key, a[key])) { log.push({ p, i, key, was: a[key] }); a[key] = val; } };
+  const set = (p, a, i, key, val) => { if (a[key] !== val) { log.push({ p, i, key, was: a[key] }); a[key] = val; } };
   for (const p of team.roster) {
     const fresh = only(p);
     const skin = p.appearance?.skinC, tat = (tattoos[skin] || tattoos[String(skin).toUpperCase()] || []).map(x => String(x).toUpperCase());
