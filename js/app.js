@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.74';
+const APP_VERSION = '0.365.75';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -989,7 +989,7 @@ function render() {
 }
 
 // Names never wrap or get cut off: a name too long for its spot gets a smaller font, as big as still fits.
-const FIT_NAMES = '.ptw-name, .col-hd b, .pl-name, .lu-nm b, .lu-c-name > b, .ir-name, .mu-tr > span, .prow .name, .lu-frame > legend, .lu-cycle b, .ts-team b, .start-detail .sd-line';
+const FIT_NAMES = '.ptw-name, .ptw-why, .col-hd b, .pl-name, .lu-nm b, .lu-c-name > b, .ir-name, .mu-tr > span, .prow .name, .lu-frame > legend, .lu-cycle b, .ts-team b, .start-detail .sd-line';
 function fitText(root = $app) {
   try {
     const els = new Set(root.querySelectorAll(FIT_NAMES));
@@ -3903,16 +3903,20 @@ const ptwHabit = (lbl, v) => `${lbl} habit ${v > 0 ? '+' : ''}${v}`;
 // The three things that stop him, each with what he does (the stat), the rating behind it and the habit, in that order.
 // Each key is only on the table when he really is that player, and scores by how far out he is; the three picked come
 // from three different parts of his game. Two ways to say most of them, picked by the player so two alike read apart.
-function ptwKeys(p, l, t, pools = {}) {
+function ptwKeys(p, l, t, pools = {}, shown = new Set()) {
   const A = k => Math.round(regressed(p, k)), T = k => p.tendencies?.[k] ?? 0, g = t?.GP || 1;
   const tpa = t ? t.TPA / g : 0, tp = t?.TPA ? t.TPM / t.TPA * 100 : null, fta = t ? t.FTA / g : 0, tov = t ? t.TO / g : 0;
   const ft = t?.FTA ? t.FTM / t.FTA * 100 : null, pf = t ? t.PF / g : 0, orb = t ? t.ORB / g : 0;
   const twoA = t ? (t.FGA - t.TPA) / g : 0, two = t && t.FGA - t.TPA ? (t.FGM - t.TPM) / (t.FGA - t.TPA) * 100 : null;
   const grp = posGroup(p), big = grp === 'bigs', seed = Math.abs(Number(p.id) || 0);
   const keys = [];
+  // What the card above already shows (his points, the two other stat boxes, minutes, the shooting line) isn't repeated.
+  const SHOWN = [['3P', /threes a game/], ['FT', /free throws a game/], ['TO', /turnovers a game/], ['AST', /^[\d.]+ assists a game/], ['REB', /^[\d.]+ rebounds a game/],
+    ['STL', /^[\d.]+ steals a game/], ['BLK', /^[\d.]+ blocks a game/], ['PTS', /points a game/], ['MIN', /minutes a game/]];
+  const unshown = why => why.filter(w => w && !SHOWN.some(([k, re]) => shown.has(k) && re.test(w.replace(/<[^>]+>/g, '')))).join(' · ');
   const add = (area, score, title, texts, why) => {
     const text = Array.isArray(texts) ? texts[(seed + keys.length) % texts.length] : texts;
-    keys.push({ area, score, title, text, why: why.filter(Boolean).join(' · ') });
+    keys.push({ area, score, title, text, why: unshown(why) });
   };
   const tpLine = () => `<span class="${ptwTone(pools.tp, tp)}">${tp.toFixed(1)}%</span> on ${tpa.toFixed(1)} threes a game`;
   const twoLine = () => (two != null ? `${two.toFixed(1)}% on ${twoA.toFixed(1)} twos a game` : '');
@@ -3967,7 +3971,7 @@ function ptwKeys(p, l, t, pools = {}) {
     [`${tov.toFixed(1)} turnovers a game`, `Dribbling ${ptwRate(A('DRB'))}`, ptwHabit('crossover', T('cross'))]);
   if (l.apg < 2.5 && l.ppg >= 15 && A('PAS') <= 9) add('pass', 6 + tov + (9 - A('PAS')), 'Trap the drive',
     ['He doesn\'t pass out of it. Send a second defender and make him give it up.', 'Load up on his side. When he drives, he\'s shooting it.'],
-    [`${l.apg.toFixed(1)} assists, ${tov.toFixed(1)} turnovers a game`, `Passing ${ptwRate(A('PAS'))}`, ptwHabit('pass', T('pass'))]);
+    [`${l.apg.toFixed(1)} assists a game`, `${tov.toFixed(1)} turnovers a game`, `Passing ${ptwRate(A('PAS'))}`, ptwHabit('pass', T('pass'))]);
   if (l.apg >= 5) add('pass', 4 + l.apg, A('PAS') >= 16 ? 'Don\'t help off shooters' : 'Take away the pass',
     A('PAS') >= 16 ? ['He finds the open man every time. Stay home and make him beat you alone.', 'No traps. He\'ll pick a double team apart. Play him straight up.']
       : ['Stay home on shooters and the roller. Make him score instead.', 'Shrink his passing lanes and make him a scorer tonight.'],
@@ -3981,7 +3985,7 @@ function ptwKeys(p, l, t, pools = {}) {
     [`${l.spg.toFixed(1)} steals a game`, `Steal ${ptwRate(A('STL'))}`, ptwHabit('gamble', T('stealOffBall'))]);
   if (A('STR') <= 9 && A('STL') <= 7 && A('BLK') <= 7) add('def', 5 + (9 - A('STR')) + (7 - A('STL')) / 2, 'Go at him on defense',
     ['Post him up and drive at him every trip down.', 'Find him in every switch. He can\'t guard anyone.'],
-    [`${l.spg.toFixed(1)} steals, ${l.bpg.toFixed(1)} blocks a game`, `Strength ${ptwRate(A('STR'))}`, `Steal ${ptwRate(A('STL'))}`]);
+    [`${l.spg.toFixed(1)} steals a game`, `${l.bpg.toFixed(1)} blocks a game`, `Strength ${ptwRate(A('STR'))}`, `Steal ${ptwRate(A('STL'))}`]);
   if (pf >= 3.5 && l.mpg >= 22) add('def', 4 + (pf - 3.5) * 4, 'Get him in foul trouble',
     ['Attack him early. He picks up fouls, and the bench is a step down.', 'Drive right at him in the first quarter. Two quick fouls and he sits.'],
     [`${pf.toFixed(1)} fouls a game`, `Strength ${ptwRate(A('STR'))}`]);
@@ -4029,7 +4033,7 @@ function ptwKeys(p, l, t, pools = {}) {
     { title: 'Make him work for the catch', text: 'Deny him the ball on the wing. The fewer touches, the fewer points.', why: [`${(t ? t.FGA / g : 0).toFixed(1)} shots a game`, `${l.mpg.toFixed(1)} minutes a game`] },
     { title: 'Keep him off the glass', text: 'Find him on every shot. He\'s a big part of their second chances.', why: [`${l.rpg.toFixed(1)} rebounds a game`, `Off. rebounding ${ptwRate(A('ORE'))}`] },
   ];
-  for (const k of basics) if (out.length < 3) out.push({ score: 0, title: k.title, text: k.text, why: k.why.join(' · ') });
+  for (const k of basics) if (out.length < 3) out.push({ score: 0, title: k.title, text: k.text, why: unshown(k.why) });
   return out.slice(0, 3);
 }
 function ptwCard(opp) {
@@ -4049,14 +4053,15 @@ function ptwCard(opp) {
   const pct = (v, arr, extra = '') => (v == null ? '' : `<span class="${ptwTone(arr, v)}">${v.toFixed(1)}%</span>${extra}`);
   const shoot = [fg != null && `FG ${pct(fg, pools.fg)}`, tp != null && tpa >= 0.5 && `3P ${tpa >= 2 ? pct(tp, pools.tp) : `${tp.toFixed(1)}%`} on ${tpa.toFixed(1)}`,
     ft != null && `FT ${pct(ft, pools.ft)}`, `TO <span class="${ptwTone(pools.to, tov, false)}">${tov.toFixed(1)}</span>`].filter(Boolean).join(' · ');
-    const keys = ptwKeys(p, l, t, pools);
+  const keys = ptwKeys(p, l, t, pools, new Set(['PTS', ...two, 'MIN', 'TO', ...(ft != null ? ['FT'] : []), ...(tp != null && tpa >= 0.5 ? ['3P'] : [])]));
   return `<fieldset class="frame ptw-frame"><legend>Player to Watch</legend>
       <div class="ptw-top tap" data-act="openPlayer" data-id="${p.id}">
         <div class="ptw-who"><div class="ptw-name">${esc(playerName(p))}</div>
-          <div class="ptw-meta">${p.num != null ? `#${esc(String(p.num))} · ` : ''}${lvTag(p, 'gold')} · ${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)}${rankHtml ? `<br>${rankHtml}` : ''}</div></div>
+          <div class="ptw-meta">${p.num != null ? `#${esc(String(p.num))} · ` : ''}${lvTag(p, 'gold')} · ${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)} · ${p.wt} lb${rankHtml ? `<br>${rankHtml}` : ''}</div></div>
       </div>
+      <div class="ptw-mpg">⏱ ${l.mpg.toFixed(1)} MPG · ${l.gp} games</div>
       <div class="ptw-stats">${['PTS', ...two].map(k => `<div><b>${pg[k].toFixed(1)}</b><span>${k}</span></div>`).join('')}</div>
-      <div class="ptw-shoot">⏱ ${l.mpg.toFixed(1)} MPG · ${l.gp} games<br>${shoot}</div>
+      <div class="ptw-shoot">${shoot}</div>
     </fieldset>
     ${keys.length ? `<fieldset class="frame ptw-frame"><legend>🛡 How to Stop Him</legend>${keys.map((k, i) => `<div class="ptw-key"><span class="ptw-n">${i + 1}</span><div><b>${esc(k.title)}</b><p>${esc(k.text)}</p><span class="ptw-why">${k.why}</span></div></div>`).join('')}</fieldset>` : ''}`;
 }

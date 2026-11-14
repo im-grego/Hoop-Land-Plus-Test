@@ -2553,14 +2553,16 @@ body::after {
 .ptw-meta { color: #8fd3ff; font-size: 13px; font-weight: 700; margin-top: 4px; line-height: 1.4; }
 .ptw-rank { color: #fff; }
 .ptw-sub { font-size: 12px; }
-.ptw-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
+.ptw-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
 .ptw-stats div { background: #0b2f6b; border: 2px solid #3f86d0; text-align: center; padding: 5px 0 4px; }
 .ptw-stats b { display: block; font-size: 19px; color: #fff; }
 .ptw-stats span { font-size: 11px; color: #8fd3ff; font-weight: 800; }
 .ptw-shoot { margin-top: 7px; font-size: 12.5px; font-weight: 700; color: #cfe3ff; text-align: center; line-height: 1.5; }
-.ptw-key { display: grid; grid-template-columns: 28px 1fr; gap: 9px; padding: 8px 0; border-top: 2px solid #ffffff1a; }
+.ptw-key { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 9px; padding: 8px 0; border-top: 2px solid #ffffff1a; }
+.ptw-key > div { min-width: 0; }
 .ptw-key:first-of-type { border-top: 0; padding-top: 2px; }
 .ptw-n { width: 26px; height: 26px; background: var(--cyan, #5ee7ff); color: #04173f; font-weight: 900; display: grid; place-items: center; font-size: 14px; box-shadow: 0 3px 0 #04173f; }
 .ptw-key b { color: #fff; font-size: 15px; display: block; line-height: 1.2; }
 .ptw-key p { margin: 2px 0 0; color: #cfe3ff; font-size: 13.5px; line-height: 1.3; font-weight: 600; }
-.ptw-why { color: #8fd3ff; font-size: 12px; font-weight: 700; margin-top: 3px; display: block; }
+.ptw-why { color: #8fd3ff; font-size: 12px; font-weight: 700; margin-top: 3px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ptw-mpg { margin-top: 8px; font-size: 12.5px; font-weight: 700; color: #cfe3ff; text-align: center; }
