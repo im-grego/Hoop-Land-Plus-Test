@@ -74,7 +74,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.89';
+const APP_VERSION = '0.365.90';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -12071,7 +12071,7 @@ function quickActions(p, team) {
   return b.length ? `<div class="opt-btns" style="flex-wrap:wrap;margin-top:6px">${b.join('')}</div>` : '';
 }
 // The same, for the bottom bar next to Done.
-const quickBar = (p, team) => (quickActions(p, team).match(/<button[\s\S]*?<\/button>/g) || []).join('');
+const quickBar = (p, team) => (quickActions(p, team).match(/<button[\s\S]*?<\/button>/g) || []).map(b => b.replace('class="btn small', 'class="btn action alt').replace(/Trade (him|for him)/, 'Trade').replace('✂️ Cuts', '✂️ Cut')).join('');
 actions.quickTrade = d => {
   const e = findPlayer(+d.id), me = myTeam();
   if (!e?.team || !me) return;
@@ -13350,7 +13350,8 @@ function movePlayerTo(p, to) {
 }
 actions.editMode = () => { state.editMode = !state.editMode; render(); };
 // The redesigned profile is on the test site; the live site keeps the previous one (with the Career Arc).
-screens.player = args => (labOn() ? newPlayerScreen(args) : oldPlayerScreen(args));
+// The tabbed profile everywhere (the newer one-page layout stays in the code, unconfirmed).
+screens.player = args => oldPlayerScreen(args);
 function oldPlayerScreen(args) {
   const e = findPlayer(args.id);
   if (!e) { back(); return; }
@@ -13386,7 +13387,7 @@ function oldPlayerScreen(args) {
           <button class="btn square" data-act="potAdj" data-dir="1" aria-label="Higher potential">+</button>
         </div>
         <div class="stack">
-          ${(st => `${st ? `<p class="note small muted gstat-head">Stats over each rating: ${st.when}, ${st.gp} games, <b>${st.mpg.toFixed(1)} MPG</b>, per game</p>` : ''}${ATTRS.map(k => `${st ? `<div class="gstat">${esc(st.k[k] || '')}</div>` : ''}${attrRow(p, snap, k, ceilMode)}`).join('')}`)(editOn() ? ratingStats(p) : null)}
+          ${(st => `${st ? `<p class="note small muted gstat-head">Stats over each rating: ${st.when}, ${st.gp} games, <b>${st.mpg.toFixed(1)} MPG</b>, per game</p>` : ''}${ATTRS.map(k => `${st ? `<div class="gstat">${esc(st.k[k] || '')}</div>` : ''}${attrRow(p, snap, k, ceilMode)}`).join('')}`)(isCollege() ? null : ratingStats(p))}
         </div>
         <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">Edit Ceilings</button></div>
       </fieldset>`;
