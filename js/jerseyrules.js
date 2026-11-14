@@ -8,3 +8,10 @@ export function familyNumber(league, team, p, num) {
   const legend = people.find(x => x.id === r.pid);
   return !!legend && legend !== p && base(legend.ln) === base(p.ln);
 }
+// A number the whole league retired (Bill Russell's #6): a player who wore it in an earlier season keeps it, wherever
+// he plays now (DeAndre Jordan's #6).
+export function leagueWideNumber(league, team, p, num) {
+  if (!league.teams.every(t => (t.retiredNumbers || []).some(r => r.num === num))) return false;
+  const yr = league.season.currentYear;
+  return (p.stats || []).some(s => s.league === 0 && s.yr < yr && (s.season || []).some(r => r.num === num && r.GP > 0));
+}

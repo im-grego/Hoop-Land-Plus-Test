@@ -66,7 +66,7 @@ import * as PO from './playoffs.js';
 import * as CL4 from './careerlife4.js';
 import { setGameClock, secsOf, minScale } from './gameclock.js';
 import APPEARANCE_POOL from './appearance-pool.js';
-import { familyNumber } from './jerseyrules.js';
+import { familyNumber, leagueWideNumber } from './jerseyrules.js';
 import * as CO from './coaching.js';
 import { JERSEYS } from './jerseys.js';
 import { leagueCuts, TIER_NAMES, setStyleRefs, teamStanding, teamBooks, rosterNeeds, teamIdentity, draftPosition, rumorMill, playStyles, styleLine, styleSentence, playRead, wontDo, TEND_LABELS, TEND_GROUPS, groupOf } from './overview.js';
@@ -74,7 +74,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.81';
+const APP_VERSION = '0.365.82';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -8105,7 +8105,7 @@ const loadBless = () => { try { return JSON.parse(localStorage.getItem(blessKey(
 // keeps it: he wore it for this team in an earlier season.
 const grandfathered = (team, p, num) => (p.stats || []).some(s => s.league === 0 && s.yr < league().season.currentYear && (s.season || []).some(r => r.tid === team.id && r.num === num && r.GP > 0));
 // Family: his father's (or a relative's) retired number, like Tim Hardaway Jr. in his dad's #10 in Miami.
-setBlessed((team, p, num) => !!state.data && !isCollege() && (grandfathered(team, p, num) || familyNumber(league(), team, p, num) || loadBless().some(b => b.tid === team.id && b.pid === p.id && b.num === num)));
+setBlessed((team, p, num) => !!state.data && !isCollege() && (grandfathered(team, p, num) || familyNumber(league(), team, p, num) || leagueWideNumber(league(), team, p, num) || loadBless().some(b => b.tid === team.id && b.pid === p.id && b.num === num)));
 const jerseyKey = () => `hlc:jersey:${saveId()}:${league().season.currentYear}`;
 function jerseyStore() {
   const c = calFlags();
