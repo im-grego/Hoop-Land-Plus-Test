@@ -74,7 +74,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.86';
+const APP_VERSION = '0.365.87';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -12916,9 +12916,10 @@ function ratingStats(p) {
   if (!T.GP) return null;
   const g = k => (T[k] / T.GP).toFixed(1), pc = (m, a) => (T[a] ? `${(T[m] / T[a] * 100).toFixed(1)}%` : '–');
   const fgl = `FG ${pc('FGM', 'FGA')} · ${g('FGA')} FGA · ${g('PTS')} PPG`;
+  const twoA = T.FGA - T.TPA, two = twoA ? `${((T.FGM - T.TPM) / twoA * 100).toFixed(1)}%` : '–';
   return { when, gp: T.GP, mpg: T.MIN / T.GP, k: {
-    // The game keeps no shot zones, so the four scoring ratings share his shooting line.
-    LAY: fgl, DNK: fgl, INS: fgl, MID: fgl,
+    // The game keeps no shot zones: twos for the finishing ratings, free throws drawn for dunking, the whole line for mid-range.
+    LAY: `2P ${two} on ${(twoA / T.GP).toFixed(1)}`, DNK: `2P ${two} · ${g('FTA')} FTA`, INS: `${g('PTS')} PTS · 2P ${two}`, MID: fgl,
     TPT: `3P ${pc('TPM', 'TPA')} on ${g('TPA')}`, FTS: `FT ${pc('FTM', 'FTA')} on ${g('FTA')}`, DRB: `${g('TO')} TO · ${g('AST')} AST`, PAS: `${g('AST')} AST · ${g('TO')} TO`,
     ORE: `${g('ORB')} OREB`, DRE: `${((T.REB - T.ORB) / T.GP).toFixed(1)} DREB`, STL: `${g('STL')} STL`, BLK: `${g('BLK')} BLK`,
     STR: `${g('REB')} REB · ${g('PF')} PF`, SPD: `${g('STL')} STL · ${g('FTA')} FTA`, STM: `${(T.MIN / T.GP).toFixed(1)} MPG` } };
