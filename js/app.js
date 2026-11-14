@@ -74,7 +74,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.84';
+const APP_VERSION = '0.365.85';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -12916,13 +12916,13 @@ function ratingStats(p) {
   if (!T.GP) return null;
   const g = k => (T[k] / T.GP).toFixed(1), pc = (m, a) => (T[a] ? `${(T[m] / T[a] * 100).toFixed(1)}%` : '–');
   const twoA = T.FGA - T.TPA, two = twoA ? `${((T.FGM - T.TPM) / twoA * 100).toFixed(1)}%` : '–';
-  return { when, gp: T.GP, k: {
+  return { when, gp: T.GP, mpg: T.MIN / T.GP, k: {
     LAY: `2P ${two} on ${(twoA / T.GP).toFixed(1)}`, DNK: `2P ${two} · ${g('FTA')} FTA`, INS: `${g('PTS')} PTS · 2P ${two}`, MID: `FG ${pc('FGM', 'FGA')} on ${g('FGA')}`,
     TPT: `3P ${pc('TPM', 'TPA')} on ${g('TPA')}`, FTS: `FT ${pc('FTM', 'FTA')} on ${g('FTA')}`, DRB: `${g('TO')} TO · ${g('AST')} AST`, PAS: `${g('AST')} AST · ${g('TO')} TO`,
     ORE: `${g('ORB')} OREB`, DRE: `${((T.REB - T.ORB) / T.GP).toFixed(1)} DREB`, STL: `${g('STL')} STL`, BLK: `${g('BLK')} BLK`,
     STR: `${g('REB')} REB · ${g('PF')} PF`, SPD: `${g('STL')} STL · ${g('FTA')} FTA`, STM: `${(T.MIN / T.GP).toFixed(1)} MPG` } };
 }
-const gAllLines = (p, snap, edit, ceilMode, st = null) => `${st ? `<p class="note small muted gstat-head">Stats over each rating: ${st.when}, ${st.gp} games, per game</p>` : ''}<div class="glines">${CATEGORIES.map(c => `<div class="gcat">${c.attrs.map(k => `${st ? `<div class="gstat">${esc(st.k[k] || '')}</div>` : ''}${gLine(p, snap, k, edit, ceilMode)}`).join('')}</div>`).join('')}</div>`;
+const gAllLines = (p, snap, edit, ceilMode, st = null) => `${st ? `<p class="note small muted gstat-head">Stats over each rating: ${st.when}, ${st.gp} games, <b>${st.mpg.toFixed(1)} MPG</b>, per game</p>` : ''}<div class="glines">${CATEGORIES.map(c => `<div class="gcat">${c.attrs.map(k => `${st ? `<div class="gstat">${esc(st.k[k] || '')}</div>` : ''}${gLine(p, snap, k, edit, ceilMode)}`).join('')}</div>`).join('')}</div>`;
 // A category at a glance: its average bar (gold to red past his peak when declining), opening to its three ratings.
 function gGroup(p, snap, c) {
   const rows = c.attrs.map(k => gKinds(p, snap, k)), avg = f => rows.reduce((a, r) => a + f(r), 0) / rows.length;
@@ -13369,7 +13369,7 @@ function oldPlayerScreen(args) {
           <button class="btn square" data-act="potAdj" data-dir="1" aria-label="Higher potential">+</button>
         </div>
         <div class="stack">
-          ${(st => `${st ? `<p class="note small muted gstat-head">Stats over each rating: ${st.when}, ${st.gp} games, per game</p>` : ''}${ATTRS.map(k => `${st ? `<div class="gstat">${esc(st.k[k] || '')}</div>` : ''}${attrRow(p, snap, k, ceilMode)}`).join('')}`)(editOn() ? ratingStats(p) : null)}
+          ${(st => `${st ? `<p class="note small muted gstat-head">Stats over each rating: ${st.when}, ${st.gp} games, <b>${st.mpg.toFixed(1)} MPG</b>, per game</p>` : ''}${ATTRS.map(k => `${st ? `<div class="gstat">${esc(st.k[k] || '')}</div>` : ''}${attrRow(p, snap, k, ceilMode)}`).join('')}`)(editOn() ? ratingStats(p) : null)}
         </div>
         <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn small ${ceilMode ? 'on focus' : 'off'}" data-act="ceilMode">Edit Ceilings</button></div>
       </fieldset>`;
