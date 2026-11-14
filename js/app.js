@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.76';
+const APP_VERSION = '0.365.77';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3912,6 +3912,8 @@ function ptwKeys(p, l, t, pools = {}, shown = new Set()) {
   const grp = posGroup(p), big = grp === 'bigs', seed = Math.abs(Number(p.id) || 0);
   const keys = [];
   // His go-to move off the dribble, named.
+  // His jump-shot move (the step-back or the fade), when he leans on one.
+  const shotMove = () => { const [n, v] = [['Step-Back', T('step')], ['Fadeaway', T('fades')]].sort((a, b) => b[1] - a[1])[0]; return v >= 2 ? ptwHabit(n, v) : ''; };
   const move = () => { const [n, v] = [['Crossover', T('cross')], ['Spin Move', T('spin')], ['Step-Back', T('step')]].sort((a, b) => b[1] - a[1])[0]; return ptwHabit(n, v); };
   // What the card above already shows (his points, the two other stat boxes, minutes, the shooting line) isn't repeated.
   const SHOWN = [['3P', /threes a game/], ['FT', /free throws a game/], ['TO', /turnovers a game/], ['AST', /^[\d.]+ assists a game/], ['REB', /^[\d.]+ rebounds a game/],
@@ -3932,14 +3934,14 @@ function ptwKeys(p, l, t, pools = {}, shown = new Set()) {
   if (tpa >= 4 && tp != null && tp >= 38 && A('TPT') >= 14) add('three', 6 + (tp - 38) / 2 + tpa, A('SPD') >= 14 ? 'Chase him off the line' : 'Run him off the line',
     A('SPD') >= 14 ? ['Top-lock him off screens and stay attached. He doesn\'t need much room.', 'No help off him. Trail every screen and make him catch on the move.']
       : ['Close out hard and make him put it on the floor. He\'s not beating you off the bounce.', 'Run him off the arc. He\'d rather shoot than drive, so make him drive.'],
-    [tpLine(), `${ptwRate(A('TPT'))} 3-Point`, A('SPD') >= 14 ? `${ptwRate(A('SPD'))} Speed` : ptwHabit('Tendency', T('threePoint'))]);
+    [tpLine(), `${ptwRate(A('TPT'))} 3-Point`, A('SPD') >= 14 ? `${ptwRate(A('SPD'))} Speed` : ptwHabit('Tendency', T('threePoint')), shotMove()]);
   if (!big && tpa < 1.2 && A('TPT') <= 8) add('three', 5 + (8 - A('TPT')) + (1.2 - tpa) * 2, 'Sag off him',
     ['Play a step off and pack the paint. He won\'t shoot it from deep.', 'Go under every screen and wall off the drive. He isn\'t a threat outside.'],
     [`${tpa.toFixed(1)} threes a game`, `${ptwRate(A('TPT'))} 3-Point`, ptwHabit('Tendency', T('threePoint'))]);
   // Mid-range
   if (A('MID') >= 16 && T('twoPoint') >= 1) add('mid', 5 + (A('MID') - 15) + T('twoPoint'), 'Crowd the pull-up',
     ['He lives in the mid-range. Get up into him and make him go all the way.', 'Contest the elbow jumper. Take away his comfort shot and live with the drive.'],
-    [twoLine(), `${ptwRate(A('MID'))} Mid-Range`, ptwHabit('Tendency', T('twoPoint'))]);
+    [twoLine(), `${ptwRate(A('MID'))} Mid-Range`, ptwHabit('Tendency', T('twoPoint')), shotMove()]);
   if (A('MID') <= 8 && T('twoPoint') >= 1) add('mid', 4 + (9 - A('MID')) + T('twoPoint'), 'Let him take the long two',
     ['He likes the mid-range jumper more than it likes him. Give him space for it.', 'Stay back and let him settle. The long two is the shot you want him taking.'],
     [twoLine(), `${ptwRate(A('MID'))} Mid-Range`, ptwHabit('Tendency', T('twoPoint'))]);
@@ -4018,8 +4020,8 @@ function ptwKeys(p, l, t, pools = {}, shown = new Set()) {
   // Milder reads from his ratings, so every player gets three of his own (they only fill in behind the ones above).
   const soft = (area, dev, title, texts, why) => dev > 0 && add(area, 1 + dev / 4, title, texts, why);
   soft('three', tpa >= 1 && (tp == null || tpa < 2 || tp < 36) ? 13 - A('TPT') : 0, 'Give him the three', ['He\'ll take it, but it isn\'t his shot. Go under and protect the paint.', 'Close out short. A three from him is a shot you can live with.'], [tp != null ? tpLine() : '', `${ptwRate(A('TPT'))} 3-Point`, ptwHabit('Tendency', T('threePoint'))]);
-  soft('three', tpa >= 2.5 && (tp == null || tp >= 34) ? A('TPT') - 14 : 0, 'Run him off the line', ['Don\'t let him get comfortable from deep. Hard close-outs all night.', 'Stay tight on the perimeter. He\'ll make you pay for space.'], [tp != null ? tpLine() : '', `${ptwRate(A('TPT'))} 3-Point`, ptwHabit('Tendency', T('threePoint'))]);
-  soft('mid', A('MID') - 14, 'Crowd the pull-up', ['He\'s smooth off the dribble. Get a hand up on every jumper.', 'Don\'t give him the elbow. That\'s where he\'s comfortable.'], [twoLine(), `${ptwRate(A('MID'))} Mid-Range`, ptwHabit('Tendency', T('twoPoint'))]);
+  soft('three', tpa >= 2.5 && (tp == null || tp >= 34) ? A('TPT') - 14 : 0, 'Run him off the line', ['Don\'t let him get comfortable from deep. Hard close-outs all night.', 'Stay tight on the perimeter. He\'ll make you pay for space.'], [tp != null ? tpLine() : '', `${ptwRate(A('TPT'))} 3-Point`, ptwHabit('Tendency', T('threePoint')), shotMove()]);
+  soft('mid', A('MID') - 14, 'Crowd the pull-up', ['He\'s smooth off the dribble. Get a hand up on every jumper.', 'Don\'t give him the elbow. That\'s where he\'s comfortable.'], [twoLine(), `${ptwRate(A('MID'))} Mid-Range`, ptwHabit('Tendency', T('twoPoint')), shotMove()]);
   soft('drive', big ? 0 : 10 - A('SPD'), 'Crowd him', ['He isn\'t quick enough to blow by you. Get up into him and take away his rhythm.', 'Play him tight. He won\'t beat you off the dribble.'], [`${ptwRate(A('SPD'))} Speed`, `${ptwRate(A('DRB'))} Dribbling`]);
   soft('drive', big ? 0 : A('SPD') - 14, 'Give him a cushion', ['He\'s quick off the bounce. Give a step and keep him out of the lane.', 'Don\'t reach. Stay in front and make him shoot over you.'], [`${ptwRate(A('SPD'))} Speed`, `${ptwRate(A('DRB'))} Dribbling`, move()]);
   soft('pass', 10 - A('PAS'), 'Double him', ['He\'s not a passer. Send help when he puts it down.', 'A second defender takes him out of it. He looks to score, not to find people.'], [`${l.apg.toFixed(1)} assists a game`, `${ptwRate(A('PAS'))} Passing`, ptwHabit('Tendency', T('pass'))]);
@@ -4037,6 +4039,9 @@ function ptwKeys(p, l, t, pools = {}, shown = new Set()) {
     { title: 'Keep him off the glass', text: 'Find him on every shot. He\'s a big part of their second chances.', why: [`${l.rpg.toFixed(1)} rebounds a game`, `${ptwRate(A('ORE'))} Off. Rebounding`] },
   ];
   for (const k of basics) if (out.length < 3) out.push({ score: 0, title: k.title, text: k.text, why: unshown(k.why) });
+  // A habit or rating already in an earlier key (his step-back on two jumper keys) isn't said twice.
+  const said = new Set();
+  for (const k of out) k.why = k.why.split(' · ').filter(b => b.includes('Tendency') || (!said.has(b) && said.add(b))).join(' · ');
   return out.slice(0, 3);
 }
 function ptwCard(opp) {
