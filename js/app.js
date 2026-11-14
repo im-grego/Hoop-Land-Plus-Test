@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.68';
+const APP_VERSION = '0.365.69';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -83,6 +83,7 @@ const DEVLOG = [
     ['Features', [
       'Resume: the save you\'re working on is kept on your device, so closing the app doesn\'t lose it. Pick up where you left off from the start screen',
       'The Expansion Draft step can be skipped',
+      'Scouting Report: Player to Watch, the opponent\'s top scorer on a card (his face in his team\'s colors, his league ranks and line), with three keys to stopping him',
       'Team stats show shot volume next to efficiency: shots, threes taken, the share of shots from three and free throws a game (Scouting Report and League → Teams)',
       'Scouting Report reads volume and efficiency together: a team that rarely shoots threes but makes them is called inside-out, not a three-point team',
       'Scouting Report team stats are colored green or red only when the gap is real; close numbers stay white',
@@ -3860,6 +3861,150 @@ function nextGameCard() {
       <button class="btn focus" data-act="nav" data-to="matchup">📋 Scouting Report</button></fieldset>`;
   } catch { return ''; }
 }
+// ---- Player to Watch (Scouting Report): the opponent's top scorer on a card. His face in his team's colors (placed
+// the same way on every face: the inner edge of his left eye on the center line, his eyes at one height), his number
+// and team logo on the box's corners, where he ranks in the league, his line, and the three things that stop him.
+const PTW_RANK_WORD = { PTS: 'points', REB: 'rebounds', AST: 'assists', STL: 'steals', BLK: 'blocks' };
+function ptwTotals(p, yr) {
+  const s = (p.stats || []).find(x => x.league === state.leagueIdx && x.yr === yr);
+  const t = { GP: 0, FGM: 0, FGA: 0, TPM: 0, TPA: 0, FTM: 0, FTA: 0, TO: 0 };
+  for (const r of s?.season || []) for (const k of Object.keys(t)) t[k] += r[k] || 0;
+  return t.GP ? t : null;
+}
+// Shooting next to his own kind (guards, wings or bigs), qualified players only: the sorted values per group.
+function ptwPools(yr) {
+  const cache = (state.compCache[state.leagueIdx] ||= new Map()), key = `ptw:${yr}`;
+  if (!cache.has(key)) {
+    const { ranks } = seasonRanks(yr), pools = {};
+    for (const { p } of leaguePlayers(league(), true)) {
+      const r = ranks.get(p.id), t = r?.qualified && ptwTotals(p, yr);
+      if (!t) continue;
+      const g = (pools[posGroup(p)] ||= { fg: [], tp: [], ft: [], to: [] });
+      if (t.FGA) g.fg.push(t.FGM / t.FGA * 100);
+      if (t.TPA / t.GP >= 2) g.tp.push(t.TPM / t.TPA * 100);
+      if (t.FTA / t.GP >= 1) g.ft.push(t.FTM / t.FTA * 100);
+      g.to.push(t.TO / t.GP);
+    }
+    cache.set(key, pools);
+  }
+  return cache.get(key);
+}
+// Bottom quarter of his group red, top quarter green (turnovers the other way round), the middle white.
+function ptwTone(arr, v, highGood = true) {
+  if (!arr || arr.length < 8 || v == null) return '';
+  const below = arr.filter(x => x < v).length / arr.length;
+  if (below >= 0.75) return highGood ? 'up' : 'down';
+  if (below <= 0.25) return highGood ? 'down' : 'up';
+  return '';
+}
+// A 0-20 rating: 16+ green, 8 or less red.
+const ptwRate = v => `<span class="${v >= 16 ? 'up' : v <= 8 ? 'down' : ''}">${v}</span>`;
+const ptwHabit = (lbl, v) => `${lbl} habit ${v > 0 ? '+' : ''}${v}`;
+// The three things that stop him, each with what he does (the stat), the rating behind it and the habit, in that order.
+function ptwKeys(p, l, t, pools = {}) {
+  const A = k => Math.round(regressed(p, k)), T = k => p.tendencies?.[k] ?? 0, g = t?.GP || 1;
+  const tpa = t ? t.TPA / g : 0, tp = t?.TPA ? t.TPM / t.TPA * 100 : null, fta = t ? t.FTA / g : 0, tov = t ? t.TO / g : 0;
+  const twoA = t ? (t.FGA - t.TPA) / g : 0, two = t && t.FGA - t.TPA ? (t.FGM - t.TPM) / (t.FGA - t.TPA) * 100 : null;
+  const keys = [];
+  const add = (score, title, text, why) => keys.push({ score, title, text, why: why.filter(Boolean).join(' · ') });
+  if (tpa >= 2 && tp != null && tp < 33) add(6 + (33 - tp) / 2 + tpa, 'Give him the three', 'Go under screens and take away the paint. Every three he takes is a win for you.',
+    [`<span class="${ptwTone(pools.tp, tp)}">${tp.toFixed(1)}%</span> on ${tpa.toFixed(1)} threes a game`, `3-point ${ptwRate(A('TPT'))}`, ptwHabit('three', T('threePoint'))]);
+  if (tpa >= 4 && tp != null && tp >= 38) add(6 + (tp - 38) / 2 + tpa, 'Run him off the line', 'Close out hard and chase him over screens. Make him put it on the floor.',
+    [`<span class="${ptwTone(pools.tp, tp)}">${tp.toFixed(1)}%</span> on ${tpa.toFixed(1)} threes a game`, `3-point ${ptwRate(A('TPT'))}`, ptwHabit('three', T('threePoint'))]);
+  if (l.apg >= 5) add(4 + l.apg, 'Take away the pass', 'Stay home on shooters and the roller. Make him score instead.',
+    [`${l.apg.toFixed(1)} assists a game`, `Passing ${ptwRate(A('PAS'))}`, ptwHabit('pass', T('pass'))]);
+  if (l.apg < 2.5 && l.ppg >= 15 && A('PAS') <= 9) add(6 + tov + (9 - A('PAS')), 'Trap the drive', 'He doesn\'t pass out of it. Send a second defender and make him give it up.',
+    [`${l.apg.toFixed(1)} assists, ${tov.toFixed(1)} turnovers a game`, `Passing ${ptwRate(A('PAS'))}`, ptwHabit('pass', T('pass'))]);
+  if (fta >= 6) add(4 + fta, 'Stay down, don\'t foul', 'He hunts contact and the pump fake. Hands up, feet on the floor.',
+    [`${fta.toFixed(1)} free throws a game`, ptwHabit('pump-fake', T('pumpFake'))]);
+  if ((A('DNK') >= 15 || A('LAY') >= 16) && twoA >= 6) add(5 + (Math.max(A('DNK'), A('LAY')) - 14) + (T('dunk') + T('floater')) / 2, 'Wall off the rim', 'He lives at the basket. Get back in transition and keep a big home when he drives.',
+    [two != null ? `${two.toFixed(1)}% on ${twoA.toFixed(1)} twos a game` : '', A('DNK') >= A('LAY') ? `Dunking ${ptwRate(A('DNK'))}` : `Layup ${ptwRate(A('LAY'))}`, ptwHabit('dunk', T('dunk'))]);
+  if (l.bpg >= 1.8) add(5 + l.bpg * 2, 'Pull him away from the rim', 'Pick-and-pop and spread the floor. Don\'t drive into him.',
+    [`${l.bpg.toFixed(1)} blocks a game`, `Block ${ptwRate(A('BLK'))}`, ptwHabit('block', T('block'))]);
+  if (l.rpg >= 9) add(3 + l.rpg / 2 + (A('STR') <= 11 ? 2 : 0), 'Hit him first on the glass', A('STR') <= 11 ? 'Box out every shot. He\'s not strong enough to move you.' : 'Box out every shot and send a second body.',
+    [`${l.rpg.toFixed(1)} rebounds a game`, `Strength ${ptwRate(A('STR'))}`, ptwHabit('rebound', T('defReb'))]);
+  if (A('STR') <= 9 && A('STL') <= 7 && A('BLK') <= 7) add(5 + (9 - A('STR')) + (7 - A('STL')) / 2, 'Go at him on defense', 'Post him up and drive at him every trip down.',
+    [`${l.spg.toFixed(1)} steals, ${l.bpg.toFixed(1)} blocks a game`, `Strength ${ptwRate(A('STR'))}`, `Steal ${ptwRate(A('STL'))}`, `Block ${ptwRate(A('BLK'))}`]);
+  if (keys.length < 3) add(1, 'Make every shot a tough one', 'Contest everything and keep a hand in his face.',
+    [`${l.ppg.toFixed(1)} points a game`, `Mid-range ${ptwRate(A('MID'))}`, ptwHabit('jumper', T('twoPoint'))]);
+  if (keys.length < 3) add(0.5, 'Wear him down', 'Make him work on defense and keep running.', [`${l.mpg.toFixed(1)} minutes a game`, `Stamina ${ptwRate(A('STM'))}`]);
+  return keys.sort((a, b) => b.score - a.score).slice(0, 3);
+}
+// His team's colors for the box: the darker one behind the face, the other as the border and the number badge.
+function ptwColors(tm) {
+  const cs = (tm.teamColors || []).filter(c => /^[0-9a-f]{6}$/i.test(c));
+  if (cs.length < 2) return { bg: '#0b2f6b', edge: '#3f86d0', ink: '#fff' };
+  const lum = c => { const v = parseInt(c, 16); return 0.299 * (v >> 16) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255); };
+  const [a, b] = lum(cs[0]) <= lum(cs[1]) ? [cs[0], cs[1]] : [cs[1], cs[0]];
+  return { bg: `#${a}`, edge: `#${b}`, ink: lum(b) > 150 ? '#141020' : '#fff' };
+}
+function ptwCard(opp) {
+  const healthy = opp.roster.filter(p => (p.status === 3 || p.status === 2) && !((p.season?.injury?.gamesOut || 0) > 0));
+  const yr = lastSeasonYear(), lines = healthy.map(p => [p, seasonLine(p, state.leagueIdx, yr)]).filter(([, l]) => l?.gp >= 3);
+  const top = lines.sort((a, b) => b[1].ppg - a[1].ppg)[0];
+  if (!top) return '';
+  const [p, l] = top, t = ptwTotals(p, yr), g = t?.GP || 1, r = seasonRanks(yr).ranks.get(p.id);
+  // Where he ranks: the league's top ten in any of the five, best first.
+  const tens = r?.qualified ? RANK_STATS.map(([k]) => [k, r.rank[k]]).filter(([, n]) => n && n <= 10).sort((a, b) => a[1] - b[1]) : [];
+  const rankHtml = tens.length ? `<span class="ptw-rank">${tens[0][1] === 1 ? 'Leads the league' : `${ordinal(tens[0][1])} in the league`} in ${PTW_RANK_WORD[tens[0][0]]}</span>${tens.length > 1 ? `<br><span class="ptw-sub">${tens.slice(1).map(([k, n]) => `${n === 1 ? 'Leads in' : `${ordinal(n)} in`} ${PTW_RANK_WORD[k]}`).join(' · ')}</span>` : ''}` : '';
+  // Points, then the two of the other four he ranks best in.
+  const pg = { PTS: l.ppg, REB: l.rpg, AST: l.apg, STL: l.spg, BLK: l.bpg };
+  const two = ['REB', 'AST', 'STL', 'BLK'].sort((a, b) => (r?.rank[a] || 999) - (r?.rank[b] || 999) || pg[b] - pg[a]).slice(0, 2);
+  const pools = ptwPools(yr)[posGroup(p)] || {};
+  const fg = t?.FGA ? t.FGM / t.FGA * 100 : null, tp = t?.TPA ? t.TPM / t.TPA * 100 : null, ft = t?.FTA ? t.FTM / t.FTA * 100 : null, tpa = t ? t.TPA / g : 0, tov = t ? t.TO / g : 0;
+  const pct = (v, arr, extra = '') => (v == null ? '' : `<span class="${ptwTone(arr, v)}">${v.toFixed(1)}%</span>${extra}`);
+  const shoot = [fg != null && `FG ${pct(fg, pools.fg)}`, tp != null && tpa >= 0.5 && `3P ${tpa >= 2 ? pct(tp, pools.tp) : `${tp.toFixed(1)}%`} on ${tpa.toFixed(1)}`,
+    ft != null && `FT ${pct(ft, pools.ft)}`, `TO <span class="${ptwTone(pools.to, tov, false)}">${tov.toFixed(1)}</span>`].filter(Boolean).join(' · ');
+  const c = ptwColors(opp), url = faceOf(p);
+  const keys = ptwKeys(p, l, t, pools);
+  return `<fieldset class="frame ptw-frame"><legend>Player to Watch</legend>
+      <div class="ptw-top tap" data-act="openPlayer" data-id="${p.id}">
+        <div class="ptw-face" style="--ptw-bg:${c.bg};--ptw-edge:${c.edge};--ptw-ink:${c.ink}">
+          <span class="ptw-no">#${esc(String(p.num ?? ''))}</span>
+          <div class="ptw-clip">${url ? `<img class="ptw-img" src="${url}" alt="" onload="hlcPtwPlace(this)">` : logoImg(opp, 'ptw-logo-big')}</div>
+          ${url ? `<span class="ptw-logo">${logoImg(opp, 'ptw-logo-sm')}</span>` : ''}
+        </div>
+        <div class="ptw-who"><div class="ptw-name">${esc(playerName(p))}</div>
+          <div class="ptw-meta">${lvTag(p, 'gold')} · ${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)}${rankHtml ? `<br>${rankHtml}` : ''}</div></div>
+      </div>
+      <div class="ptw-stats">${['PTS', ...two].map(k => `<div><b>${pg[k].toFixed(1)}</b><span>${k}</span></div>`).join('')}</div>
+      <div class="ptw-shoot">⏱ ${l.mpg.toFixed(1)} MPG · ${l.gp} games<br>${shoot}</div>
+    </fieldset>
+    ${keys.length ? `<fieldset class="frame ptw-frame"><legend>🛡 How to Stop Him</legend>${keys.map((k, i) => `<div class="ptw-key"><span class="ptw-n">${i + 1}</span><div><b>${esc(k.title)}</b><p>${esc(k.text)}</p><span class="ptw-why">${k.why}</span></div></div>`).join('')}</fieldset>` : ''}`;
+}
+// Place an imported face in the card's box by its own features: the inner edge of the left eye (where his eye white and
+// pupil end, toward the nose) on the center line, the eye line at a set height, every face at one scale. Hair falls
+// where it falls and the box trims it.
+const PTW_BOX = { w: 84, h: 76, eye: 38, face: 78 };
+window.hlcPtwPlace = img => {
+  try {
+    const W = img.naturalWidth, H = img.naturalHeight; if (!W || !H) return;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
+    const d = cx.getImageData(0, 0, W, H).data, at = (x, y) => (y * W + x) * 4;
+    const px = H / 52, reach = Math.max(1, Math.round(px * 2));   // one game pixel in this image, and two of them
+    const dark = (x, y) => x >= 0 && x < W && d[at(x, y) + 3] > 0 && Math.max(d[at(x, y)], d[at(x, y) + 1], d[at(x, y) + 2]) < 90;
+    const whites = [];
+    for (let y = 0; y < Math.floor(H * 0.75); y++) for (let x = 0; x < W; x++) {
+      const i = at(x, y);
+      if (!d[i + 3] || Math.min(d[i], d[i + 1], d[i + 2]) <= 215) continue;
+      let pupil = false; for (let k = 1; k <= reach && !pupil; k++) pupil = dark(x - k, y) || dark(x + k, y);
+      if (pupil) whites.push([x, y]);
+    }
+    let leftIn = W / 2, eyeY = H * 0.45;
+    if (whites.length) {
+      const mid = whites.reduce((a, [x]) => a + x, 0) / whites.length, lw = whites.filter(([x]) => x < mid);
+      eyeY = whites.reduce((a, [, y]) => a + y, 0) / whites.length + 0.5;
+      if (lw.length) {
+        let inner = Math.max(...lw.map(([x]) => x)); const rows = [...new Set(lw.map(([, y]) => y))];
+        while (inner + 1 < mid && rows.some(y => dark(inner + 1, y))) inner++;
+        leftIn = inner + 1;
+      }
+    }
+    const s = PTW_BOX.face / H;
+    Object.assign(img.style, { position: 'absolute', height: `${PTW_BOX.face}px`, width: `${W * s}px`, left: `${PTW_BOX.w / 2 - leftIn * s}px`, top: `${PTW_BOX.eye - eyeY * s}px`, visibility: 'visible' });
+  } catch { img.style.visibility = 'visible'; }
+};
 screens.matchup = () => {
   const me = myTeam(), ng = nextGame(me);
   if (!ng) { layout({ title: 'Scouting Report', body: '<p class="note">No game coming up.</p>' }); return; }
@@ -3881,6 +4026,7 @@ screens.matchup = () => {
   layout({
     title: 'Scouting Report',
     body: `<div class="mu-vs big"><span class="mu-tm">${logoImg(me)}<b>${esc(me.shortName)}</b><small>${rec(me)}</small><small class="muted">${l10(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(opp)}<b>${esc(opp.shortName)}</b><small>${rec(opp)}</small><small class="muted">${l10(opp)}</small></span></div>
+      ${ptwCard(opp)}
       <fieldset class="frame"><legend>Keys to the Game</legend>${muKeys(me, opp).map(([i, s]) => `<p class="note small mu-key">${i} ${s}</p>`).join('')}</fieldset>
       <fieldset class="frame"><legend>How They Play</legend>${muStyle(opp).map(s => `<p class="note small mu-key">• ${esc(s)}</p>`).join('')}
         <p class="note small mu-key">• Strength: <b>${esc(NEED_LABELS[Object.entries(needZ(opp)).sort((x, y) => y[1] - x[1])[0]?.[0]] || '—')}</b> · Weakness: <b>${esc(teamNeed(opp) || '—')}</b></p></fieldset>
