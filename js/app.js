@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.62';
+const APP_VERSION = '0.365.63';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -913,7 +913,7 @@ function render() {
     console.error(err);
     layout({ title: 'Something Broke', body: `<p class="note">This screen (${esc(top.name)}) hit an error and couldn't draw. Everything else still works, and nothing was changed.</p>
       <p class="note small muted">Send this to get it fixed:</p><pre class="note small" style="white-space:pre-wrap;user-select:text">${esc(`v${SHOWN_VERSION} (build ${APP_VERSION}) · ${top.name}\n${err?.message || err}\n${String(err?.stack || '').split('\n').slice(0, 6).join('\n')}`)}</pre>
-      <button class="btn focus" data-act="goHomeCuts">🏠 Home</button>` });
+      ${(() => { try { const cur = state.data && currentStep(); return cur && (cur.key === top.name || (STEP_SCREENS[cur.key] || []).includes(top.name)) ? `<div class="grid2"><button class="btn focus" data-act="goHomeCuts">🏠 Home</button><button class="btn" data-act="skipBrokenStep">⏭ Skip ${esc(cur.title)}</button></div>` : ''; } catch { return ''; } })() || '<button class="btn focus" data-act="goHomeCuts">🏠 Home</button>'}` });
   }
   let target = view === lastView ? y : top.y ?? 0;
   if (view === lastView && state.anchor) {
@@ -2643,7 +2643,7 @@ function stepActions(key) {
     case 'seniors': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="seniors">🎓 Senior Send-off</button><button class="btn" data-act="calDone" data-k="seniors">✅ Wrap Up</button></div>`;
     case 'departures': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="departures">🎓 Draft Departures</button><button class="btn" data-act="calDone" data-k="departures">✅ Wrap Up</button></div>`;
     case 'review': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="review">📜 Begin</button><button class="btn" data-act="calDone" data-k="review">⏭ Skip</button></div>`;
-    case 'expansion': return `<div class="btn-set"><button class="btn focus wide" data-act="nav" data-to="expansion">🏟️ Begin</button></div>`;
+    case 'expansion': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="expansion">🏟️ Begin</button><button class="btn" data-act="expSkip">⏭ Skip</button></div>`;
     case 'owner': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="ownerday">🤝 Begin</button><button class="btn" data-act="calDone" data-k="owner">⏭ Skip</button></div>`;
     case 'olympics': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="olympics">${olyLogo(26)} Begin</button><button class="btn" data-act="olySkip">⏭ Sim It</button></div>`;
     case 'vote': return `<div class="grid2"><button class="btn focus" data-act="nav" data-to="vote">🗳️ Begin</button><button class="btn" data-act="voteSkip">⏭ Skip</button></div>`;
@@ -3076,6 +3076,23 @@ function calendarCard() {
   </fieldset>`;
 }
 
+// Skip this year's expansion: a plan not started is called off for the year; one already under way ends as it stands.
+function expSkipNow() {
+  const x = expStore(); if (!x) return;
+  saveExp({ ...x, status: ['protect', 'draft'].includes(x.status) ? 'done' : 'announced-off' });
+}
+actions.expSkip = async () => {
+  const x = expStore();
+  if (!(await confirmBox(['protect', 'draft'].includes(x?.status) ? 'End the expansion draft where it stands and move on?' : 'Skip the expansion this year?', '⏭ Skip'))) return;
+  expSkipNow(); state.undo = null; goHome();
+};
+// A screen that broke on the step you're on: mark that step done and go home (when the step can be skipped that way).
+actions.skipBrokenStep = () => {
+  const cur = currentStep(); if (!cur) return goHome();
+  if (cur.key === 'expansion') expSkipNow();
+  else { const was = calFlags()[cur.key]; calFlags()[cur.key] = true; if (!cur.done()) { calFlags()[cur.key] = was; toast('This step can\'t be skipped from here', 'Send the error text above so it gets fixed.', 4000, true); return; } }
+  state.undo = null; toast(`⏭ Skipped: ${cur.title}`); goHome();
+};
 actions.calDone = d => { if (d.k === 'media') applyPresser(); calFlags()[d.k] = true; state.undo = null; render(); };
 actions.calCamp = async () => {
   if (SUMMER_OFF) return actions.calCampBack();
