@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.72';
+const APP_VERSION = '0.365.73';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -607,21 +607,11 @@ function logoUrl(url) {
   return url;
 }
 // Player faces cut from the game's roster screens (a face pack), keyed by player id. Nothing shows without one.
-// Faces bundled with the app (data/faces/nba.json, cut from the game's own roster screens) for the pro league, by name
-// (player ids differ from save to save). A face you import yourself wins.
-const faceName = p => `${p?.fn || ''} ${p?.ln || ''}`.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
-let bundledFaces = null;
-function loadBundledFaces() {
-  if (bundledFaces) return;
-  bundledFaces = new Map();
-  fetch('data/faces/nba.json').then(r => (r.ok ? r.json() : {})).then(m => { bundledFaces = new Map(Object.entries(m)); if (state.data && bundledFaces.size) render(); }).catch(() => {});
-}
-const faceOf = p => (p && (state.faces?.get?.(p.id) || (!isCollege() && bundledFaces?.get(faceName(p))))) || '';
+const faceOf = p => (p && state.faces?.get?.(p.id)) || '';
 // Saved faces live in the browser per league (player ids carry over from save to save of the same league).
 const facesKey = () => `hlc:faces:${league().shortName}`;
 function facesStored() { try { return JSON.parse(localStorage.getItem(facesKey())) || {}; } catch { return {}; } }
 function loadFaces() {
-  if (state.data) loadBundledFaces();
   if (!state.data || state.facesFor === facesKey()) return;
   state.facesFor = facesKey();
   const m = facesStored();
@@ -3877,7 +3867,7 @@ function nextGameCard() {
 const PTW_RANK_WORD = { PTS: 'points', REB: 'rebounds', AST: 'assists', STL: 'steals', BLK: 'blocks' };
 function ptwTotals(p, yr) {
   const s = (p.stats || []).find(x => x.league === state.leagueIdx && x.yr === yr);
-  const t = { GP: 0, FGM: 0, FGA: 0, TPM: 0, TPA: 0, FTM: 0, FTA: 0, TO: 0 };
+  const t = { GP: 0, FGM: 0, FGA: 0, TPM: 0, TPA: 0, FTM: 0, FTA: 0, TO: 0, PF: 0, ORB: 0 };
   for (const r of s?.season || []) for (const k of Object.keys(t)) t[k] += r[k] || 0;
   return t.GP ? t : null;
 }
@@ -3911,34 +3901,136 @@ function ptwTone(arr, v, highGood = true) {
 const ptwRate = v => `<span class="${v >= 16 ? 'up' : v <= 8 ? 'down' : ''}">${v}</span>`;
 const ptwHabit = (lbl, v) => `${lbl} habit ${v > 0 ? '+' : ''}${v}`;
 // The three things that stop him, each with what he does (the stat), the rating behind it and the habit, in that order.
+// Each key is only on the table when he really is that player, and scores by how far out he is; the three picked come
+// from three different parts of his game. Two ways to say most of them, picked by the player so two alike read apart.
 function ptwKeys(p, l, t, pools = {}) {
   const A = k => Math.round(regressed(p, k)), T = k => p.tendencies?.[k] ?? 0, g = t?.GP || 1;
   const tpa = t ? t.TPA / g : 0, tp = t?.TPA ? t.TPM / t.TPA * 100 : null, fta = t ? t.FTA / g : 0, tov = t ? t.TO / g : 0;
+  const ft = t?.FTA ? t.FTM / t.FTA * 100 : null, pf = t ? t.PF / g : 0, orb = t ? t.ORB / g : 0;
   const twoA = t ? (t.FGA - t.TPA) / g : 0, two = t && t.FGA - t.TPA ? (t.FGM - t.TPM) / (t.FGA - t.TPA) * 100 : null;
+  const grp = posGroup(p), big = grp === 'bigs', seed = Math.abs(Number(p.id) || 0);
   const keys = [];
-  const add = (score, title, text, why) => keys.push({ score, title, text, why: why.filter(Boolean).join(' · ') });
-  if (tpa >= 2 && tp != null && tp < 33) add(6 + (33 - tp) / 2 + tpa, 'Give him the three', 'Go under screens and take away the paint. Every three he takes is a win for you.',
-    [`<span class="${ptwTone(pools.tp, tp)}">${tp.toFixed(1)}%</span> on ${tpa.toFixed(1)} threes a game`, `3-point ${ptwRate(A('TPT'))}`, ptwHabit('three', T('threePoint'))]);
-  if (tpa >= 4 && tp != null && tp >= 38) add(6 + (tp - 38) / 2 + tpa, 'Run him off the line', 'Close out hard and chase him over screens. Make him put it on the floor.',
-    [`<span class="${ptwTone(pools.tp, tp)}">${tp.toFixed(1)}%</span> on ${tpa.toFixed(1)} threes a game`, `3-point ${ptwRate(A('TPT'))}`, ptwHabit('three', T('threePoint'))]);
-  if (l.apg >= 5) add(4 + l.apg, 'Take away the pass', 'Stay home on shooters and the roller. Make him score instead.',
-    [`${l.apg.toFixed(1)} assists a game`, `Passing ${ptwRate(A('PAS'))}`, ptwHabit('pass', T('pass'))]);
-  if (l.apg < 2.5 && l.ppg >= 15 && A('PAS') <= 9) add(6 + tov + (9 - A('PAS')), 'Trap the drive', 'He doesn\'t pass out of it. Send a second defender and make him give it up.',
+  const add = (area, score, title, texts, why) => {
+    const text = Array.isArray(texts) ? texts[(seed + keys.length) % texts.length] : texts;
+    keys.push({ area, score, title, text, why: why.filter(Boolean).join(' · ') });
+  };
+  const tpLine = () => `<span class="${ptwTone(pools.tp, tp)}">${tp.toFixed(1)}%</span> on ${tpa.toFixed(1)} threes a game`;
+  const twoLine = () => (two != null ? `${two.toFixed(1)}% on ${twoA.toFixed(1)} twos a game` : '');
+  const ftLine = () => (ft != null ? `<span class="${ptwTone(pools.ft, ft)}">${ft.toFixed(1)}%</span> on ${fta.toFixed(1)} free throws a game` : '');
+
+  // Outside
+  if (tpa >= 2 && tp != null && tp < 33 && A('TPT') <= 13) add('three', 6 + (33 - tp) / 2 + tpa, 'Give him the three',
+    ['Go under screens and take away the paint. Every three he takes is a win for you.', 'Sag into the lane and dare him to shoot it. He hasn\'t made them.'],
+    [tpLine(), `3-point ${ptwRate(A('TPT'))}`, ptwHabit('three', T('threePoint'))]);
+  if (tpa >= 4 && tp != null && tp >= 38 && A('TPT') >= 14) add('three', 6 + (tp - 38) / 2 + tpa, A('SPD') >= 14 ? 'Chase him off the line' : 'Run him off the line',
+    A('SPD') >= 14 ? ['Top-lock him off screens and stay attached. He doesn\'t need much room.', 'No help off him. Trail every screen and make him catch on the move.']
+      : ['Close out hard and make him put it on the floor. He\'s not beating you off the bounce.', 'Run him off the arc. He\'d rather shoot than drive, so make him drive.'],
+    [tpLine(), `3-point ${ptwRate(A('TPT'))}`, A('SPD') >= 14 ? `Speed ${ptwRate(A('SPD'))}` : ptwHabit('three', T('threePoint'))]);
+  if (!big && tpa < 1.2 && A('TPT') <= 8) add('three', 5 + (8 - A('TPT')) + (1.2 - tpa) * 2, 'Sag off him',
+    ['Play a step off and pack the paint. He won\'t shoot it from deep.', 'Go under every screen and wall off the drive. He isn\'t a threat outside.'],
+    [`${tpa.toFixed(1)} threes a game`, `3-point ${ptwRate(A('TPT'))}`, ptwHabit('three', T('threePoint'))]);
+  // Mid-range
+  if (A('MID') >= 16 && T('twoPoint') >= 1) add('mid', 5 + (A('MID') - 15) + T('twoPoint'), 'Crowd the pull-up',
+    ['He lives in the mid-range. Get up into him and make him go all the way.', 'Contest the elbow jumper. Take away his comfort shot and live with the drive.'],
+    [twoLine(), `Mid-range ${ptwRate(A('MID'))}`, ptwHabit('jumper', T('twoPoint'))]);
+  if (A('MID') <= 8 && T('twoPoint') >= 1) add('mid', 4 + (9 - A('MID')) + T('twoPoint'), 'Let him take the long two',
+    ['He likes the mid-range jumper more than it likes him. Give him space for it.', 'Stay back and let him settle. The long two is the shot you want him taking.'],
+    [twoLine(), `Mid-range ${ptwRate(A('MID'))}`, ptwHabit('jumper', T('twoPoint'))]);
+  // Free throws
+  if (fta >= 3 && ft != null && ft < 65) add('fts', 6 + (65 - ft) / 3 + fta / 2, 'Send him to the line',
+    ['Foul him hard instead of giving up the easy two. He doesn\'t make them.', 'Late in a close game, he\'s the one to put on the line.'],
+    [ftLine(), `Free throw ${ptwRate(A('FTS'))}`]);
+  if (fta >= 7 && (ft == null || ft >= 70) && T('pumpFake') >= 2) add('fts', 2 + (fta - 7) * 1.5 + T('pumpFake'), 'Stay down, don\'t foul',
+    ['He hunts contact and the pump fake. Hands up, feet on the floor.', 'Every reach is two free points. Show your hands and don\'t bite on the fake.'],
+    [ftLine(), ptwHabit('pump-fake', T('pumpFake'))]);
+  // Inside
+  if ((A('DNK') >= 15 || A('LAY') >= 16) && twoA >= (big ? 6 : 9) && (big || A('MID') <= 15)) add('rim', 3 + (Math.max(A('DNK'), A('LAY')) - 15) + (T('dunk') + T('floater')) / 2 + (twoA - 8) / 3,
+    big ? 'Wall off the rim' : 'Build a wall',
+    big ? ['Keep a body on him under the basket and never let him catch deep.', 'He finishes everything near the rim. Meet him early, before he gets going.']
+      : ['He lives at the basket. Get back in transition and keep a big home when he drives.', 'Show help early on every drive. Make him finish over two.'],
+    [twoLine(), A('DNK') >= A('LAY') ? `Dunking ${ptwRate(A('DNK'))}` : `Layup ${ptwRate(A('LAY'))}`, ptwHabit(A('DNK') >= A('LAY') ? 'dunk' : 'floater', T(A('DNK') >= A('LAY') ? 'dunk' : 'floater'))]);
+  if (twoA >= 6 && A('LAY') <= 9 && A('DNK') <= 10) add('rim', 4 + (10 - A('LAY')) + twoA / 3, 'Let him finish over size',
+    ['He gets to the rim but can\'t finish. Stay vertical and let him miss.', 'Don\'t foul the drive. He\'s a poor finisher, so make him do it over your bigs.'],
+    [twoLine(), `Layup ${ptwRate(A('LAY'))}`, `Dunking ${ptwRate(A('DNK'))}`]);
+  if (A('INS') >= 15 && T('post') >= 1) add('post', 5 + (A('INS') - 14) + T('post'), 'Front him in the post',
+    ['He wants it on the block. Front him, and get help on the weak side.', 'Push him off his spot before the catch. Once he has deep position it\'s over.'],
+    [twoLine(), `Inside ${ptwRate(A('INS'))}`, ptwHabit('post', T('post'))]);
+  if (big && T('lob') >= 2 && A('DNK') >= 14) add('rim', 4 + T('lob') + (A('DNK') - 13), 'Take away the lob',
+    ['Tag the roller every time. He catches above the rim.', 'Keep a body between him and the rim on the roll. No easy lobs.'],
+    [`Dunking ${ptwRate(A('DNK'))}`, ptwHabit('lob', T('lob'))]);
+  // With the ball
+  if (A('SPD') >= 16 && A('DRB') >= 14 && !big) add('drive', 4 + (A('SPD') - 15) + (A('DRB') - 13) / 2, 'Give him a cushion',
+    ['He blows by a close-out. Play a step off and keep him in front.', 'Too quick to crowd. Give ground, keep him out of the lane, contest late.'],
+    [`Speed ${ptwRate(A('SPD'))}`, `Dribbling ${ptwRate(A('DRB'))}`, ptwHabit('crossover', T('cross'))]);
+  if (A('DRB') <= 11 && (A('DRB') <= 9 || tov >= 3) && (l.apg >= 3 || grp === 'guards')) add('ball', 4 + Math.max(0, 9 - A('DRB')) + tov, 'Pressure the ball',
+    ['Pick him up full court. His handle cracks under pressure.', 'Get into him and turn him. He gives it away when you crowd him.'],
+    [`${tov.toFixed(1)} turnovers a game`, `Dribbling ${ptwRate(A('DRB'))}`, ptwHabit('crossover', T('cross'))]);
+  if (l.apg < 2.5 && l.ppg >= 15 && A('PAS') <= 9) add('pass', 6 + tov + (9 - A('PAS')), 'Trap the drive',
+    ['He doesn\'t pass out of it. Send a second defender and make him give it up.', 'Load up on his side. When he drives, he\'s shooting it.'],
     [`${l.apg.toFixed(1)} assists, ${tov.toFixed(1)} turnovers a game`, `Passing ${ptwRate(A('PAS'))}`, ptwHabit('pass', T('pass'))]);
-  if (fta >= 6) add(4 + fta, 'Stay down, don\'t foul', 'He hunts contact and the pump fake. Hands up, feet on the floor.',
-    [`${fta.toFixed(1)} free throws a game`, ptwHabit('pump-fake', T('pumpFake'))]);
-  if ((A('DNK') >= 15 || A('LAY') >= 16) && twoA >= 6) add(5 + (Math.max(A('DNK'), A('LAY')) - 14) + (T('dunk') + T('floater')) / 2, 'Wall off the rim', 'He lives at the basket. Get back in transition and keep a big home when he drives.',
-    [two != null ? `${two.toFixed(1)}% on ${twoA.toFixed(1)} twos a game` : '', A('DNK') >= A('LAY') ? `Dunking ${ptwRate(A('DNK'))}` : `Layup ${ptwRate(A('LAY'))}`, ptwHabit('dunk', T('dunk'))]);
-  if (l.bpg >= 1.8) add(5 + l.bpg * 2, 'Pull him away from the rim', 'Pick-and-pop and spread the floor. Don\'t drive into him.',
+  if (l.apg >= 5) add('pass', 4 + l.apg, A('PAS') >= 16 ? 'Don\'t help off shooters' : 'Take away the pass',
+    A('PAS') >= 16 ? ['He finds the open man every time. Stay home and make him beat you alone.', 'No traps. He\'ll pick a double team apart. Play him straight up.']
+      : ['Stay home on shooters and the roller. Make him score instead.', 'Shrink his passing lanes and make him a scorer tonight.'],
+    [`${l.apg.toFixed(1)} assists a game`, `Passing ${ptwRate(A('PAS'))}`, ptwHabit('pass', T('pass'))]);
+  // On defense
+  if (l.bpg >= 1.8) add('def', 5 + l.bpg * 2, 'Pull him away from the rim',
+    ['Pick-and-pop and spread the floor. Don\'t drive into him.', 'Put his man on the perimeter. Every shot near the rim is one he can block.'],
     [`${l.bpg.toFixed(1)} blocks a game`, `Block ${ptwRate(A('BLK'))}`, ptwHabit('block', T('block'))]);
-  if (l.rpg >= 9) add(3 + l.rpg / 2 + (A('STR') <= 11 ? 2 : 0), 'Hit him first on the glass', A('STR') <= 11 ? 'Box out every shot. He\'s not strong enough to move you.' : 'Box out every shot and send a second body.',
+  if (l.spg >= 1.5 && A('STL') >= 15) add('def', 4 + l.spg * 2, 'Value the ball around him',
+    ['He jumps passing lanes. Make the simple pass and don\'t throw it across his face.', 'Strong with the ball near him. He reads lazy passes.'],
+    [`${l.spg.toFixed(1)} steals a game`, `Steal ${ptwRate(A('STL'))}`, ptwHabit('gamble', T('stealOffBall'))]);
+  if (A('STR') <= 9 && A('STL') <= 7 && A('BLK') <= 7) add('def', 5 + (9 - A('STR')) + (7 - A('STL')) / 2, 'Go at him on defense',
+    ['Post him up and drive at him every trip down.', 'Find him in every switch. He can\'t guard anyone.'],
+    [`${l.spg.toFixed(1)} steals, ${l.bpg.toFixed(1)} blocks a game`, `Strength ${ptwRate(A('STR'))}`, `Steal ${ptwRate(A('STL'))}`]);
+  if (pf >= 3.5 && l.mpg >= 22) add('def', 4 + (pf - 3.5) * 4, 'Get him in foul trouble',
+    ['Attack him early. He picks up fouls, and the bench is a step down.', 'Drive right at him in the first quarter. Two quick fouls and he sits.'],
+    [`${pf.toFixed(1)} fouls a game`, `Strength ${ptwRate(A('STR'))}`]);
+  // The glass
+  if (orb >= 3) add('glass', 4 + orb * 1.5, 'Find him on every shot',
+    ['He crashes the offensive glass. Someone has to put a body on him every time.', 'Box him out before you look for the ball. His second chances add up.'],
+    [`${orb.toFixed(1)} offensive rebounds a game`, `Off. rebounding ${ptwRate(A('ORE'))}`, ptwHabit('crash', T('offReb'))]);
+  else if (l.rpg >= 9) add('glass', 3 + l.rpg / 2 + (A('STR') <= 11 ? 2 : 0), 'Hit him first on the glass',
+    A('STR') <= 11 ? ['Box out every shot. He\'s not strong enough to move you.', 'Get into him early on the shot. He wins on reach, not muscle.'] : ['Box out every shot and send a second body.', 'Gang-rebound. One man won\'t keep him off the boards.'],
     [`${l.rpg.toFixed(1)} rebounds a game`, `Strength ${ptwRate(A('STR'))}`, ptwHabit('rebound', T('defReb'))]);
-  if (A('STR') <= 9 && A('STL') <= 7 && A('BLK') <= 7) add(5 + (9 - A('STR')) + (7 - A('STL')) / 2, 'Go at him on defense', 'Post him up and drive at him every trip down.',
-    [`${l.spg.toFixed(1)} steals, ${l.bpg.toFixed(1)} blocks a game`, `Strength ${ptwRate(A('STR'))}`, `Steal ${ptwRate(A('STL'))}`, `Block ${ptwRate(A('BLK'))}`]);
-  if (keys.length < 3) add(1, 'Make every shot a tough one', 'Contest everything and keep a hand in his face.',
-    [`${l.ppg.toFixed(1)} points a game`, `Mid-range ${ptwRate(A('MID'))}`, ptwHabit('jumper', T('twoPoint'))]);
-  if (keys.length < 3) add(0.5, 'Wear him down', 'Make him work on defense and keep running.', [`${l.mpg.toFixed(1)} minutes a game`, `Stamina ${ptwRate(A('STM'))}`]);
-  return keys.sort((a, b) => b.score - a.score).slice(0, 3);
+  // His legs
+  if (A('STM') <= 9 && l.mpg >= 28) add('legs', 4 + (9 - A('STM')) + (l.mpg - 28) / 4, 'Wear him down',
+    ['Run your sets at him and make him work on defense. He fades late.', 'Push the pace early. He doesn\'t have the legs for 35 minutes.'],
+    [`${l.mpg.toFixed(1)} minutes a game`, `Stamina ${ptwRate(A('STM'))}`]);
+  if (A('SPD') <= 7 && l.mpg >= 20) add('legs', 4 + (7 - A('SPD')) * 1.5, 'Run on him',
+    ['Push it after every miss. He doesn\'t get back.', 'Beat him down the floor. He can\'t keep up in transition.'],
+    [`Speed ${ptwRate(A('SPD'))}`, `Stamina ${ptwRate(A('STM'))}`]);
+
+  // The star: make someone else beat you.
+  if (l.ppg >= 25) add('deny', 3 + (l.ppg - 25) / 2, 'Make someone else beat you',
+    ['Face-guard him and make him work to catch it. Live with his teammates taking the shots.', 'Show him two bodies every time he touches it. Nobody else on that roster scores like he does.'],
+    [`${l.ppg.toFixed(1)} points a game`, `${(t ? (t.FGA / g) : 0).toFixed(1)} shots a game`]);
+  // A driver with no jumper: go under and make him shoot.
+  if (!big && twoA >= 7 && A('MID') <= 10 && A('TPT') <= 11) add('mid', 5 + (10 - A('MID')) + (11 - A('TPT')) / 2, 'Make him a jump shooter',
+    ['Go under every screen and give him the jumper. All he wants is the paint.', 'Back off a step and take away the lane. He can\'t hurt you from outside.'],
+    [twoLine(), `Mid-range ${ptwRate(A('MID'))}`, `3-point ${ptwRate(A('TPT'))}`]);
+  // Milder reads from his ratings, so every player gets three of his own (they only fill in behind the ones above).
+  const soft = (area, dev, title, texts, why) => dev > 0 && add(area, 1 + dev / 4, title, texts, why);
+  soft('three', tpa >= 1 && (tp == null || tpa < 2 || tp < 36) ? 13 - A('TPT') : 0, 'Give him the three', ['He\'ll take it, but it isn\'t his shot. Go under and protect the paint.', 'Close out short. A three from him is a shot you can live with.'], [tp != null ? tpLine() : '', `3-point ${ptwRate(A('TPT'))}`, ptwHabit('three', T('threePoint'))]);
+  soft('three', tpa >= 2.5 && (tp == null || tp >= 34) ? A('TPT') - 14 : 0, 'Run him off the line', ['Don\'t let him get comfortable from deep. Hard close-outs all night.', 'Stay tight on the perimeter. He\'ll make you pay for space.'], [tp != null ? tpLine() : '', `3-point ${ptwRate(A('TPT'))}`, ptwHabit('three', T('threePoint'))]);
+  soft('mid', A('MID') - 14, 'Crowd the pull-up', ['He\'s smooth off the dribble. Get a hand up on every jumper.', 'Don\'t give him the elbow. That\'s where he\'s comfortable.'], [twoLine(), `Mid-range ${ptwRate(A('MID'))}`, ptwHabit('jumper', T('twoPoint'))]);
+  soft('drive', big ? 0 : 10 - A('SPD'), 'Crowd him', ['He isn\'t quick enough to blow by you. Get up into him and take away his rhythm.', 'Play him tight. He won\'t beat you off the dribble.'], [`Speed ${ptwRate(A('SPD'))}`, `Dribbling ${ptwRate(A('DRB'))}`]);
+  soft('drive', big ? 0 : A('SPD') - 14, 'Give him a cushion', ['He\'s quick off the bounce. Give a step and keep him out of the lane.', 'Don\'t reach. Stay in front and make him shoot over you.'], [`Speed ${ptwRate(A('SPD'))}`, `Dribbling ${ptwRate(A('DRB'))}`, ptwHabit('crossover', T('cross'))]);
+  soft('pass', 10 - A('PAS'), 'Double him', ['He\'s not a passer. Send help when he puts it down.', 'A second defender takes him out of it. He looks to score, not to find people.'], [`${l.apg.toFixed(1)} assists a game`, `Passing ${ptwRate(A('PAS'))}`, ptwHabit('pass', T('pass'))]);
+  soft('pass', A('PAS') - 13, 'Take away the pass', ['He sees the floor. Stay home on shooters and make him score.', 'Shrink his passing lanes and keep the roller covered.'], [`${l.apg.toFixed(1)} assists a game`, `Passing ${ptwRate(A('PAS'))}`, ptwHabit('pass', T('pass'))]);
+  soft('def', 11 - A('STR'), 'Post him up', ['He gives up size and strength. Take him to the block.', 'Put your strongest scorer on him and play bully ball.'], [`Strength ${ptwRate(A('STR'))}`, `Block ${ptwRate(A('BLK'))}`]);
+  soft('glass', (9 - A('DRE')) * 0.7, 'Crash the glass on him', ['He doesn\'t rebound on his end. Send an extra man after every shot.', 'Second chances are there. Crash hard when he\'s the one boxing out.'], [`${l.rpg.toFixed(1)} rebounds a game`, `Def. rebounding ${ptwRate(A('DRE'))}`]);
+  soft('legs', 11 - A('STM'), 'Wear him down', ['Make him work on both ends. His legs go late.', 'Keep the pace up. He tires.'], [`${l.mpg.toFixed(1)} minutes a game`, `Stamina ${ptwRate(A('STM'))}`]);
+  // Three different parts of his game, best first.
+  const out = [], used = new Set();
+  for (const k of keys.sort((a, b) => b.score - a.score)) if (!used.has(k.area) && out.length < 3) { used.add(k.area); out.push(k); }
+  // An all-round player with no clear tell: the basics, still with his numbers.
+  const basics = [
+    { title: 'Make every shot a tough one', text: 'Nothing he does is a weakness. Contest everything and make him earn it.', why: [`${l.ppg.toFixed(1)} points a game`, `Mid-range ${ptwRate(A('MID'))}`, `3-point ${ptwRate(A('TPT'))}`] },
+    { title: 'Make him work for the catch', text: 'Deny him the ball on the wing. The fewer touches, the fewer points.', why: [`${(t ? t.FGA / g : 0).toFixed(1)} shots a game`, `${l.mpg.toFixed(1)} minutes a game`] },
+    { title: 'Keep him off the glass', text: 'Find him on every shot. He\'s a big part of their second chances.', why: [`${l.rpg.toFixed(1)} rebounds a game`, `Off. rebounding ${ptwRate(A('ORE'))}`] },
+  ];
+  for (const k of basics) if (out.length < 3) out.push({ score: 0, title: k.title, text: k.text, why: k.why.join(' · ') });
+  return out.slice(0, 3);
 }
 // His team's colors for the box: the darker one behind the face, the other as the border and the number badge.
 function ptwColors(tm) {
@@ -3965,7 +4057,7 @@ function ptwCard(opp) {
   const pct = (v, arr, extra = '') => (v == null ? '' : `<span class="${ptwTone(arr, v)}">${v.toFixed(1)}%</span>${extra}`);
   const shoot = [fg != null && `FG ${pct(fg, pools.fg)}`, tp != null && tpa >= 0.5 && `3P ${tpa >= 2 ? pct(tp, pools.tp) : `${tp.toFixed(1)}%`} on ${tpa.toFixed(1)}`,
     ft != null && `FT ${pct(ft, pools.ft)}`, `TO <span class="${ptwTone(pools.to, tov, false)}">${tov.toFixed(1)}</span>`].filter(Boolean).join(' · ');
-  const c = ptwColors(opp), url = faceOf(p);
+  const c = ptwColors(opp), url = '';   // no faces for now: the team logo in the box
   const keys = ptwKeys(p, l, t, pools);
   return `<fieldset class="frame ptw-frame"><legend>Player to Watch</legend>
       <div class="ptw-top tap" data-act="openPlayer" data-id="${p.id}">
