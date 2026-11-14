@@ -73,7 +73,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.65';
+const APP_VERSION = '0.365.66';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -86,6 +86,16 @@ const DEVLOG = [
     ]],
     ['Bug Fixes', [
       'A step whose screen breaks now offers a Skip instead of leaving you stuck',
+      'Combine Trending posts lay out like the rest of Hoop Gram',
+      'Live draft: four teams in the strip at the first pick, and the team picking stays lit until the next team is on the clock',
+      'Injury-prone free agents are marked with the white ✚',
+      'Strength, speed and stamina never drop below 8',
+      'Surgery is only offered after a major injury',
+      'Season Preview: an injury comeback counts no more than a season of games, and a player who missed the year is called out for the season',
+      'Top stories only feature signings of Lv 80+ players',
+      'Trades before draft day aren\'t called draft-day trades',
+      'Media Day\'s Rumors tab shows rumors only',
+      'Camp signings explain the 18-player offseason limit and dim the buttons when the roster is full',
     ]],
   ] },
   { v: 'Beta 0.2.0', sections: [
@@ -1354,7 +1364,15 @@ async function loadFile(file) {
 
 // Put parsed season data in place. `keepSnaps` keeps the original
 // baselines (used when undoing an in-app phase advance).
+// Strength, speed and stamina never sit below the pro game's floor (8): generated classes, aging and camp changes can
+// push one under it.
+function floorPhysicals(data) {
+  for (const L of (data.seasonLeagues || []).filter(x => !x.leagueType)) for (const p of [...(L.teams || []).flatMap(t => t.roster || []), ...(L.freeAgents || []), ...(L.draftClass || [])]) {   // pro leagues (college players can sit lower)
+    for (const k of PHYSICAL) { const a = p.attributes?.[k]; if (!Array.isArray(a)) continue; const lo = attrMin(k); if (a[0] < lo) a[0] = lo; if (a[1] != null && a[1] < a[0]) a[1] = a[0]; }
+  }
+}
 function installData(data, keepSnaps = false) {
+  floorPhysicals(data);
   {
     state.data = data;
     // The lottery format follows the file's year unless picked on the lottery screen.
@@ -1846,6 +1864,7 @@ function buildExport() {
   if (!isCollege() && league().season.phase === BUMP_PHASES[0]) spendAllPoints(league());
   // Skills go into the file best first (a skill that overtook another moves ahead of it).
   for (const L of state.data.seasonLeagues) for (const p of [...L.teams.flatMap(t => t.roster), ...(L.freeAgents || []), ...(L.draftClass || [])]) sortSkills(p);
+  floorPhysicals(state.data);
   // The game's cap becomes this season's 2nd apron (room for in-season
   // moves), with the max contract tiers scaled so a max is still 25 / 30 /
   // 35% of the real cap.
@@ -11692,7 +11711,8 @@ $app.addEventListener('change', e => { if (e.target.dataset?.change === 'posPick
 const medStore = () => (calFlags().med ||= {});
 function medCases(t) {
   const yr = lastSeasonYear();
-  return FA.signedRoster(t).map(p => ({ p, r: injuryRisk(p, yr, state.params) })).filter(x => x.r && (x.r.chance > 0 || x.r.cls !== 'standard'))
+  // Major injuries only: 20+ games missed, or a structural injury that cost 10+ (a nagging tweak doesn't need a surgeon).
+  return FA.signedRoster(t).map(p => ({ p, r: injuryRisk(p, yr, state.params) })).filter(x => x.r && ((x.r.games || 0) >= 20 || (x.r.cls === 'structural' && (x.r.games || 0) >= 10)))
     .sort((a, b) => b.r.chance - a.r.chance);
 }
 // Games he misses after surgery: longer for a structural injury.
@@ -14248,6 +14268,10 @@ async function revealPicks(overalls) {
       if (!q || !sel || !card.isConnected) continue;
       const p = prospectById(sel.pid), team = L.teams.find(t => t.id === sel.by) || q.owner;
       card.setAttribute('style', teamTint(team));
+      // The team whose pick this is stays lit in the strip through "The pick is in…" and the name; the next team lights
+      // up once it's on the clock (the redraw after the reveal).
+      $app.querySelectorAll('.od-item.now').forEach(x => x.classList.remove('now'));
+      $app.querySelector(`.od-item[data-ov="${ov}"]`)?.classList.add('now');
       card.classList.remove('mine', 'named');
       card.classList.add('reveal');
       card.innerHTML = `<span class="pk">#${ov}</span><span class="grow"><b>${esc(teamFull(team))}</b><span class="small muted">R${q.rd}${team.id !== q.orig.id ? ` · via ${esc(q.orig.shortName)}` : ''}</span><span class="pick-in">The pick is in…</span></span>`;
@@ -14692,11 +14716,8 @@ screens.combine = (args) => {
   if (tab === 'trending') {
     const posts = hoopGram(L.draftClass, C, rank, saveSalt());
     body = `<p class="note muted small">Check the buzz on Hoop Gram.</p>
-      <div class="stack">${posts.map(x => `<button class="hg-post" ${rowAct(x.p)}>
-        <div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>${esc(x.handle)}</b><span class="hg-tag">${esc(x.tag)}</span></div>
-        <p class="hg-text">${esc(gram(x.text))}</p>
-        <div class="hg-foot"><span>❤️ ${x.likes.toLocaleString()}</span><span class="cyan">${esc(playerName(x.p))} ›</span></div>
-      </button>`).join('') || '<p class="note">Quiet combine.</p>'}</div>`;
+      <div class="stack hg-list">${posts.map(x => gpost({ name: x.handle.replace(/^@/, ''), handle: x.handle.replace(/^@/, '').toLowerCase(), act: rowAct(x.p),
+        text: esc(gram(x.text)), foot: `❤️ ${x.likes.toLocaleString()} · <span class="gold">${esc(x.tag)}</span> · <span class="cyan">${esc(playerName(x.p))} ›</span>` })).join('') || '<p class="note">Quiet combine.</p>'}</div>`;
   } else if (tab === 'ath' || tab === 'shoot') {
     // Fewer, bigger boards: four athletic tests and five shooting views (the shooting drills grouped by shot), each
     // graded against every prospect who has ever tested (all-time percentile), with the class leader up top.
@@ -16576,7 +16597,7 @@ function draftLive() {
   const offerRows = offers.map((x, i) => ({ x, i, v: x.give.reduce((a, pk) => a + pkVal(pk), 0) })).sort((a, b) => b.v - a.v);
   // Around the pick, the same strip as the expansion draft: the last pick, the one on the clock, and the two after it.
   const deck = done ? '' : (() => {
-    const near = [order[idx - 1], ...order.slice(idx, idx + 3)].filter(Boolean);
+    const near = (idx > 0 ? [order[idx - 1], ...order.slice(idx, idx + 3)] : order.slice(0, 4)).filter(Boolean);   // always four (no gap at #1)
     return `<div class="on-deck">${near.map(q => {
       const sel = live.sel[q.overall], p = sel ? byId.get(sel.pid) : null;
       const tint = p ? teamTint(teamById(sel.to) || q.owner) : '';
@@ -17104,7 +17125,7 @@ screens.liveTrade = (args) => {
   const T = step === 'them' ? B : A;
   const assetList = step === 'them' ? list(bb, selB, 'b') : list(aa, selA, 'a');
   layout({
-    title: order.length ? 'Draft-Day Trade' : 'Trade',
+    title: order.length && (isStep('draft') || Object.keys(liveState()?.sel || {}).length) ? 'Draft-Day Trade' : 'Trade',   // before draft day it's just a trade
     body: `
       <div class="trade-top">
         <div class="grid2 trade">
@@ -17607,7 +17628,7 @@ screens.fa = (args = {}) => {
     const signed = s.signings.find(x => x.p === m.p);
     const rfa = FA.isRestricted(L, m.p);
     return `<button class="prow ${mineBid ? 'sel' : ''}" data-act="${ro ? 'openPlayer' : 'faOffer'}" data-id="${m.p.id}" ${!ro && (signedIds.has(m.p.id) || s.stage === 'done') ? 'disabled' : ''}>
-      <span class="name">${faceImg(m.p)}${esc(playerName(m.p))}${rfa ? ' <span class="badge new">RFA</span>' : ''}${traitsSet(m.p) && tr(m.p, 'durability') <= 6 ? ' <span title="Injury-prone">🩺</span>' : ''}</span>
+      <span class="name">${faceImg(m.p)}${esc(playerName(m.p))}${rfa ? ' <span class="badge new">RFA</span>' : ''}${traitsSet(m.p) && tr(m.p, 'durability') <= 6 ? ' <span class="inj-x" title="Injury-prone">✚</span>' : ''}</span>
       <span class="right"><span class="small">Asks $${m.ask}M ${askLen(m)}</span><br><span class="small" title="${esc(M.text)}">${M.icon} ${esc(M.name)}</span></span>
       <span class="meta">${lvRow(m.p)} · ${esc(posName(m.p))} · ${m.p.age}y${l ? ` · ${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : ''} · ${m.from ? esc(m.from.shortName) : 'FA'}${isAlpha(m.p) ? ' · 👑 wants a featured role' : ''}${isComplete() && FA.agentOf(m.p) !== 'fair' ? ` · ${FA.AGENTS[FA.agentOf(m.p)].icon} ${FA.AGENTS[FA.agentOf(m.p)].label.replace(' agent', '')}` : ''}</span>
       ${signed ? `<span class="chg up">Signed: ${esc(signed.team.shortName)} ${offerText(signed.offer)}</span>`
@@ -19780,7 +19801,8 @@ screens.storylines = () => {
 // Tab 3: what's trending on Hoop Gram this summer.
 screens.mediaRumors = () => layout({
   title: 'Rumors',
-  body: `${mediaTabs('mediaRumors')}${leagueGramCard() || '<p class="note small muted">Quiet on Hoop Gram so far.</p>'}`,
+  // Rumors only (the league's trade and contract talk), not the general Trending feed.
+  body: `${mediaTabs('mediaRumors')}<div class="stack hg-list">${rumorPosts(league()).map(x => x.html).join('') || '<p class="note small muted">No rumors right now. Quiet around the league.</p>'}</div>`,
   action: isStep('media') ? { act: 'mediaDone', label: 'Wrap Up Media Day' } : null,
 });
 
@@ -23284,13 +23306,13 @@ screens.latefa = (args = {}) => {
   layout({
     title: 'Camp Deals',
     body: `<p class="note small">Last call before final cuts: anyone left signs a one-year minimum, with nothing owed if he's cut.</p>
-      ${mine.map(t => `<fieldset class="frame"><legend>${esc(t.shortName)} · ${FA.signedRoster(t).length}/${O.rosterMax}</legend>${capBar(t)}</fieldset>`).join('')}
+      ${mine.map(t => { const n = FA.signedRoster(t).length; return `<fieldset class="frame"><legend>${esc(t.shortName)} · ${n}/${O.rosterMax}</legend>${capBar(t)}<p class="note small ${n >= O.rosterMax ? 'down' : 'muted'}">${n >= O.rosterMax ? `Camp roster full (${O.rosterMax} is the offseason max). Release someone to sign another` : `Up to ${O.rosterMax} in camp`}; cut to 15 before opening night.</p></fieldset>`; }).join('')}
       ${done && log ? `<fieldset class="frame"><legend>Around the League</legend><div class="stack">${(calFlags().dumpLog || []).map(x => `<p class="note small">🔁 ${esc(x)}</p>`).join('')}${log.list.map(x => `<p class="note small"><b>${esc(x.name)}</b> ${esc(x.lv)} → ${esc(x.team)} · $${x.sal}M × ${x.yrs}</p>`).join('') || '<p class="note small muted">Nobody else signed.</p>'}</div></fieldset>` : ''}
       <div class="tabs fa-tabs">${[['all', 'Best'], ['young', 'Young'], ['vets', 'Vets']].map(([k, l]) => `<button class="btn ${k === view ? 'on focus' : 'off'}" data-act="lateView" data-v="${k}">${l}</button>`).join('')}</div>
       <div class="list">${rows.map(p => {
         const l = seasonLine(p, state.leagueIdx, lastYear());
         return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvTag(p)}</span>
-          <span class="right">${done ? '' : `<button class="btn small focus" data-act="lateSign" data-id="${p.id}">✍️ $${lateMin(p)}M</button>`}</span>
+          <span class="right">${done ? '' : `<button class="btn small ${mine.every(t => FA.signedRoster(t).length >= O.rosterMax) ? 'off' : 'focus'}" data-act="lateSign" data-id="${p.id}">✍️ $${lateMin(p)}M</button>`}</span>
           <span class="meta">${esc(posName(p))} · ${p.age}y${l ? ` · ${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : ''}</span></div>`;
       }).join('') || '<p class="note muted">Nobody left.</p>'}</div>
       ${!args.all && pool.length > 25 ? `<button class="btn small" data-act="lateAll">Show all ${pool.length}</button>` : ''}`,
@@ -23527,8 +23549,8 @@ function reportCard() {
   const row = r => `<div class="drill-row tap ${isUserTeam(r.t) ? 'r1' : ''}" data-act="nav" data-to="roster" data-arg="${r.t.id}"><b class="rc-grade ${gradeCls(r.grade)}">${r.grade}</b><span class="grow"><b>${esc(r.t.shortName)}</b> <span class="small muted">${esc(r.line)}</span></span></div>`;
   return `<fieldset class="frame"><legend>Offseason Report Card</legend>
     ${mine.map(row).join('')}
-    <div class="hg-post"><div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>@CapSpaceGuy</b></div><p class="hg-text">Winner of the summer: ${esc(top.t.city || top.t.shortName)}. ${esc(sentence(top.line))}</p></div>
-    <div class="hg-post"><div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>@LeagueWhispers</b></div><p class="hg-text">Rough offseason in ${esc(low.t.city || low.t.shortName)}. ${esc(sentence(low.line))}</p></div>
+    <div class="hg-post"><span class="hg-av"><i class="px px-gram" aria-hidden="true"></i></span><span class="hg-body"><span class="hg-head"><b>CapSpaceGuy</b><span class="hg-handle">@capspaceguy</span></span><span class="hg-text">Winner of the summer: ${esc(top.t.city || top.t.shortName)}. ${esc(sentence(top.line))}</span></span></div>
+    <div class="hg-post"><span class="hg-av"><i class="px px-gram" aria-hidden="true"></i></span><span class="hg-body"><span class="hg-head"><b>LeagueWhispers</b><span class="hg-handle">@leaguewhispers</span></span><span class="hg-text">Rough offseason in ${esc(low.t.city || low.t.shortName)}. ${esc(sentence(low.line))}</span></span></div>
     <details class="cmb-fold"><summary>Every team</summary><div class="stack">${rows.map(row).join('')}</div></details>
   </fieldset>`;
 }
@@ -23568,8 +23590,8 @@ function openingNightTab() {
   const top = rows[0], sleeper = rows.filter(r => r.rank > 8 && !r.move?.draft).sort((a, b) => (b.move?.up ? shownLevel(b.move.p) : 0) - (a.move?.up ? shownLevel(a.move.p) : 0))[0];
   return `<fieldset class="frame"><legend>Opening Night ${yr}</legend>${infoBtn('opening', '<p class="small">Power rankings from the rosters as they stand: each team\'s best nine by level, the top men counting most, and a player out half the season or more counting half. Projected wins follow from where a team sits against the league.</p>')}
     ${mine}
-    <div class="hg-post"><div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>@HoopLandDaily</b></div><p class="hg-text">Preseason #1: ${esc(top.t.city || top.t.shortName)}, projected ${top.wins} wins.${top.move?.up ? ` ${esc(sentence(top.move.txt))}` : ''}</p></div>
-    ${sleeper?.move?.up ? `<div class="hg-post"><div class="hg-head"><span class="hg-avatar"><i class="px px-gram" aria-hidden="true"></i></span><b>@SleeperAlert</b></div><p class="hg-text">Don't sleep on ${esc(sleeper.t.city || sleeper.t.shortName)}. They ${esc(sleeper.move.txt)}.</p></div>` : ''}
+    <div class="hg-post"><span class="hg-av"><i class="px px-gram" aria-hidden="true"></i></span><span class="hg-body"><span class="hg-head"><b>HoopLandDaily</b><span class="hg-handle">@hooplanddaily</span></span><span class="hg-text">Preseason #1: ${esc(top.t.city || top.t.shortName)}, projected ${top.wins} wins.${top.move?.up ? ` ${esc(sentence(top.move.txt))}` : ''}</span></span></div>
+    ${sleeper?.move?.up ? `<div class="hg-post"><span class="hg-av"><i class="px px-gram" aria-hidden="true"></i></span><span class="hg-body"><span class="hg-head"><b>SleeperAlert</b><span class="hg-handle">@sleeperalert</span></span><span class="hg-text">Don't sleep on ${esc(sleeper.t.city || sleeper.t.shortName)}. They ${esc(sleeper.move.txt)}.</span></span></div>` : ''}
     <div class="stack">${rows.map(row).join('')}</div></fieldset>`;
 }
 screens.export = () => {

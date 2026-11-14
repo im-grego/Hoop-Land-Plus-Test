@@ -266,7 +266,8 @@ export function buildStorylines(league, opts = {}) {
     arrivals.get(team.id).push({ p, l, from: teams.get(l.tid), c: signings.get(p.id) });
   }
   // Bidding wars from the app's free agency day.
-  const wars = (opts.faSignings || []).filter(x => x.bidders >= 3 && star(x.p) >= 10).sort((a, b) => b.bidders - a.bidders || star(b.p) - star(a.p));
+  const wars = (opts.faSignings || []).filter(x => x.bidders >= 3 && star(x.p) >= 10 && levelOf(x.p) >= 80)   // signing stories: Lv 80+ only
+   .sort((a, b) => b.bidders - a.bidders || star(b.p) - star(a.p));
   const warIds = new Set();
   for (const x of wars.slice(0, 2)) {
     warIds.add(x.p.id);
@@ -281,7 +282,7 @@ export function buildStorylines(league, opts = {}) {
     const top = list[0];
     const anchor = best(team, 4).find(x => !list.some(a => a.p === x));
     const how = a => (a.c ? `signed for ${money(a.c)}` : 'via trade');
-    const big = list.filter(a => levelOf(a.p) >= 79);
+    const big = list.filter(a => levelOf(a.p) >= 80);
     if (big.length >= 2 && star(big[1].p) >= 12) {
       add('move', 34 + star(top.p) * 2 + star(list[1].p), '🔥', vary('move-group', [`${Place(team)} goes all-in`, `New-look ${team.name}`, `${Place(team)} reloads`, `Big summer in ${place(team)}`, `${Place(team)} wasn't waiting around`], tid),
         `${andList(list.slice(0, 3).map(a => `${playerName(a.p)} (${slash(a.l)}, ${how(a)})`))}` +
@@ -289,6 +290,7 @@ export function buildStorylines(league, opts = {}) {
       continue;
     }
     const { p, l, from, c } = top;
+    if (c && levelOf(p) < 80) continue;   // a signing makes the top stories only at Lv 80+
     const verb = c ? vary('move-verb', ['heads to', 'lands in', 'is off to', 'picks'], p.id) : 'traded to';
     const title = c ? `${playerName(p)} ${verb} ${place(team)}` : `Blockbuster: ${playerName(p)} ${verb} ${place(team)}`;
     add('move', 30 + star(p) * 2.5 + (c ? 0 : 3), c ? '✍️' : '🔁', title,
@@ -335,12 +337,16 @@ export function buildStorylines(league, opts = {}) {
     const cls = injuryClass(h.worst, opts.params || DEFAULT_PARAMS);
     if (cls === 'standard' && h.games < 30) continue;
     const inj = lower(injuryName(h.worst));
+    // The game logs injury days, and stacked entries can run past a season: never more than 82 games, and most of the
+    // year out reads as the season lost.
+    const g = Math.min(h.games, 82), season = g >= 65;
     const recurring = (p.history?.injuries || []).filter(i => i.yr < yr && i.yr >= yr - 3 && i.gamesOut > 0 && injuryName(i) === injuryName(h.worst)).length;
     add('injury', 25 + star(p) * 1.5 + h.games / 4 + (cls === 'structural' ? 10 : 0), '🩹',
-      cls === 'structural' ? vary('inj-struct', [`Can ${playerName(p)} come all the way back?`, `${playerName(p)}'s road back`, `The ${team.name} hold their breath on ${playerName(p)}`, `Is the old ${playerName(p)} still in there?`], p.id)
+      season ? vary('inj-season', [`${playerName(p)} is back after a season out`, `Out for the year, back for this one: ${playerName(p)}`, `${playerName(p)} returns from a lost season`], p.id)
+        : cls === 'structural' ? vary('inj-struct', [`Can ${playerName(p)} come all the way back?`, `${playerName(p)}'s road back`, `The ${team.name} hold their breath on ${playerName(p)}`, `Is the old ${playerName(p)} still in there?`], p.id)
         : recurring ? vary('inj-recur', [`${playerName(p)} and that ${inj.split(' ').pop()} again`, `${playerName(p)} needs a clean bill of health`], p.id)
         : vary('inj-std', [`A healthy ${p.fn} changes everything in ${place(team)}`, `${p.fn} is back, and ${place(team)} is better for it`, `Welcome back, ${p.fn}: the ${team.name} need you`], p.id),
-      vary('inj-missed', [`Missed ${h.games} games with ${/^[aeiou]/i.test(inj) ? 'an' : 'a'} ${inj}. `, `${h.games} games lost to ${/^[aeiou]/i.test(inj) ? 'an' : 'a'} ${inj} last season. `, `Sidelined ${h.games} games by ${/^[aeiou]/i.test(inj) ? 'an' : 'a'} ${inj}. `], p.id) +
+      season ? `Out for the season with ${/^[aeiou]/i.test(inj) ? 'an' : 'a'} ${inj}. ` : vary('inj-missed', [`Missed ${g} games with ${/^[aeiou]/i.test(inj) ? 'an' : 'a'} ${inj}. `, `${g} games lost to ${/^[aeiou]/i.test(inj) ? 'an' : 'a'} ${inj} last season. `, `Sidelined ${g} games by ${/^[aeiou]/i.test(inj) ? 'an' : 'a'} ${inj}. `], p.id) +
       (cls === 'structural' ? vary('inj-struct-text', [`Injuries like that can take a step from a player; the ${team.name} need the old ${p.fn}.`, `The question isn't if ${p.fn} plays, it's whether the burst is still there.`, `Everything in ${place(team)} hinges on how that ${inj.split(' ').pop()} holds up.`], p.id)
         : recurring ? vary('inj-recur-text', [`Not the first time, either. The ${team.name} will be careful.`, `It keeps coming back, and so do the questions.`], p.id)
         : `Put up ${slash(lines.get(p.id))} when available.`), p.id);
