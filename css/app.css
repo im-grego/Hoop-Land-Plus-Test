@@ -2564,5 +2564,6 @@ body::after {
 .ptw-n { width: 26px; height: 26px; background: var(--cyan, #5ee7ff); color: #04173f; font-weight: 900; display: grid; place-items: center; font-size: 14px; box-shadow: 0 3px 0 #04173f; }
 .ptw-key b { color: #fff; font-size: 15px; display: block; line-height: 1.2; }
 .ptw-key p { margin: 2px 0 0; color: #cfe3ff; font-size: 13.5px; line-height: 1.3; font-weight: 600; }
-.ptw-why { color: #8fd3ff; font-size: 12px; font-weight: 700; margin-top: 3px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ptw-why { color: #8fd3ff; font-size: 12px; font-weight: 700; margin-top: 3px; display: block; }
+.ptw-bit { white-space: nowrap; }
 .ptw-mpg { margin-top: 8px; font-size: 12.5px; font-weight: 700; color: #cfe3ff; text-align: center; }
