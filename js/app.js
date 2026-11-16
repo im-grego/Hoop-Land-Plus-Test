@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.101';
+const APP_VERSION = '0.365.102';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -86,7 +86,7 @@ const DEVLOG = [
     ['Features', [
       'Resume: the save you\'re working on is kept on your device, so closing the app doesn\'t lose it. Pick up where you left off from the start screen',
       'The Expansion Draft step can be skipped',
-      'Hot and cold streaks show in the app, but the file you export keeps everyone\'s real ratings',
+      'Hot and cold streaks (and other temporary changes) show in the app, but the file you export keeps everyone\'s real ratings',
       'Scouting Report: Player to Watch, the opponent\'s top scorer on a card (his face in his team\'s colors, his league ranks and line), with three keys to stopping him',
       'Team stats show shot volume next to efficiency: shots, threes taken, the share of shots from three and free throws a game (Scouting Report and League → Teams)',
       'Scouting Report reads volume and efficiency together: a team that rarely shoots threes but makes them is called inside-out, not a three-point team',
@@ -1865,7 +1865,6 @@ function capFreeThrows() {
 function buildExport() {
   cupSchedule();
   capFreeThrows();
-  markFatigueOut();
   restoreCap = null;
   if (state.leagueFile) return buildLeagueExport();
   state.data.seasonLeagues.forEach((L, li) => { if (state.summer[li]) markSummerDone(L); });
@@ -1922,7 +1921,7 @@ function buildExport() {
   // when the season ends. The app's ledger is a fallback for a deal that comes back expiring without one.
   if (!isCollege()) { writeLedger(); saveManifest(league()); saveProbe(league()); saveTraitStore(); pushTraits(); cleanCoachPool(league()); }   // free-agent coaches go out clean, so the game lists them
   const nudged = !isCollege() ? applyMindNudges(league()) : [];
-  const text = withoutStreaks(() => serializeSave(state.data));
+  const text = withoutTemps(() => serializeSave(state.data));
   for (const [p, k, d] of nudged) p.tendencies[k] -= d;
   state.lastNudge = nudged.length;
   if (startWas) state.data.seasonLeagues.forEach((x, i) => { x.season.startingYear = startWas[i]; });
@@ -2043,7 +2042,7 @@ actions.downloadLeague = async () => {
   const o = overlay('<div class="spinner"></div><p class="note">Building league file…</p>');
   await nextFrame();
   if (L.season.phase === BUMP_PHASES[0]) spendAllPoints(L);
-  const C = withoutStreaks(() => saveToLeague(L, { keepDraft: L.season.phase < 5, settle, ...(leagueCapSettings(L) || {}) }));
+  const C = withoutTemps(() => saveToLeague(L, { keepDraft: L.season.phase < 5, settle, ...(leagueCapSettings(L) || {}) }));
   usePlaybooks(C);
   cleanCoachPool(C);
   if (!isCollege() && histStart() > 0) C.season.startingYear = histStart();
@@ -11264,7 +11263,7 @@ function risersBox(L = league()) {
   const yr = L.season.currentYear, rs = risersOf(yr);
   if (!rs.length) return '';
   const teams = L.teams.filter(t => rs.some(x => x.tid === t.id)).sort((a, b) => isUserTeam(b) - isUserTeam(a) || a.shortName.localeCompare(b.shortName));
-  return `<fieldset class="frame"><legend>📈 Playoff Risers</legend>${infoBtn('risers', '<p class="small"><b>Playoff risers</b>: players built for this time of year play above themselves in the playoffs, up to five levels: Clutch Gene (a level for each skill level), a Competitor, a Leader, a Relentless motor, an Alpha who wants the ball, and veterans who have been here before.</p><p class="small">It lasts for the playoffs only. When the next offseason file comes in, most of it goes away: a player who played up to it keeps a share.</p>')}
+  return `<fieldset class="frame"><legend>📈 Playoff Risers</legend>${infoBtn('risers', '<p class="small"><b>Playoff risers</b>: players built for this time of year play above themselves in the playoffs, up to five levels: Clutch Gene (a level for each skill level), a Competitor, a Leader, a Relentless motor, an Alpha who wants the ball, and veterans who have been here before.</p><p class="small">It lasts for the playoffs only, and shows in the app only for now: the file you export keeps his real ratings.</p>')}
     <div class="stack">${teams.map(t => `<h4 class="ov-h ${isUserTeam(t) ? 'gold' : ''}">${logoImg(t)} ${esc(t.shortName)}</h4>${rs.filter(x => x.tid === t.id).map(riseRow).join('')}`).join('')}</div></fieldset>`;
 }
 
@@ -11366,21 +11365,26 @@ function applyStreaks() {
   streakSave(fresh);
   return n;
 }
-// At export: the boosts stay in the app. The file goes out with his real ratings (the streak shows here, but the game
-// never gets it), then they go back on. `fn` builds the file's text.
-function withoutStreaks(fn) {
-  const st = streakStore(), off = [];
-  if (!st.out) for (const [pid, x] of Object.entries(st.list || {})) {
+// At export: the temporary changes (hot and cold streaks, playoff risers, fatigue) stay in the app. The file goes out
+// with everyone's real ratings (the game never gets them), then they go back on. `fn` builds the file's text.
+function withoutTemps(fn) {
+  const off = [];
+  const lift = (list, ceil) => { for (const [pid, x] of Object.entries(list || {})) {
     const e = findPlayer(+pid);
     if (!e || e.hof) continue;
     for (const [k, d] of Object.entries(x.add || {})) {
-      const a = e.p.attributes?.[k], [b0, b1, raised] = x.base?.[k] || [];
-      if (!a || b0 == null || a[0] !== b0 + d) continue;   // changed since (edited by hand): leave it
+      const a = e.p.attributes?.[k], b = x.base?.[k];
+      if (!a || !b || a[0] !== b[0] + d) continue;   // changed since (edited by hand): leave it
       off.push([a, a[0], a[1]]);
-      a[0] = b0;
-      if (raised != null && a[1] === raised) a[1] = Math.max(b1, b0);
+      a[0] = b[0];
+      a[1] = ceil(a, b, d);
     }
-  }
+  } };
+  const st = streakStore();
+  if (!st.out) lift(st.list, (a, [b0, b1, raised]) => (raised != null && a[1] === raised ? Math.max(b1, b0) : a[1]));
+  const fx = fxStore();
+  if (!fx.out) lift(fx.list, a => a[1]);
+  if (!isCollege()) { const rs = riseStore()[league().season.currentYear]; if (rs && !rs.out) lift(rs.list, (a, [b0, b1], d) => (a[1] === Math.max(b1, b0 + d) ? Math.max(b1, b0) : a[1])); }
   try { return fn(); } finally { for (const [a, r, c] of off) { a[0] = r; a[1] = c; } }
 }
 // Files from before 0.2.1 sent the boosts out with the file; the next load takes them back off (applyStreaks).
@@ -24256,7 +24260,7 @@ function buildLeagueExport() {
   usePlaybooks(L);
   const yWas = L.season.startingYear;
   if (!isCollege() && histStart() > 0) L.season.startingYear = histStart();
-  const text = withoutStreaks(() => serializeSave(L));
+  const text = withoutTemps(() => serializeSave(L));
   L.season.startingYear = yWas;
   for (const [p, t] of keep) p.traits = t;
   return new File([text], gameFileName(state.fileName), { type: 'application/octet-stream' });
