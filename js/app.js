@@ -67,6 +67,7 @@ import * as CL4 from './careerlife4.js';
 import { setGameClock, secsOf, minScale } from './gameclock.js';
 import APPEARANCE_POOL from './appearance-pool.js';
 import { familyNumber, leagueWideNumber } from './jerseyrules.js';
+import { REAL_RIVALS, REAL_ASG_HOSTS } from './realrivals.js';
 import * as CO from './coaching.js';
 import { JERSEYS } from './jerseys.js';
 import { leagueCuts, TIER_NAMES, setStyleRefs, teamStanding, teamBooks, rosterNeeds, teamIdentity, draftPosition, rumorMill, playStyles, styleLine, styleSentence, playRead, wontDo, TEND_LABELS, TEND_GROUPS, groupOf } from './overview.js';
@@ -74,7 +75,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.96';
+const APP_VERSION = '0.365.97';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -926,7 +927,7 @@ function render() {
   document.documentElement.dataset.px = state.params.pixelIcons === false ? 'off' : 'on';
   if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) { fitClassIncoming(); realClassCheck(); } }
   if (state.data && isCollege() && state.cal) { try { localStorage.setItem(collegeCalKey(), JSON.stringify(state.cal)); } catch { /* ignore */ } }
-  if (state.data && !isCollege()) { seasonDrift(); cpuComebacks(); cpuNumbers(); cpuJerseys(); if (state.retFixed !== saveTag()) { state.retFixed = saveTag(); fixRetiredNumbers(); } glSettle(); taxSettle(); cpuShifts(); }   // once an offseason each (the G League once a season)
+  if (state.data && !isCollege()) { seasonDrift(); cpuComebacks(); cpuNumbers(); cpuJerseys(); realAllStarHost(); if (state.retFixed !== saveTag()) { state.retFixed = saveTag(); fixRetiredNumbers(); } glSettle(); taxSettle(); cpuShifts(); }   // once an offseason each (the G League once a season)
   if (state.data && !isCollege()) { careerSync(); syncScarcity(); poSettle(); campAuto(); }
   const top = state.stack[state.stack.length - 1];
   const view = `${state.stack.length}:${top.name}:${top.args?.tab ?? ''}:${top.name === 'fa' ? '' : top.args?.view ?? ''}:${top.args?.id ?? ''}`;
@@ -8087,6 +8088,15 @@ function raiseNumber(c, yr = league().season.currentYear) {
   (c.team.retiredNumbers ||= []).push({ num: c.num, pid: c.p.id, yr });
   state.dirty = true;
 }
+// The real All-Star host for the season (REAL_ASG_HOSTS: Phoenix in 2027, Miami in 2028), set any time before the
+// All-Star break so the season starts with it.
+function realAllStarHost() {
+  const L = league(), S = L.season, ab = REAL_ASG_HOSTS[S.currentYear];
+  if (!ab || isCollege() || L.leagueType !== 0 || state.leagueIdx !== 0) return;
+  if (S.phase === 9 && S.currentDay >= (S.allStarWeekend || 0)) return;
+  const t = L.teams.find(x => x.shortName === ab);
+  if (t && S.allStarHostId !== t.id) { S.allStarHostId = t.id; state.dirty = true; }
+}
 function cpuNumbers() {
   if (!state.data || !isComplete() || isCollege() || state.leagueIdx !== 0 || calFlags().numbersDone === seasonKey()) return;
   calFlags().numbersDone = seasonKey();
@@ -8902,6 +8912,11 @@ function rivalsOf(L, t) {
     if (x.from !== t.id && x.to !== t.id) continue;
     const r = get(x.from === t.id ? x.to : x.from); r.score += 1.5 * 0.85 ** Math.max(0, ly - x.yr); r.trades.push(x);
   }
+  // Real history to start from (an NBA save): each team's top three, strongest first, their latest events fading with time.
+  if (!isCollege() && L.leagueType === 0) (REAL_RIVALS[t.shortName] || []).forEach(([ab, evs], i) => {
+    const o = L.teams.find(x => x.shortName === ab); if (!o) return;
+    const r = get(o.id); r.score += (6 - i) * 0.85 ** Math.max(0, ly - 2026); r.real = evs;
+  });
   for (const r of by.values()) { r.t = L.teams.find(x => x.id === r.id); if (r.t && r.t.division === t.division) r.score += 1; r.meets.sort((a, b) => b.yr - a.yr); }
   return [...by.values()].filter(r => r.t && r.score >= 3).sort((a, b) => b.score - a.score);
 }
@@ -8913,6 +8928,8 @@ function rivalLine(t, r) {
   if (r.meets.length > 1) bits.push(`${r.meets.length} playoff meetings (${t.shortName} ${r.W}-${r.Lo})`);
   const tr = r.trades.sort((a, b) => b.yr - a.yr)[0];
   if (tr) bits.push(tr.from === t.id ? `${tr.name} went there in a ${tr.yr} trade` : `${tr.name} came over in a ${tr.yr} trade`);
+  // Then the real history, up to three in all (the latest first).
+  for (const [yr, what] of r.real || []) if (bits.length < 3) bits.push(/^(The|Southeast|Central|Atlantic|Northwest|Southwest|Pacific)\b/.test(what) ? what : `${yr}: ${what}`);
   return sentence(bits.join('; '));
 }
 function rivalStories(L) {
