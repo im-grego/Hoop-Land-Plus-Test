@@ -74,7 +74,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.92';
+const APP_VERSION = '0.365.93';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -4224,9 +4224,7 @@ screens.start = () => {
     body: `<p class="note">Start a real season: the real schedule, every score, player stats, rosters, contracts and injuries so far. Pick your team, make your moves, then export once and load it in Hoop Land.</p>
       ${idx.seasons.map(s => {
         const all = [...s.starts].sort((a, b) => b.date.localeCompare(a.date)), latest = all[0], older = all.slice(1);
-        const ru = s.rosterUpdate;
         return `<fieldset class="frame"><legend>${esc(s.label)}</legend><div class="stack">
-          ${ru ? `<button class="btn left ru-btn" data-act="rosterUpdate" data-f="${esc(ru.file)}" data-id="${esc(ru.id)}"><span class="ico">📋</span> <span class="one-line">Roster Update</span>${rosterUpdateUnseen(ru.id) ? '<span class="ndot blink">!</span>' : ''}</button>` : ''}
           <h4 class="ov-h start-h">Start today</h4>${latest ? card(s, latest, true) : ''}
           ${older.length ? `<details class="start-older" data-keep="start-older-${esc(s.id)}" ${state.keepOpen?.[`start-older-${s.id}`] ? 'open' : ''}><summary class="small link">Start from an older date (${older.length})</summary><div class="stack">${older.map(x => card(s, x, false)).join('')}</div></details>` : ''}
         </div></fieldset>`;
@@ -4302,6 +4300,7 @@ screens.startTeam = () => {
   layout({
     title: 'Pick Your Team',
     body: `<p class="note small">${esc(fmtDay(P.date))}: standings as they are today. Tap a team for a closer look.</p>
+      ${(ru => (ru && P.date >= ru.id ? `<button class="btn left ru-btn" data-act="rosterUpdate" data-f="${esc(ru.file)}" data-id="${esc(ru.id)}"><span class="ico">📋</span> <span class="one-line">Roster Update: who moved</span>${rosterUpdateUnseen(ru.id) ? '<span class="ndot blink">!</span>' : ''}</button>` : ''))(state.seasonIdx?.seasons.find(x => x.id === P.season)?.rosterUpdate)}
       ${[0, 1].map(c => { const ts = conf(c); return `${c === 1 && sel ? detail(sel) : ''}<fieldset class="frame"><legend>${esc(L.conferences?.[c] || (c ? 'West' : 'East'))}</legend><div class="team-grid">${ts.map(tile).join('')}</div></fieldset>`; }).join('')}`,
   });
 
