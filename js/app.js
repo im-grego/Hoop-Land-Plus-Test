@@ -74,7 +74,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.91';
+const APP_VERSION = '0.365.92';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -4224,12 +4224,34 @@ screens.start = () => {
     body: `<p class="note">Start a real season: the real schedule, every score, player stats, rosters, contracts and injuries so far. Pick your team, make your moves, then export once and load it in Hoop Land.</p>
       ${idx.seasons.map(s => {
         const all = [...s.starts].sort((a, b) => b.date.localeCompare(a.date)), latest = all[0], older = all.slice(1);
+        const ru = s.rosterUpdate;
         return `<fieldset class="frame"><legend>${esc(s.label)}</legend><div class="stack">
+          ${ru ? `<button class="btn left ru-btn" data-act="rosterUpdate" data-f="${esc(ru.file)}" data-id="${esc(ru.id)}"><span class="ico">📋</span> <span class="one-line">Roster Update</span>${rosterUpdateUnseen(ru.id) ? '<span class="ndot blink">!</span>' : ''}</button>` : ''}
           <h4 class="ov-h start-h">Start today</h4>${latest ? card(s, latest, true) : ''}
           ${older.length ? `<details class="start-older" data-keep="start-older-${esc(s.id)}" ${state.keepOpen?.[`start-older-${s.id}`] ? 'open' : ''}><summary class="small link">Start from an older date (${older.length})</summary><div class="stack">${older.map(x => card(s, x, false)).join('')}</div></details>` : ''}
         </div></fieldset>`;
       }).join('')}`,
   });
+};
+// The Roster Update: rating moves made to the league since the last version, risers then fallers (level and
+// potential), like the What's New log. The red dot blinks until it's opened.
+const RU_KEY = id => `hlc:rosterUpdate:${id}`;
+const rosterUpdateUnseen = id => { try { return localStorage.getItem(RU_KEY(id)) !== '1'; } catch { return false; } };
+actions.rosterUpdate = async d => {
+  let u;
+  try { u = await (await fetch(d.f, { cache: 'no-cache' })).json(); } catch (e) { toast('Couldn’t get the roster update', e.message, 3200, true); return; }
+  try { localStorage.setItem(RU_KEY(d.id), '1'); } catch { /* ignore */ }
+  const sign = n => `${n > 0 ? '+' : ''}${n}`;
+  const row = r => { const dl = r.lv1 - r.lv0, dp = r.p1 - r.p0;
+    return `<li><b>${esc(r.n)}</b> <span class="muted small">${esc(r.t)}</span><br><span class="small">Lv ${r.lv0} → <b class="${dl > 0 ? 'up' : dl < 0 ? 'down' : ''}">${r.lv1}</b>${dl ? ` <span class="${dl > 0 ? 'up' : 'down'}">(${sign(dl)})</span>` : ''}${dp ? `<br><span class="ru-pot">Potential <span class="stars">${stars(r.p0)}</span> <span class="${dp > 0 ? 'up' : 'down'}">→</span> <span class="stars">${stars(r.p1)}</span></span>` : ''}</span></li>`; };
+  const box = overlay(`<h2 class="devlog-h">${esc(u.title || 'Roster Update')}</h2>
+    <p class="note small muted">Rating changes to the league${u.date ? ` (${esc(fmtDay(u.date))})` : ''}: who moved, by level and potential. In every start file from here on.</p>
+    <div class="devlog">
+      <details class="devlog-rel" open><summary><b>📈 Risers (${u.up.length})</b></summary><ul class="devlog-list ru-list">${u.up.map(row).join('')}</ul></details>
+      <details class="devlog-rel" open><summary><b>📉 Fallers (${u.down.length})</b></summary><ul class="devlog-list ru-list">${u.down.map(row).join('')}</ul></details>
+    </div>
+    <button class="btn focus" data-close>Close</button>`);
+  box.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === box) { box.remove(); render(); } });
 };
 // Download, unpack and read a season file; then the team picker.
 actions.startPick = async d => {

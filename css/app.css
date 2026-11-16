@@ -2580,3 +2580,10 @@ body::after {
 /* Quick actions next to Done, the same size as it: each takes an equal share of the bar. */
 .bottom.two .bottom-extra { display: contents; }
 .bottom.two:has(.bottom-extra) .btn.action { flex: 1 1 0; min-width: 0; padding-left: 6px; padding-right: 6px; white-space: nowrap; font-size: 17px; }
+
+/* Start a Franchise: the Roster Update button (its red dot like What's New) and list */
+.ru-btn { display: flex; align-items: center; }
+.ru-btn .ndot { position: relative; margin-left: auto; }
+.ru-pot { display: inline-flex; align-items: center; gap: 6px; }
+.ru-pot .st-row { min-width: 0; }
+.ru-list li { margin-bottom: 6px; }

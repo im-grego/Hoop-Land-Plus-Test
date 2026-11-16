@@ -94,7 +94,11 @@
             }
           }
         }
-      ]
+      ],
+      "rosterUpdate": {
+        "id": "2026-11-14",
+        "file": "data/seasons/2026-27/roster-update.json"
+      }
     }
   ]
 }
