@@ -11,7 +11,7 @@
 // shooter sleeve (with or without a compression shirt at the shoulder): its wrist goes with the elbow, never a band.
 
 export const BLACK = '141020';
-export const GLASSES = new Set(['0004', '0005', '0006', '0024']), GLASSES_C = '202020';
+export const GLASSES = new Set(['0004', '0005', '0006', '0010', '0024']), GLASSES_C = '202020';
 const hasHead = v => !!v && v !== 'none' && v !== '0000';
 const HEX = /^[0-9a-f]{6}$/i;
 const rgb = h => [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
