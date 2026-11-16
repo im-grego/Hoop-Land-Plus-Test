@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.100';
+const APP_VERSION = '0.365.101';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -86,6 +86,7 @@ const DEVLOG = [
     ['Features', [
       'Resume: the save you\'re working on is kept on your device, so closing the app doesn\'t lose it. Pick up where you left off from the start screen',
       'The Expansion Draft step can be skipped',
+      'Hot and cold streaks show in the app, but the file you export keeps everyone\'s real ratings',
       'Scouting Report: Player to Watch, the opponent\'s top scorer on a card (his face in his team\'s colors, his league ranks and line), with three keys to stopping him',
       'Team stats show shot volume next to efficiency: shots, threes taken, the share of shots from three and free throws a game (Scouting Report and League → Teams)',
       'Scouting Report reads volume and efficiency together: a team that rarely shoots threes but makes them is called inside-out, not a three-point team',
@@ -1864,7 +1865,6 @@ function capFreeThrows() {
 function buildExport() {
   cupSchedule();
   capFreeThrows();
-  markStreaksOut();
   markFatigueOut();
   restoreCap = null;
   if (state.leagueFile) return buildLeagueExport();
@@ -1922,7 +1922,7 @@ function buildExport() {
   // when the season ends. The app's ledger is a fallback for a deal that comes back expiring without one.
   if (!isCollege()) { writeLedger(); saveManifest(league()); saveProbe(league()); saveTraitStore(); pushTraits(); cleanCoachPool(league()); }   // free-agent coaches go out clean, so the game lists them
   const nudged = !isCollege() ? applyMindNudges(league()) : [];
-  const text = serializeSave(state.data);
+  const text = withoutStreaks(() => serializeSave(state.data));
   for (const [p, k, d] of nudged) p.tendencies[k] -= d;
   state.lastNudge = nudged.length;
   if (startWas) state.data.seasonLeagues.forEach((x, i) => { x.season.startingYear = startWas[i]; });
@@ -2043,7 +2043,7 @@ actions.downloadLeague = async () => {
   const o = overlay('<div class="spinner"></div><p class="note">Building league file…</p>');
   await nextFrame();
   if (L.season.phase === BUMP_PHASES[0]) spendAllPoints(L);
-  const C = saveToLeague(L, { keepDraft: L.season.phase < 5, settle, ...(leagueCapSettings(L) || {}) });
+  const C = withoutStreaks(() => saveToLeague(L, { keepDraft: L.season.phase < 5, settle, ...(leagueCapSettings(L) || {}) }));
   usePlaybooks(C);
   cleanCoachPool(C);
   if (!isCollege() && histStart() > 0) C.season.startingYear = histStart();
@@ -11047,7 +11047,7 @@ screens.checkin = () => {
       <p class="note small"><span class="${vc}">${v}</span>` : `<p class="note"><b>0-0</b> · the season hasn't tipped off</p>
       <p class="note small muted">Projected as the ${ordinal(x.want)} seed`}${w === 'stretch' ? ` · ${x.seed <= 6 ? 'in the playoffs' : x.seed <= 10 ? 'in the play-in' : `${x.seed - 10} spot${x.seed - 10 === 1 ? '' : 's'} out of the play-in`}` : ''}</p>
       ${(() => { const mine = k => FA.signedRoster(t).filter(p => streakOf(p.id) === k).sort((a, b) => shownLevel(b) - shownLevel(a)), hot = mine('hot'), cold = mine('cold');
-        return `<div class="ci-form">${infoBtn('ciForm', '<p class="small"><b>Hot and cold streaks</b>: a player on a streak of 5+ games who is producing at or above players his age at his position heats up (+0.5 to layup, inside, mid-range, three, dribbling, passing, offensive rebounding and steals). A cold streak of 3+ while producing at or below them cools him off (-0.5 to layup, inside, mid-range, three, dribbling and offensive rebounding). It lasts until the next file you load.</p>')}
+        return `<div class="ci-form">${infoBtn('ciForm', '<p class="small"><b>Hot and cold streaks</b>: a player on a streak of 5+ games who is producing at or above players his age at his position heats up (+0.5 to layup, inside, mid-range, three, dribbling, passing, offensive rebounding and steals). A cold streak of 3+ while producing at or below them cools him off (-0.5 to layup, inside, mid-range, three, dribbling and offensive rebounding). It lasts until the next file you load, and shows only here: the file you export keeps his real ratings.</p>')}
           <p class="note small">🔥 ${hot.length ? hot.map(p => `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(shortName(p))}</b>`).join(', ') : 'Nobody is on a hot streak'}</p>
           <p class="note small">❄️ ${cold.length ? cold.map(p => `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(shortName(p))}</b>`).join(', ') : 'Nobody is on a cold streak'}</p></div>`; })()}
       ${hurt.length ? `<p class="note small">🩹 ${hurt.slice(0, 4).map(p => `<b>${esc(p.ln)}</b> ${injShort(p)}`).join(' · ')}</p>` : '<p class="note small up">🩹 Healthy.</p>'}
@@ -11366,7 +11366,24 @@ function applyStreaks() {
   streakSave(fresh);
   return n;
 }
-// At export: the boosts go out to the game with the file.
+// At export: the boosts stay in the app. The file goes out with his real ratings (the streak shows here, but the game
+// never gets it), then they go back on. `fn` builds the file's text.
+function withoutStreaks(fn) {
+  const st = streakStore(), off = [];
+  if (!st.out) for (const [pid, x] of Object.entries(st.list || {})) {
+    const e = findPlayer(+pid);
+    if (!e || e.hof) continue;
+    for (const [k, d] of Object.entries(x.add || {})) {
+      const a = e.p.attributes?.[k], [b0, b1, raised] = x.base?.[k] || [];
+      if (!a || b0 == null || a[0] !== b0 + d) continue;   // changed since (edited by hand): leave it
+      off.push([a, a[0], a[1]]);
+      a[0] = b0;
+      if (raised != null && a[1] === raised) a[1] = Math.max(b1, b0);
+    }
+  }
+  try { return fn(); } finally { for (const [a, r, c] of off) { a[0] = r; a[1] = c; } }
+}
+// Files from before 0.2.1 sent the boosts out with the file; the next load takes them back off (applyStreaks).
 function markStreaksOut() { const st = streakStore(); if (Object.keys(st.list || {}).length && !st.out) { st.out = true; streakSave(st); } }
 // The check-in's list: who's hot and cold around the league, yours first.
 function streaksBox() {
@@ -11375,7 +11392,7 @@ function streaksBox() {
   const line = ({ x, e }) => `<p class="note small" style="margin:0"><b class="tap ${isUserTeam(e.team || {}) ? 'gold' : ''}" data-act="openPlayer" data-id="${e.p.id}">${esc(playerName(e.p))}</b> <span class="muted">${esc(e.team?.shortName || '')} · ${Math.abs(x.streak)} straight</span></p>`;
   const sort = a => a.sort((p, q) => isUserTeam(q.e.team || {}) - isUserTeam(p.e.team || {}) || Math.abs(q.x.streak) - Math.abs(p.x.streak));
   const hot = sort(rows.filter(r => r.x.kind === 'hot')), cold = sort(rows.filter(r => r.x.kind === 'cold'));
-  return `<fieldset class="frame"><legend>🔥 Streaks</legend>${infoBtn('streaks', '<p class="small"><b>Hot and cold streaks</b>: a player on a streak of 5+ games who is producing at or above players his age at his position heats up: +1 to layup, inside, mid-range, three, dribbling, passing, offensive rebounding and steals. A cold streak of 3+ while producing at or below them is -1 to layup, inside, mid-range, three, dribbling and offensive rebounding.</p><p class="small muted">It lasts until the next file you load, then the streaks are read again.</p>', 'Streaks')}<div class="stack">
+  return `<fieldset class="frame"><legend>🔥 Streaks</legend>${infoBtn('streaks', '<p class="small"><b>Hot and cold streaks</b>: a player on a streak of 5+ games who is producing at or above players his age at his position heats up: +1 to layup, inside, mid-range, three, dribbling, passing, offensive rebounding and steals. A cold streak of 3+ while producing at or below them is -1 to layup, inside, mid-range, three, dribbling and offensive rebounding.</p><p class="small muted">It shows in the app only: the file you export keeps his real ratings. The next file you load reads the streaks again.</p>', 'Streaks')}<div class="stack">
     ${hot.length ? `<h4 class="ov-h up">🔥 Heating up (${hot.length})</h4>${hot.slice(0, 8).map(line).join('')}` : ''}
     ${cold.length ? `<h4 class="ov-h down">❄️ Cooling off (${cold.length})</h4>${cold.slice(0, 8).map(line).join('')}` : ''}</div></fieldset>`;
 }
@@ -24239,7 +24256,7 @@ function buildLeagueExport() {
   usePlaybooks(L);
   const yWas = L.season.startingYear;
   if (!isCollege() && histStart() > 0) L.season.startingYear = histStart();
-  const text = serializeSave(L);
+  const text = withoutStreaks(() => serializeSave(L));
   L.season.startingYear = yWas;
   for (const [p, t] of keep) p.traits = t;
   return new File([text], gameFileName(state.fileName), { type: 'application/octet-stream' });
