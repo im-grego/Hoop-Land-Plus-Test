@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.102';
+const APP_VERSION = '0.365.103';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -4307,14 +4307,25 @@ actions.rosterUpdate = async d => {
   const sign = n => `${n > 0 ? '+' : ''}${n}`;
   const row = r => { const dl = r.lv1 - r.lv0, dp = r.p1 - r.p0;
     return `<li><b>${esc(r.n)}</b> <span class="muted small">${esc(r.t)}</span><br><span class="small">Lv ${r.lv0} → <b class="${dl > 0 ? 'up' : dl < 0 ? 'down' : ''}">${r.lv1}</b>${dl ? ` <span class="${dl > 0 ? 'up' : 'down'}">(${sign(dl)})</span>` : ''}${dp ? ` · <span class="${dp > 0 ? 'up' : 'down'}">Pot ${dp > 0 ? '↑' : '↓'}</span>` : ''}</span></li>`; };
+  // Risers and fallers on tabs over one list that scrolls on its own; the page behind stays put while it's open.
+  const tab = k => `<button class="btn small ${k === 'up' ? 'on focus' : 'off'}" data-ru="${k}">${k === 'up' ? `📈 Risers (${u.up.length})` : `📉 Fallers (${u.down.length})`}</button>`;
   const box = overlay(`<h2 class="devlog-h">${esc(u.title || 'Roster Moves: Risers & Fallers')}</h2>
     <p class="note small muted">Rating changes to the league${u.date ? ` (${esc(fmtDay(u.date))})` : ''}: who moved, by level and potential. In every start file from here on.</p>
-    <div class="devlog">
-      <details class="devlog-rel" open><summary><b>📈 Risers (${u.up.length})</b></summary><ul class="devlog-list ru-list">${u.up.map(row).join('')}</ul></details>
-      <details class="devlog-rel" open><summary><b>📉 Fallers (${u.down.length})</b></summary><ul class="devlog-list ru-list">${u.down.map(row).join('')}</ul></details>
-    </div>
+    <div class="seg">${tab('up')}${tab('down')}</div>
+    <div class="ru-scroll"><ul class="devlog-list ru-list" data-ru-list="up">${u.up.map(row).join('')}</ul><ul class="devlog-list ru-list" data-ru-list="down" hidden>${u.down.map(row).join('')}</ul></div>
     <button class="btn focus" data-close>Close</button>`);
-  box.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === box) { box.remove(); render(); } });
+  box.querySelector('.box').classList.add('ru-box');
+  const pane = box.querySelector('.ru-scroll');
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-ru]');
+    if (b) {
+      box.querySelectorAll('[data-ru]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.classList.toggle('focus', on); x.classList.toggle('off', !on); });
+      box.querySelectorAll('[data-ru-list]').forEach(l => { l.hidden = l.dataset.ruList !== b.dataset.ru; });
+      pane.scrollTop = 0;
+      return;
+    }
+    if (e.target.closest('[data-close]') || e.target === box) { box.remove(); render(); }
+  });
 };
 // Download, unpack and read a season file; then the team picker.
 actions.startPick = async d => {

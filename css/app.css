@@ -2595,3 +2595,13 @@ body::after {
 .sm-slot .sm-game { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .sm-slot .sm-game .logo-sm, .sm-slot .sm-game img { width: 20px !important; height: 20px !important; }
 .sm-slot .sm-sel { grid-column: 2; width: 100%; }
+/* Roster Moves: the box holds still; only the list scrolls (with a bar you can see), and never the page behind. */
+.overlay .box.ru-box { height: calc(100dvh - 40px); max-height: 720px; overflow: hidden; gap: 10px; }
+.ru-box .devlog-h, .ru-box > .note { margin: 0; }
+.ru-scroll { flex: 1 1 auto; min-height: 0; overflow-y: scroll; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; text-align: left;
+  border: 2px solid var(--btn-edge); border-radius: 6px; padding: 4px 6px 4px 0; scrollbar-width: auto; scrollbar-color: var(--cyan) transparent; }
+.ru-scroll::-webkit-scrollbar { width: 10px; }
+.ru-scroll::-webkit-scrollbar-thumb { background: var(--cyan); border-radius: 5px; }
+.ru-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, .08); }
+.ru-scroll .ru-list { margin: 4px 0; }
+html:has(.ru-box), html:has(.ru-box) body { overflow: hidden; }
