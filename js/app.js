@@ -74,7 +74,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.94';
+const APP_VERSION = '0.365.95';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -4294,7 +4294,7 @@ screens.startTeam = () => {
       ${top.map(p => { const l = seasonLine(p, 0, yr); const hurt = p.season?.injury?.gamesOut > 0, sk = streaks.get(p.id);
         const lvS = sk ? `<sup class="${sk.lv > 0 ? 'up' : 'down'} lv-streak">${sk.lv > 0 ? '+' : ''}${sk.lv}</sup> ${sk.kind === 'hot' ? '🔥' : '❄️'}` : '';
         const lvNow = sk ? `<span class="${declining(p) ? 'small down' : 'gold small'}">Lv ${(declining(p) ? shownLevel(p) : levelOf(p)) + sk.lv}</span>` : lvTag(p);
-        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvNow}${lvS}${injMark(p)}</span><span class="meta">${hurt ? '<span class="down">Out</span> · ' : ''}${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}</span></div>`; }).join('')}
+        return `<div class="prow"><span class="name">${esc(playerName(p))} ${lvNow}${lvS}${injMark(p)}</span>${hurt ? `<span class="right"><b class="down">Out</b><br><span class="small down">${esc(injShort(p))}</span></span>` : ''}<span class="meta">${esc(posName(p))} · ${p.age}y${l?.gp ? ` · ${l.ppg.toFixed(1)} pts / ${l.rpg.toFixed(1)} reb / ${l.apg.toFixed(1)} ast` : ''}</span></div>`; }).join('')}
       <button class="btn focus" data-act="startTeam" data-id="${t.id}">🏀 Take over the ${esc(t.name || t.shortName)}</button></div></fieldset>`;
   };
   layout({
@@ -13741,7 +13741,9 @@ actions.attr = d => {
     v[0] = Math.max(attrMin(d.k), Math.min(ATTR_MAX, v[0] + dir));
     v[1] = v[0];
   } else if (a.ceil) {
-    v[1] = Math.max(v[0], Math.min(ATTR_MAX, v[1] + dir));
+    // Lowering a ceiling that's already at his rating takes the rating down with it (a ceiling is never below the rating).
+    if (dir < 0 && v[1] <= v[0]) { v[0] = Math.max(attrMin(d.k), v[0] - 1); v[1] = v[0]; }
+    else v[1] = Math.max(v[0], Math.min(ATTR_MAX, v[1] + dir));
   } else {
     v[0] = Math.max(attrMin(d.k), Math.min(ATTR_MAX, v[0] + dir));
     if (v[0] > v[1]) v[1] = v[0];
