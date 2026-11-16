@@ -785,6 +785,23 @@ export function decide(league, market, bids, day, used = {}, o = FA_DEFAULTS, { 
   const order = [...market].sort((a, b) => playerValue(b.p, 0, ly) - playerValue(a.p, 0, ly));
   const signings = [];
   const accept = o.acceptPct[Math.min(2, day - 1)];
+  // Last call (week 3): a real rotation player (level 77+) doesn't fall through to a camp deal. With no offer on the
+  // table, the CPU team that wants him most (contenders first) brings him in on its mid-level, else the minimum, and he
+  // takes it.
+  if (day >= 3) for (const m of order) {
+    if (levelOf(m.p) < 77 || (bids.get(m.p.id) || []).some(b => !checkOffer(league, league.teams.find(t => t.id === b.tid), m.p, b, day, used, o))) continue;
+    const ly2 = lastYear(league), rank = s => (s === 'contending' ? 0 : s === 'competing' ? 1 : 2);
+    const teams = league.teams.filter(t => !userTeams.has(t.id) && signedRoster(t).length < o.cpuRosterMax && !noReturn(m.p, t))
+      .map(t => ({ t, st: teamStatus(league, t), want: teamWant(league, t, m.p, ly2) })).sort((a, b) => rank(a.st) - rank(b.st) || b.want - a.want);
+    for (const { t } of teams) {
+      const ml = mleFor(league, t, day, used, o);
+      const offer = ml ? { tid: t.id, sal: ml.sal, yrs: Math.min(2, ml.yrs || 2), opt: OPT_NONE, cpu: true, lastCall: true }
+        : { tid: t.id, sal: minFor(m.p, o), yrs: 1, opt: OPT_NONE, cpu: true, lastCall: true };
+      if (checkOffer(league, t, m.p, offer, day, used, o)) continue;
+      bids.set(m.p.id, [...(bids.get(m.p.id) || []), offer]);
+      break;
+    }
+  }
   for (const m of order) {
     const list = (bids.get(m.p.id) || []).filter(b => {
       const team = league.teams.find(t => t.id === b.tid);
@@ -793,7 +810,7 @@ export function decide(league, market, bids, day, used = {}, o = FA_DEFAULTS, { 
     if (!list.length) continue;
     const score = b => offerScore(league, m.p, b, m.ask, m.motive, m.from?.id, m.min < m.ask * 0.75);
     let best = [...list].sort((a, b) => score(b) - score(a))[0];
-    if (((best.avg ?? best.sal) + (best.incEv || 0) + (best.cutEv || 0)) < (m.min ?? m.ask * accept)) continue;
+    if (!best.lastCall && ((best.avg ?? best.sal) + (best.incEv || 0) + (best.cutEv || 0)) < (m.min ?? m.ask * accept)) continue;
     // Offer sheet on a restricted free agent: the old team may match.
     let matched = false;
     if (m.from && best.tid !== m.from.id && isRestricted(league, m.p)) {

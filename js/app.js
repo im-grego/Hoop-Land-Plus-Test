@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.98';
+const APP_VERSION = '0.365.99';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -4308,7 +4308,7 @@ actions.rosterUpdate = async d => {
   const sign = n => `${n > 0 ? '+' : ''}${n}`;
   const row = r => { const dl = r.lv1 - r.lv0, dp = r.p1 - r.p0;
     return `<li><b>${esc(r.n)}</b> <span class="muted small">${esc(r.t)}</span><br><span class="small">Lv ${r.lv0} → <b class="${dl > 0 ? 'up' : dl < 0 ? 'down' : ''}">${r.lv1}</b>${dl ? ` <span class="${dl > 0 ? 'up' : 'down'}">(${sign(dl)})</span>` : ''}${dp ? ` · <span class="${dp > 0 ? 'up' : 'down'}">Pot ${dp > 0 ? '↑' : '↓'}</span>` : ''}</span></li>`; };
-  const box = overlay(`<h2 class="devlog-h">${esc(u.title || 'Roster Update')}</h2>
+  const box = overlay(`<h2 class="devlog-h">${esc(u.title || 'Roster Moves: Risers & Fallers')}</h2>
     <p class="note small muted">Rating changes to the league${u.date ? ` (${esc(fmtDay(u.date))})` : ''}: who moved, by level and potential. In every start file from here on.</p>
     <div class="devlog">
       <details class="devlog-rel" open><summary><b>📈 Risers (${u.up.length})</b></summary><ul class="devlog-list ru-list">${u.up.map(row).join('')}</ul></details>
@@ -4366,7 +4366,7 @@ screens.startTeam = () => {
   layout({
     title: 'Pick Your Team',
     body: `<p class="note small">${esc(fmtDay(P.date))}: standings as they are today. Tap a team for a closer look.</p>
-      ${(ru => (ru && P.date >= ru.id ? `<button class="btn left ru-btn" data-act="rosterUpdate" data-f="${esc(ru.file)}" data-id="${esc(ru.id)}"><span class="ico">📋</span> <span class="one-line">Roster Update: who moved</span>${rosterUpdateUnseen(ru.id) ? '<span class="ndot blink">!</span>' : ''}</button>` : ''))(state.seasonIdx?.seasons.find(x => x.id === P.season)?.rosterUpdate)}
+      ${(ru => (ru && P.date >= ru.id ? `<button class="btn left ru-btn" data-act="rosterUpdate" data-f="${esc(ru.file)}" data-id="${esc(ru.id)}"><span class="ico">📋</span> <span class="one-line">Roster Moves: Risers &amp; Fallers</span>${rosterUpdateUnseen(ru.id) ? '<span class="ndot blink">!</span>' : ''}</button>` : ''))(state.seasonIdx?.seasons.find(x => x.id === P.season)?.rosterUpdate)}
       ${[0, 1].map(c => { const ts = conf(c); return `${c === 1 && sel ? detail(sel) : ''}<fieldset class="frame"><legend>${esc(L.conferences?.[c] || (c ? 'West' : 'East'))}</legend><div class="team-grid">${ts.map(tile).join('')}</div></fieldset>`; }).join('')}`,
   });
 
