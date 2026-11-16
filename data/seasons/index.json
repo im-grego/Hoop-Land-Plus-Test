@@ -68,9 +68,9 @@
           }
         },
         {
-          "date": "2026-11-15",
-          "file": "data/seasons/2026-27/2026-11-15.txt.gz",
-          "through": "2026-11-14",
+          "date": "2026-11-16",
+          "file": "data/seasons/2026-27/2026-11-16.txt.gz",
+          "through": "2026-11-15",
           "opening": false,
           "injuries": true,
           "days": 99,
@@ -78,25 +78,25 @@
             "east": {
               "team": "BOS",
               "name": "Boston Celtics",
-              "w": 10,
+              "w": 11,
               "l": 2
             },
             "west": {
               "team": "LAL",
               "name": "Los Angeles Lakers",
-              "w": 11,
+              "w": 12,
               "l": 2
             },
             "ppg": {
               "name": "Luka Doncic",
               "team": "LAL",
-              "ppg": 38.6
+              "ppg": 39
             }
           }
         }
       ],
       "rosterUpdate": {
-        "id": "2026-11-14",
+        "id": "2026-11-16",
         "file": "data/seasons/2026-27/roster-update.json"
       }
     }
