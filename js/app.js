@@ -68,6 +68,7 @@ import { setGameClock, secsOf, minScale } from './gameclock.js';
 import APPEARANCE_POOL from './appearance-pool.js';
 import { familyNumber, leagueWideNumber } from './jerseyrules.js';
 import { REAL_RIVALS, REAL_ASG_HOSTS } from './realrivals.js';
+import * as SM from './schedmaker.js';
 import * as CO from './coaching.js';
 import { JERSEYS } from './jerseys.js';
 import { leagueCuts, TIER_NAMES, setStyleRefs, teamStanding, teamBooks, rosterNeeds, teamIdentity, draftPosition, rumorMill, playStyles, styleLine, styleSentence, playRead, wontDo, TEND_LABELS, TEND_GROUPS, groupOf } from './overview.js';
@@ -75,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.97';
+const APP_VERSION = '0.365.98';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2672,9 +2673,73 @@ actions.negoAgree = d => {
 // Schedule Release: the season's schedule, read from the file the game already made.
 function teamGames(L, t) {
   const out = [];
-  (L.season.schedule || []).forEach((d, i) => { for (const g of d.results || []) if (g.gameType === 0 && (g.homeTeam === t.id || g.awayTeam === t.id)) out.push({ day: i, home: g.homeTeam === t.id, opp: g.homeTeam === t.id ? g.awayTeam : g.homeTeam }); });
+  (L.season.schedule || []).forEach((d, i) => { for (const g of d.results || []) if (g.gameType === 0 && g.homeTeam && g.awayTeam && (g.homeTeam === t.id || g.awayTeam === t.id)) out.push({ day: i, home: g.homeTeam === t.id, opp: g.homeTeam === t.id ? g.awayTeam : g.homeTeam }); });
   return out;
 }
+// ---- The schedule maker: key dates, the marquee games for Opening Night (two) and Christmas (five), then the whole
+// season built around them with the NBA's formula. Only before any game is played; Undo puts the game's own back.
+const smOn = () => labOn() && !isCollege() && league().leagueType === 0 && !(league().season.schedule || []).some(d => (d.results || []).some(g => g.homeScore || g.awayScore));
+function smChamp(L) {
+  const po = [...(L.season.playoffs || [])].reverse().find(x => (x.rounds || []).length);
+  const fin = po?.rounds[po.rounds.length - 1]?.series?.[0];
+  return fin && fin.winner >= 0 ? fin.winner : null;
+}
+function smCands(L) {
+  const R = teamRatings(), rv = new Map(L.teams.map(t => [t.id, new Map((rivalsOf(L, t) || []).map(r => [r.id, r.score]))]));
+  return SM.marqueeCandidates(L, { rivalScore: (a, b) => Math.max(rv.get(a.id)?.get(b.id) || 0, rv.get(b.id)?.get(a.id) || 0), strength: id => R.get(id)?.all || 70, champ: smChamp(L) });
+}
+function smPicks(L) {
+  const f = calFlags();
+  if (!f.smPicks) { const d = SM.defaultSlate(smCands(L), smChamp(L)); f.smPicks = { opening: d.opening.map(x => [x.h, x.aw]), christmas: d.christmas.map(x => [x.h, x.aw]) }; }
+  return f.smPicks;
+}
+function scheduleMakerBox() {
+  if (!smOn()) return '';
+  const L = league(), S = L.season, yr = S.currentYear, f = calFlags();
+  const days = Math.max(60, (S.schedule || []).length - ((S.schedule || []).some(d => (d.results || []).some(g => g.gameType !== 0)) ? 1 : 0));
+  const picks = smPicks(L), cands = smCands(L).slice(0, 60), tm = id => evTeam(id);
+  const host = L.teams.find(t => t.id === S.allStarHostId);
+  const key = [['🏀 Opening Night', SM.realDate(yr, 0, days)], ['🎄 Christmas Day', SM.realDate(yr, SM.dayFor('christmas', days), days)], ['✊ MLK Day', SM.realDate(yr, SM.dayFor('mlk', days), days)],
+    ['🔁 Trade Deadline', SM.realDate(yr, SM.dayFor('deadline', days), days)], ['⭐ All-Star Weekend', `${SM.realDate(yr, SM.dayFor('allStar', days), days)}${host ? ` · ${esc(teamFull(host))}` : ''}`], ['🏁 Last Day', SM.realDate(yr, days - 1, days)]];
+  const opt = (h, a) => cands.map(c => `<option value="${c.h}-${c.aw}" ${(c.h === h && c.aw === a) || (c.h === a && c.aw === h) ? 'selected' : ''}>${esc(tm(c.aw)?.shortName || '?')} @ ${esc(tm(c.h)?.shortName || '?')}${c.r >= 3 ? ' 🔥' : ''}</option>`).join('');
+  const slot = (night, i, [h, a]) => `<div class="sm-slot"><span class="sm-n">${i + 1}</span><span class="sm-game">${logoImg(tm(a))} <b>${esc(tm(a)?.shortName || '?')}</b> @ ${logoImg(tm(h))} <b>${esc(tm(h)?.shortName || '?')}</b></span>
+    <select class="sel-team sm-sel" data-change="smPick" data-night="${night}" data-i="${i}">${opt(h, a)}</select></div>`;
+  const dup = night => { const ids = picks[night].flat(); return ids.length !== new Set(ids).size; };
+  return `<fieldset class="frame"><legend>🗓️ Schedule Maker</legend>
+    <p class="note small">Set the marquee nights, then build the whole season around them with the NBA's formula (82 games, rest days, the All-Star break). 🔥 marks a rivalry.</p>
+    <div class="sm-dates">${key.map(([l, d]) => `<div class="small"><b>${l}</b> <span class="muted">${esc(d)}</span></div>`).join('')}</div>
+    <h4 class="ov-h">Opening Night</h4><div class="stack">${picks.opening.map((g, i) => slot('opening', i, g)).join('')}</div>${dup('opening') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
+    <h4 class="ov-h">Christmas Day</h4><div class="stack">${picks.christmas.map((g, i) => slot('christmas', i, g)).join('')}</div>${dup('christmas') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
+    <div class="grid2" style="margin-top:10px">${f.smUndo ? '<button class="btn off" data-act="smUndo">↺ Undo</button>' : '<button class="btn off" data-act="smReset">↺ Suggested</button>'}<button class="btn focus" data-act="smBuild" ${dup('opening') || dup('christmas') ? 'disabled' : ''}>🗓️ ${f.smUndo ? 'Rebuild' : 'Build the Schedule'}</button></div>
+    ${f.smUndo ? `<p class="note small up" style="margin-top:6px">✓ Built: ${f.smUndo.games} games over ${f.smUndo.days} days, every team at 82. The look at your schedule below is the new one.</p>` : ''}
+  </fieldset>`;
+}
+$app.addEventListener('change', e => {
+  if (e.target.dataset.change !== 'smPick') return;
+  const p = smPicks(league()), [h, a] = e.target.value.split('-').map(Number);
+  p[e.target.dataset.night][+e.target.dataset.i] = [h, a];
+  render();
+});
+actions.smReset = () => { delete calFlags().smPicks; render(); };
+actions.smBuild = () => {
+  const L = league(), S = L.season, f = calFlags(), picks = smPicks(L);
+  if (!f.smUndo) f.smUndo = { sched: cloneData(S.schedule || []), as: S.allStarWeekend, dl: S.tradeDeadline, uGID: L.meta?.uGID };
+  const days = Math.max(60, (f.smUndo.sched.length) - (f.smUndo.sched.some(d => (d.results || []).some(g => g.gameType !== 0)) ? 1 : 0));
+  S.schedule = cloneData(f.smUndo.sched); S.allStarWeekend = f.smUndo.as; S.tradeDeadline = f.smUndo.dl;
+  const xmas = SM.dayFor('christmas', days);
+  const pins = [...picks.opening.map(([h, a]) => ({ day: 0, h, a })), ...picks.christmas.map(([h, a]) => ({ day: xmas, h, a }))];
+  const r = SM.buildSeason(L, { pins, seed: (saveSalt() ^ S.currentYear) >>> 0 });
+  const bad = [...r.count.values()].filter(n => n !== 82).length;
+  f.smUndo.games = [...r.count.values()].reduce((a, n) => a + n, 0) / 2; f.smUndo.days = r.days;
+  state.dirty = true;
+  toast('🗓️ Schedule built', bad ? `${bad} teams aren't at 82: check the settings` : 'Opening Night and Christmas are set.', 3200, !!bad);
+  render();
+};
+actions.smUndo = () => {
+  const L = league(), S = L.season, f = calFlags(); if (!f.smUndo) return;
+  S.schedule = f.smUndo.sched; S.allStarWeekend = f.smUndo.as; S.tradeDeadline = f.smUndo.dl; if (L.meta && f.smUndo.uGID != null) L.meta.uGID = f.smUndo.uGID;
+  delete f.smUndo; state.dirty = true; render();
+};
 screens.schedRelease = () => {
   const L = league(), R = teamRatings(), mine = L.teams.filter(isUserTeam);
   const sos = new Map(L.teams.map(t => { const g = teamGames(L, t); return [t.id, g.length ? g.reduce((a, x) => a + (R.get(x.opp)?.all || 70), 0) / g.length : 0]; }));
@@ -2697,7 +2762,7 @@ screens.schedRelease = () => {
       ${marquee.length ? `<p class="note small" style="margin-top:6px"><b>Marquee nights</b> (contenders and rivals, first meeting):</p><div class="stack">${marquee.map(x => `<div class="small">Game ${g.indexOf(x) + 1}: ${vs(x)}${rivals.has(x.opp) ? ' <span class="gold">· rivalry</span>' : ''}</div>`).join('')}</div>` : ''}
       ${cup}</fieldset>`;
   }).join('');
-  layout({ title: 'Schedule Release', body: `<p class="note small">Toughness ranks every schedule by its opponents' strength (1st is the hardest).</p>${body}${evDone('schedRelease')}` });
+  layout({ title: 'Schedule Release', body: `${scheduleMakerBox()}<p class="note small">Toughness ranks every schedule by its opponents' strength (1st is the hardest).</p>${body}${evDone('schedRelease')}` });
 };
 
 // Preseason Projections: power rankings, win totals, title odds and award favorites from the rosters as they stand.

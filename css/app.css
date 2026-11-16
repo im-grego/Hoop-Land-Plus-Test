@@ -2587,3 +2587,11 @@ body::after {
 .ru-pot { display: inline-flex; align-items: center; gap: 6px; }
 .ru-pot .st-row { min-width: 0; }
 .ru-list li { margin-bottom: 6px; }
+
+/* Schedule maker: key dates and the marquee slots */
+.sm-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin: 6px 0 4px; }
+.sm-slot { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 4px 8px; align-items: center; }
+.sm-slot .sm-n { color: var(--gold); font-weight: 800; }
+.sm-slot .sm-game { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.sm-slot .sm-game .logo-sm, .sm-slot .sm-game img { width: 20px !important; height: 20px !important; }
+.sm-slot .sm-sel { grid-column: 2; width: 100%; }
