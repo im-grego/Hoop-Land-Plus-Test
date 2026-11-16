@@ -74,7 +74,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.93';
+const APP_VERSION = '0.365.94';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -4241,7 +4241,7 @@ actions.rosterUpdate = async d => {
   try { localStorage.setItem(RU_KEY(d.id), '1'); } catch { /* ignore */ }
   const sign = n => `${n > 0 ? '+' : ''}${n}`;
   const row = r => { const dl = r.lv1 - r.lv0, dp = r.p1 - r.p0;
-    return `<li><b>${esc(r.n)}</b> <span class="muted small">${esc(r.t)}</span><br><span class="small">Lv ${r.lv0} → <b class="${dl > 0 ? 'up' : dl < 0 ? 'down' : ''}">${r.lv1}</b>${dl ? ` <span class="${dl > 0 ? 'up' : 'down'}">(${sign(dl)})</span>` : ''}${dp ? `<br><span class="ru-pot">Potential <span class="stars">${stars(r.p0)}</span> <span class="${dp > 0 ? 'up' : 'down'}">→</span> <span class="stars">${stars(r.p1)}</span></span>` : ''}</span></li>`; };
+    return `<li><b>${esc(r.n)}</b> <span class="muted small">${esc(r.t)}</span><br><span class="small">Lv ${r.lv0} → <b class="${dl > 0 ? 'up' : dl < 0 ? 'down' : ''}">${r.lv1}</b>${dl ? ` <span class="${dl > 0 ? 'up' : 'down'}">(${sign(dl)})</span>` : ''}${dp ? ` · <span class="${dp > 0 ? 'up' : 'down'}">Pot ${dp > 0 ? '↑' : '↓'}</span>` : ''}</span></li>`; };
   const box = overlay(`<h2 class="devlog-h">${esc(u.title || 'Roster Update')}</h2>
     <p class="note small muted">Rating changes to the league${u.date ? ` (${esc(fmtDay(u.date))})` : ''}: who moved, by level and potential. In every start file from here on.</p>
     <div class="devlog">
