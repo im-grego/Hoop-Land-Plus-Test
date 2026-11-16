@@ -66,6 +66,33 @@
               "ppg": 38.6
             }
           }
+        },
+        {
+          "date": "2026-11-15",
+          "file": "data/seasons/2026-27/2026-11-15.txt.gz",
+          "through": "2026-11-14",
+          "opening": false,
+          "injuries": true,
+          "days": 99,
+          "snap": {
+            "east": {
+              "team": "BOS",
+              "name": "Boston Celtics",
+              "w": 10,
+              "l": 2
+            },
+            "west": {
+              "team": "LAL",
+              "name": "Los Angeles Lakers",
+              "w": 11,
+              "l": 2
+            },
+            "ppg": {
+              "name": "Luka Doncic",
+              "team": "LAL",
+              "ppg": 38.6
+            }
+          }
         }
       ]
     }
