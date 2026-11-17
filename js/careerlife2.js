@@ -144,7 +144,9 @@ export const countryName = c => COUNTRY[c] || c;
 export const RUN_COST = 60, TRIP_COST = 180;
 export function tripHosts(p, team) {
   if (!team) return [];
-  return team.roster.filter(m => m.id !== p.id && m.status === 3 && tripRegion(m.ctry)).sort((a, b) => levelOf(b) - levelOf(a)).slice(0, 3);
+  // One trip a country, hosted by its best player on the team.
+  const seen = new Set();
+  return team.roster.filter(m => m.id !== p.id && m.status === 3 && tripRegion(m.ctry)).sort((a, b) => levelOf(b) - levelOf(a)).filter(m => !seen.has(m.ctry) && seen.add(m.ctry)).slice(0, 3);
 }
 // What a young teammate picks up from his runs: his best habit trait.
 export function runLesson(p) {

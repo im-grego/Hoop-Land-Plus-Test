@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.118';
+const APP_VERSION = '0.365.119';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3553,10 +3553,10 @@ const ROADMAP = [
     ['Scouting', 'A full scouting department: send scouts out, narrow down ceilings, and learn which prospects are real before draft night.'],
     ['Olympics', 'The Olympic tournament in the summer: national team rosters, the bracket and medals for your players.'],
     ['In-season tournament', 'The NBA Cup: group play, the knockout rounds and a champion crowned in December.'],
+    ['Career mode', 'Your player\'s whole career: a hub with his standing and locker room, offseason choices (an agent, summer programs, free agency), the story around him, and the legacy chase from Rookie to GOAT.'],
   ]],
   ['🔭 Further down the line', '', [
     ['College offseason', 'Recruiting, the transfer portal, NIL and the coaching carousel for College saves.'],
-    ['Career mode', 'Your player\'s own offseason: an agent, free agency offers, goals and a legacy.'],
     ['Full league editor', 'Edit teams, players, picks, coaches and the Hall of Fame in a league file, then export it.'],
   ]],
 ];
@@ -4562,10 +4562,12 @@ screens.main = () => {
   });
 };
 
+// Career mode is behind the testing switch until it's been through a real career save.
+const careerOn = () => labOn();
 // Career saves: a card on the home screen that opens the Career Hub.
 function careerCard() {
   const L = league();
-  if (!CAR.isCareer(L)) return '';
+  if (!CAR.isCareer(L) || !careerOn()) return '';
   const me = CAR.careerPlayer(L);
   if (!me) return '';
   const { p, team } = me, r = CAR.rankIdx(p);
@@ -4573,6 +4575,7 @@ function careerCard() {
 }
 
 screens.career = (args = {}) => {
+  if (!careerOn()) { goHome(); return; }
   const L = league(), me = CAR.careerPlayer(L);
   if (!me) { layout({ title: 'My Career', body: '<p class="note">This save has no career player.</p>' }); return; }
   const tab = args.tab || 'hub';
@@ -4710,7 +4713,8 @@ function careerFABox(p, team) {
 }
 screens.careerFA = () => {
   const L = league(), me = CAR.careerPlayer(L);
-  if (!me) return goHome();
+  // Only for a free agent (or a deal that's up) in the offseason, once offers come in after the draft.
+  if (!careerOn() || !me || !(me.p.status === FA.STATUS_EXPIRING || me.p.status === FA.STATUS_FREE) || !careerOffseason() || L.season.phase < 5) return goHome();
   const { p } = me, ag = careerAgent(), key = careerStore().agent || 'brand', { cy } = careerYear();
   const offers = careerOffersNow(p).map(o => ({ o, x: CAR.careerPitch(L, p, o, key) })).sort((a, b) => b.x.score - a.x.score);
   const pick = ag ? offers[0]?.o.tid : null;
@@ -5466,6 +5470,7 @@ function careerInvestBox(L, p) {
   return `<fieldset class="frame"><legend>Investments</legend>
     ${open.map(x => `<p class="note small">${CL2.INVEST[x.k].icon} ${esc(CL2.INVEST[x.k].label)}: ${x.amt} coins in, settles next summer.</p>`).join('')}
     ${past.map(x => `<p class="note small ${x.back >= x.amt ? 'up' : 'down'}">${CL2.INVEST[x.k].icon} ${x.yr}: ${x.amt} in, ${x.back} back.</p>`).join('')}
+    ${!open.length && !past.length && !careerOffseason() ? '<p class="note small muted">No investments yet. You can put coins in each summer.</p>' : ''}
     ${careerOffseason() && !cy.invested ? `<div class="stack">${Object.entries(CL2.INVEST).map(([k, v]) => `<div><p class="note small"><b>${v.icon} ${esc(v.label)}</b> · ${esc(v.says)}</p><div class="grid3">${CL2.STAKES.map(a => `<button class="btn small" data-act="careerInvest" data-k="${k}" data-a="${a}" ${a > coins ? 'disabled' : ''}>${a}</button>`).join('')}</div></div>`).join('')}</div>` : cy.invested ? '<p class="note small muted">One investment a summer.</p>' : ''}</fieldset>`;
 }
 actions.careerInvest = async d => {
@@ -11200,7 +11205,7 @@ screens.playoffs = () => {
     body: `<fieldset class="frame"><legend>First Round</legend>${series}</fieldset>
       ${mine.map(t => poTeamBox(t)).join('')}
       ${risersBox(L)}
-      ${me?.team ? `<p class="note small">Your own check-in (series preview, mindset, your agent) is on <button class="linkish" data-act="nav" data-to="career">your Career Hub</button>.</p>` : ''}
+      ${me?.team && careerOn() ? `<p class="note small">Your own check-in (series preview, mindset, your agent) is on <button class="linkish" data-act="nav" data-to="career">your Career Hub</button>.</p>` : ''}
       <fieldset class="frame"><legend>Title Odds</legend><p class="note small">${s.pick == null ? 'Pick your champion: call it right and collect 100 coins.' : `You picked ${esc(L.teams.find(t => t.id === s.pick)?.shortName || '')}. It pays 100 coins if they win it all.`}</p><div class="stack">${oddsRows}</div></fieldset>
       ${poAwardsBox()}`,
   });
