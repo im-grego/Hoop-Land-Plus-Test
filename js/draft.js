@@ -45,12 +45,13 @@ export const projectedRookie = v => v;
 
 // The incoming level: set once, when a class comes in, so what you see before the draft is what he plays at. He sits
 // under his ceiling level (5 stars 100, 4.5 93, 4 86, 3.5 79, 3 72) by how ready he is: the readiest (older, productive,
-// a pro body) close to it, a project well under; the gap shrinks with the ceiling, so an older, limited player is
-// nearly what he'll be. Never above Lv 86 (the generational rookie All-Star) or past his own ceilings.
+// a pro body) closer to it, a project well under; the gap shrinks with the ceiling, so an older, limited player is
+// nearer what he'll be. Lv 86 is only the readiest five-star (the generational rookie): an average five-star comes in
+// near 80, a four-and-a-half 76, a four-star 72, a three-star 63. Never past his own ceilings.
 export const ceilingLevel = pot => 100 - 7 * (10 - Math.min(10, pot || 6));
 export function incomingLevel(p, ready = 0) {
   const r = Math.max(-1, Math.min(1, ready ?? 0)), C = ceilingLevel(p.pot);
-  return Math.min(86, Math.round(C - (11 - 5 * r) * Math.max(0.3, (C - 50) / 36)));   // a 4-star: ready 80, average 75, project 70
+  return Math.min(86, Math.round(C - (20 - 6 * r) * Math.max(0.3, (C - 50) / 50)));   // a 4-star: ready 76, average 72, project 67
 }
 export function fitIncoming(p, ready = 0) {
   if (!p?.attributes || !SKILL_ATTRS.every(k => Array.isArray(p.attributes[k]))) return 0;
@@ -316,7 +317,7 @@ const SIZE_RANGE = 2;        // inches: comps stay this close in height when any
 
 const TOP_COMP = 10; // Wilt / LeBron territory
 
-export function assignClassComps(players, pool, { floorVec, ceilVec, potOf = p => p.pot, legendCap = 3 }) {
+export function assignClassComps(players, pool, { floorVec, ceilVec, potOf = p => p.pot, legendCap = 3, named = () => null }) {
   const used = new Set();
   const out = new Map(players.map(p => [p.id, { floor: [], ceiling: [] }]));
   let legends = 0;
@@ -363,7 +364,12 @@ export function assignClassComps(players, pool, { floorVec, ceilVec, potOf = p =
   for (const p of players) {
     const pot = potOf(p);
     const legendOk = c => c.p.pot < TOP_COMP || (pot >= TOP_COMP - 1 && legends < legendCap);
-    const e = pickStyle(p, ceilVec(p), c => c.established && Math.abs(c.p.pot - pot) <= 1 && legendOk(c), pot)
+    // A class file's own comp (the scouts' read, by name) when that player is in the league: "+" or "lite" when his
+    // potential sits off the prospect's.
+    const want = String(named(p) || '').toLowerCase();
+    const own = want && pool.find(c => !used.has(c.p.id) && playerName(c.p).toLowerCase() === want);
+    if (own) used.add(own.p.id);
+    const e = own || pickStyle(p, ceilVec(p), c => c.established && Math.abs(c.p.pot - pot) <= 1 && legendOk(c), pot)
       || pickStyle(p, ceilVec(p), c => c.established && c.p.pot <= pot && legendOk(c), pot);
     if (e) {
       if (e.p.pot >= TOP_COMP) legends++;

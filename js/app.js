@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.141';
+const APP_VERSION = '0.365.142';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -458,7 +458,8 @@ function readinessOf(p) {
 const readyChip = p => { const r = readinessOf(p); return r === READINESS.base ? '' : `<span class="badge ${r.cls === 'up' ? 'new' : 'lvl'}">${r.icon} ${r.tag}</span>`; };
 setReadiness(p => (state.params.readiness === 'age' ? null : readinessOf(p).back));
 // No draft dip: a class shows its incoming level from the day it comes in (draft.js fitIncoming), each prospect once.
-const incKey = () => `hlc:incoming:${saveTag()}`;
+// v2: the lower incoming levels (only a ready five-star at 86) refit a class that's already in.
+const incKey = () => `hlc:incoming2:${saveTag()}`;
 function fitClassIncoming(L = league()) {
   if (!state.data || isCollege() || !L.draftClass?.length || L.season.phase >= PHASE_POST_DRAFT) return 0;
   let done; try { done = new Set(JSON.parse(localStorage.getItem(incKey())) || []); } catch { done = new Set(); }
@@ -15094,6 +15095,7 @@ function compsFor(p) {
       floorVec: x => floorVector(x, bands),
       ceilVec: x => projectedCeiling(x, scoutPot(x)),
       potOf: scoutPot,
+      named: x => labMeta()[x.id]?.comp,
     }));
   }
   return cache.get('class').get(p.id) || { floor: [], ceiling: [] };
@@ -15340,6 +15342,7 @@ function rookieCompsFor(p) {
       floorVec: x => rookieFloorVector(x, origs[x.id] || null, bands),
       ceilVec: x => projectedCeiling(x, scoutPot(x)),
       potOf: scoutPot,
+      named: x => labMeta()[x.id]?.comp,
     }));
   }
   return cache.get('rookies').get(p.id) || { floor: [], ceiling: [] };
