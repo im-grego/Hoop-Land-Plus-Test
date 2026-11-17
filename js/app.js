@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.123';
+const APP_VERSION = '0.365.124';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -1337,7 +1337,7 @@ async function loadFile(file) {
     const planned = !isCollege() && applyClassPlan();
     if (!isCollege() && settleRetirees(league())) state.dirty = true;
     if (!isCollege() && playoffRotations()) state.dirty = true;
-    if (!isCollege() && applyStreaks()) state.dirty = true;   // hot and cold streaks
+    if (applyStreaks()) state.dirty = true;   // hot and cold streaks (college too, on its shorter season)
     if (!isCollege() && applyFatigue()) state.dirty = true;
     if (!isCollege()) cupKnockout();
     if (!isCollege()) glCatchUp();
@@ -3297,6 +3297,7 @@ function collegeSeasonCard() {
     ${last.length ? `<p class="note small" style="margin:8px 0 2px"><b>Last ${last.length}</b></p><div class="stack">${last.reverse().map(x => `<div class="small"><span class="${x.won ? 'up' : 'down'}"><b>${x.won ? 'W' : 'L'}</b> ${x.mine}-${x.theirs}</span> ${x.g.home ? 'vs' : '@'} ${tName(opp(x.g.opp))}${poll(opp(x.g.opp)) ? ` <span class="muted">#${poll(opp(x.g.opp))}</span>` : ''}</div>`).join('')}</div>` : ''}
     ${next.length ? `<p class="note small" style="margin:8px 0 2px"><b>Up next</b></p><div class="stack">${next.map(g => `<div class="small">${g.home ? 'vs' : '@'} ${tName(opp(g.opp))}${poll(opp(g.opp)) ? ` <span class="muted">#${poll(opp(g.opp))}</span>` : ''} <span class="muted">· ${st(opp(g.opp)).W || 0}-${st(opp(g.opp)).L || 0}</span></div>`).join('')}</div>` : ''}
     ${leaders.length ? `<p class="note small" style="margin:8px 0 2px"><b>Your leaders</b></p><div class="stack">${leaders.map(({ p, l }) => `<div class="small"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b> <span class="muted">${l.ppg.toFixed(1)} pts · ${l.rpg.toFixed(1)} reb · ${l.apg.toFixed(1)} ast</span></div>`).join('')}</div>` : ''}
+    ${(() => { const k = kind => me.roster.filter(p => streakOf(p.id) === kind).map(p => `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(shortName(p))}</b>`); const h = k('hot'), c = k('cold'); return h.length || c.length ? `<p class="note small" style="margin:8px 0 0">${h.length ? `🔥 ${h.join(', ')}` : ''}${h.length && c.length ? ' · ' : ''}${c.length ? `❄️ ${c.join(', ')}` : ''}</p>` : ''; })()}
     ${top25.length ? `<details class="cmb-fold"><summary>🏆 Top 25</summary><div class="stack">${top25.map(t => `<div class="small"><span class="muted">${poll(t)}.</span> ${tName(t)} <span class="muted">${st(t).W || 0}-${st(t).L || 0}</span></div>`).join('')}</div></details>` : ''}
     <div class="grid2" style="margin-top:8px"><button class="btn small" data-act="nav" data-to="standings">📊 Standings</button><button class="btn small" data-act="nav" data-to="injuries">🩹 Injuries</button></div>
     <p class="note small muted" style="margin-top:6px">The offseason opens when the season's over: load your Season Complete file.</p></fieldset>`;
@@ -4247,7 +4248,7 @@ screens.matchup = () => {
       <fieldset class="frame mu-frame"><legend>Team Stats</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${MU_STATS.map(statRow).join('')}</fieldset>
       <fieldset class="frame mu-frame mu-mtch"><legend>Matchups</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${[0, 1, 2, 3, 4].map(mRow).join('')}</fieldset>
       <fieldset class="frame"><legend>Injury Report</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b>${hurt(me)}</div><div><b class="small">${esc(opp.shortName)}</b>${hurt(opp)}</div></div></fieldset>
-      ${isCollege() ? '' : `<fieldset class="frame"><legend>Hot &amp; Cold</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b><span>🔥 ${streak(me, true)}</span><span>❄️ ${streak(me, false)}</span></div><div><b class="small">${esc(opp.shortName)}</b><span>🔥 ${streak(opp, true)}</span><span>❄️ ${streak(opp, false)}</span></div></div></fieldset>`}`,
+      ${`<fieldset class="frame"><legend>Hot &amp; Cold</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b><span>🔥 ${streak(me, true)}</span><span>❄️ ${streak(me, false)}</span></div><div><b class="small">${esc(opp.shortName)}</b><span>🔥 ${streak(opp, true)}</span><span>❄️ ${streak(opp, false)}</span></div></div></fieldset>`}`,
   });
 };
 function mediaCard() {
@@ -11376,7 +11377,21 @@ function risersBox(L = league()) {
 // It lasts until the next file comes in: if the boosted file went out to the game, the next load takes it back off,
 // then the new streaks are read fresh. Behind the testing switch for now.
 const HOT_KEYS = ['LAY', 'INS', 'MID', 'TPT', 'DRB', 'PAS', 'ORE', 'STL'], COLD_KEYS = ['LAY', 'INS', 'MID', 'TPT', 'DRB', 'ORE'];
-const HOT_MIN = 5, COLD_MIN = 3;   // a hot streak needs 5 games in a row; a cold one 3 (the game's slumps run shorter)
+// A hot streak needs 5 games in a row, a cold one 3 (the game's slumps run shorter). College's season is shorter: 4 hot,
+// 3 cold, and 4 games played.
+// How long this league's games really run, from its box scores (a team's minutes a game over five on the floor): college
+// can be set far shorter than 48. For "real minutes" checks that were written for 48.
+function playedGameLen() {
+  const L = league(), yr = L.season.currentYear, li = state.leagueIdx;
+  let best = 0;
+  for (const t of L.teams.slice(0, 12)) {
+    let secs = 0, gp = 0;
+    for (const p of t.roster) { const s = (p.stats || []).find(x => x.league === li && x.yr === yr); for (const r of s?.season || []) { secs += secsOf(r, li); gp = Math.max(gp, r.GP || 0); } }
+    if (gp >= 3) best = Math.max(best, secs / 60 / gp / 5);
+  }
+  return best > 4 ? Math.min(48, best) : 48;
+}
+const STREAK_MIN = () => (isCollege() ? { hot: 4, cold: 3, gp: 4 } : { hot: 5, cold: 3, gp: 5 });
 const streakKey = () => `hlc:streaks:${saveTag()}`;
 function streakStore() { try { return JSON.parse(localStorage.getItem(streakKey())) || { list: {} }; } catch { return { list: {} }; } }
 function streakSave(v) { try { localStorage.setItem(streakKey(), JSON.stringify(v)); } catch { /* ignore */ } }
@@ -11408,15 +11423,16 @@ const streakIcon = p => { const k = streakOf(p.id), f = fxOf(p.id); return (k ==
 // Hot or cold: the game's streak plus production at or above (or below) players his age at his position, 5+ games in.
 function streakKindOf(p, prod, li, yr) {
   const s0 = p.gameStatus?.streak || 0, z = prod.get(p.id), l = seasonLine(p, li, yr);
-  if (z == null || !l || l.gp < 5) return null;
-  return s0 >= HOT_MIN && z >= 0 ? 'hot' : s0 <= -COLD_MIN && z <= 0 ? 'cold' : null;
+  const m = STREAK_MIN();
+  if (z == null || !l || l.gp < m.gp) return null;
+  return s0 >= m.hot && z >= 0 ? 'hot' : s0 <= -m.cold && z <= 0 ? 'cold' : null;
 }
 // The streaks a season file will bring (for the team picker, before the file is loaded): kind and level change.
 function streakPreview(L) {
   const out = new Map();
   if (L.season.phase !== 9) return out;
   const yr = L.season.currentYear, ps = L.teams.flatMap(t => t.roster.filter(q => q.status === 3 || q.status === 2));
-  const prod = productionScores(ps, 0, yr, { ...state.params, trainerMinGames: 5 });
+  const prod = productionScores(ps, 0, yr, { ...state.params, trainerMinGames: 5, trainerMinMpg: (state.params.trainerMinMpg ?? 10) * playedGameLen() / 48 });
   for (const q of ps) {
     const kind = streakKindOf(q, prod, 0, yr); if (!kind) continue;
     const d = kind === 'hot' ? 1 : -1, keys = kind === 'hot' ? HOT_KEYS : COLD_KEYS;
@@ -11442,8 +11458,8 @@ function applyStreaks() {
   }
   const fresh = { list: {}, day: L.season.currentDay, yr: L.season.currentYear };
   if (L.season.phase === 9) {
-    const ps = L.teams.flatMap(t => FA.signedRoster(t));
-    const prod = productionScores(ps, state.leagueIdx, L.season.currentYear, { ...state.params, trainerMinGames: 5 });   // a streak needs 5 games, not a full sample
+    const ps = L.teams.flatMap(t => (isCollege() ? t.roster : FA.signedRoster(t)));   // college rosters carry no contract status
+    const prod = productionScores(ps, state.leagueIdx, L.season.currentYear, { ...state.params, trainerMinGames: STREAK_MIN().gp, trainerMinMpg: (state.params.trainerMinMpg ?? 10) * playedGameLen() / 48 });   // a few games, real minutes for this league's game length
     const risen = riseStore()[L.season.currentYear]?.list || {};
     for (const p of ps) {
       if (risen[p.id]) continue;   // a playoff riser's boost and a streak never stack
