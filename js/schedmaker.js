@@ -40,26 +40,43 @@ export function buildSeason(L, { pins = [], seed = 1, mode = 'nba' } = {}) {
   return { days: S.schedule.length, count };
 }
 
-// Marquee candidates: every pair scored by rivalry (the app's rivals, strongest first) and how good both teams are.
-// `rivalScore(a, b)` and `strength(id)` come from the app. Opening Night: the champion hosts first.
-export function marqueeCandidates(L, { rivalScore, strength, champ = null }) {
+// Marquee candidates: every pair, scored three ways. `rivalScore(a, b)` (the app's rivals, strongest first),
+// `strength(id)` (how good the team is) and `stars(id)` (its star power: the league's top 20 players, the higher the
+// better, full weight in their prime) come from the app.
+// - Opening Night: the best teams, rivals preferred (the champion hosts first).
+// - MLK Day: the top teams.
+// - Christmas: the star matchups, both teams bringing stars.
+export function marqueeCandidates(L, { rivalScore, strength, stars = () => 0, champ = null }) {
   const T = L.teams, out = [];
   for (let i = 0; i < T.length; i++) for (let j = i + 1; j < T.length; j++) {
-    const a = T[i], b = T[j], r = rivalScore(a, b), s = (strength(a.id) + strength(b.id)) / 2;
-    out.push({ a: a.id, b: b.id, score: r * 2 + (s - 75) / 2, r });
+    const a = T[i], b = T[j], r = rivalScore(a, b), sa = strength(a.id), sb = strength(b.id), avg = (sa + sb) / 2, lo = Math.min(sa, sb);
+    const pa = stars(a.id), pb = stars(b.id);
+    out.push({ a: a.id, b: b.id, r,
+      opening: (avg - 75) + (lo - 75) * 0.5 + r * 1.5,
+      mlk: (avg - 75) + (lo - 75) * 0.75 + r * 0.4,
+      xmas: pa + pb + Math.min(pa, pb) * 1.5 + (avg - 75) * 0.15 + r * 0.3 });
   }
-  out.sort((x, y) => y.score - x.score);
   // Home side: the champion, else the better team.
-  return out.map(x => { const hHome = x.a === champ ? x.a : x.b === champ ? x.b : strength(x.a) >= strength(x.b) ? x.a : x.b; return { ...x, h: hHome, aw: hHome === x.a ? x.b : x.a }; });
+  return out.map(x => { const hHome = x.a === champ ? x.a : x.b === champ ? x.b : strength(x.a) >= strength(x.b) ? x.a : x.b; return { ...x, score: x.opening, h: hHome, aw: hHome === x.a ? x.b : x.a }; });
 }
-// The default slate: Opening Night two games (the champion's first), Christmas five; nobody twice on the same night.
+const pairOf = x => [x.h, x.aw].sort((p, q) => p - q).join('-');
+// One night's slate: `n` games by that night's score, nobody twice, no matchup already used (`seen`).
+function slateFor(cands, key, n, seen, first = null) {
+  const used = new Set(), pick = [];
+  const order = [...cands].sort((x, y) => y[key] - x[key]);
+  for (const c of [...(first != null ? order.filter(x => x.h === first || x.aw === first).slice(0, 1) : []), ...order]) {
+    if (pick.length >= n) break;
+    if (used.has(c.h) || used.has(c.aw) || pick.includes(c) || seen.has(pairOf(c))) continue;
+    pick.push(c); used.add(c.h); used.add(c.aw);
+  }
+  for (const c of pick) seen.add(pairOf(c));
+  return pick;
+}
+// The default slate: Opening Night two games (the champion's first), MLK Day four, Christmas five; no matchup twice.
 export function defaultSlate(cands, champ = null) {
-  const night = (n, first = null) => { const used = new Set(), pick = []; for (const c of [...(first ? cands.filter(x => x.h === first || x.aw === first).slice(0, 1) : []), ...cands]) { if (pick.length >= n) break; if (used.has(c.h) || used.has(c.aw) || pick.includes(c)) continue; pick.push(c); used.add(c.h); used.add(c.aw); } return pick; };
-  const opening = night(2, champ);
-  // Christmas: different matchups from Opening Night.
-  const seen = new Set(opening.map(x => [x.h, x.aw].sort().join('-')));
-  const rest = cands.filter(x => !seen.has([x.h, x.aw].sort().join('-')));
-  const used = new Set(), christmas = [];
-  for (const c of rest) { if (christmas.length >= 5) break; if (used.has(c.h) || used.has(c.aw)) continue; christmas.push(c); used.add(c.h); used.add(c.aw); }
-  return { opening, christmas };
+  const seen = new Set();
+  const opening = slateFor(cands, 'opening', 2, seen, champ);
+  const christmas = slateFor(cands, 'xmas', 5, seen);
+  const mlk = slateFor(cands, 'mlk', 4, seen);
+  return { opening, christmas, mlk };
 }

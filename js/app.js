@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.114';
+const APP_VERSION = '0.365.115';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2705,20 +2705,29 @@ function smChamp(L) {
   const fin = po?.rounds[po.rounds.length - 1]?.series?.[0];
   return fin && fin.winner >= 0 ? fin.winner : null;
 }
+// Star power for Christmas: the league's top 20 players (the higher, the more), full weight in their prime (24-31),
+// less for the young and the old: the names people tune in for.
+function smStars(L) {
+  const top = L.teams.flatMap(t => FA.signedRoster(t)).sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 20);
+  const m = new Map();
+  top.forEach((p, i) => { const prime = p.age >= 24 && p.age <= 31 ? 1 : p.age >= 22 && p.age <= 33 ? 0.7 : 0.45; m.set(p.tid, (m.get(p.tid) || 0) + (20 - i) / 4 * prime); });
+  return m;
+}
 function smCands(L) {
-  const R = teamRatings(), rv = new Map(L.teams.map(t => [t.id, new Map((rivalsOf(L, t) || []).map(r => [r.id, r.score]))]));
-  return SM.marqueeCandidates(L, { rivalScore: (a, b) => Math.max(rv.get(a.id)?.get(b.id) || 0, rv.get(b.id)?.get(a.id) || 0), strength: id => R.get(id)?.all || 70, champ: smChamp(L) });
+  const R = teamRatings(), rv = new Map(L.teams.map(t => [t.id, new Map((rivalsOf(L, t) || []).map(r => [r.id, r.score]))])), st = smStars(L);
+  return SM.marqueeCandidates(L, { rivalScore: (a, b) => Math.max(rv.get(a.id)?.get(b.id) || 0, rv.get(b.id)?.get(a.id) || 0), strength: id => R.get(id)?.all || 70, stars: id => st.get(id) || 0, champ: smChamp(L) });
 }
 function smPicks(L) {
   const f = calFlags();
-  if (!f.smPicks) { const d = SM.defaultSlate(smCands(L), smChamp(L)); f.smPicks = { opening: d.opening.map(x => [x.h, x.aw]), christmas: d.christmas.map(x => [x.h, x.aw]) }; }
+  if (!f.smPicks || !f.smPicks.mlk) { const d = SM.defaultSlate(smCands(L), smChamp(L)); f.smPicks = { opening: d.opening.map(x => [x.h, x.aw]), mlk: d.mlk.map(x => [x.h, x.aw]), christmas: d.christmas.map(x => [x.h, x.aw]) }; }
   return f.smPicks;
 }
 function scheduleMakerBox() {
   if (!smOn()) return '';
   const L = league(), S = L.season, yr = S.currentYear, f = calFlags();
   const days = Math.max(60, (S.schedule || []).length - ((S.schedule || []).some(d => (d.results || []).some(g => g.gameType !== 0)) ? 1 : 0));
-  const picks = smPicks(L), cands = smCands(L).slice(0, 60), tm = id => evTeam(id);
+  const picks = smPicks(L), all = smCands(L), tm = id => evTeam(id);
+  const NIGHT_KEY = { opening: 'opening', mlk: 'mlk', christmas: 'xmas' }, candsFor = night => [...all].sort((x, y) => y[NIGHT_KEY[night]] - x[NIGHT_KEY[night]]).slice(0, 60);
   const host = L.teams.find(t => t.id === S.allStarHostId);
   // Day numbers as the game counts them (Opening Night is Day 1); after the All-Star break, one more for its own day.
   const asD = SM.dayFor('allStar', days), dayN = d => d + 1 + (d >= asD ? 1 : 0);
@@ -2726,16 +2735,17 @@ function scheduleMakerBox() {
   const cupN = cupOn() ? CUP.CUP_ROUND_NIGHTS.filter(n => n < days) : [];
   const key = [['opening', 'Opening Night', on(0)], ...(cupN.length ? [['cup', 'NBA Cup', `${SM.realDate(yr, cupN[0], days)} – ${SM.realDate(yr, cupN[cupN.length - 1], days)} (Days ${dayN(cupN[0])}–${dayN(cupN[cupN.length - 1])})`, '5 group nights, then the knockout']] : []), ['xmas', 'Christmas Day', on(SM.dayFor('christmas', days))], ['mlk', 'MLK Day', on(SM.dayFor('mlk', days))],
     ['deadline', 'Trade Deadline', on(SM.dayFor('deadline', days))], ['allStar', 'All-Star Weekend', `${SM.realDate(yr, asD, days)} (Day ${asD + 1})`, host ? hostPlace(host) : ''], ['last', 'Last Day', on(days - 1)]];
-  const opt = (h, a) => cands.map(c => `<option value="${c.h}-${c.aw}" ${(c.h === h && c.aw === a) || (c.h === a && c.aw === h) ? 'selected' : ''}>${esc(tm(c.aw)?.shortName || '?')} @ ${esc(tm(c.h)?.shortName || '?')}${c.r >= 3 ? ' 🔥' : ''}</option>`).join('');
+  const opt = (night, h, a) => candsFor(night).map(c => `<option value="${c.h}-${c.aw}" ${(c.h === h && c.aw === a) || (c.h === a && c.aw === h) ? 'selected' : ''}>${esc(tm(c.aw)?.shortName || '?')} @ ${esc(tm(c.h)?.shortName || '?')}${c.r >= 3 ? ' 🔥' : ''}</option>`).join('');
   const slot = (night, i, [h, a]) => `<div class="sm-slot"><span class="sm-n">${i + 1}</span><span class="sm-game">${logoImg(tm(a))} <b>${esc(tm(a)?.shortName || '?')}</b> @ ${logoImg(tm(h))} <b>${esc(tm(h)?.shortName || '?')}</b></span>
-    <select class="sel-team sm-sel" data-change="smPick" data-night="${night}" data-i="${i}">${opt(h, a)}</select></div>`;
+    <select class="sel-team sm-sel" data-change="smPick" data-night="${night}" data-i="${i}">${opt(night, h, a)}</select></div>`;
   const dup = night => { const ids = picks[night].flat(); return ids.length !== new Set(ids).size; };
   return `<fieldset class="frame"><legend>🗓️ Schedule Maker</legend>
     <p class="note small">Set the marquee nights, then build the whole season around them with the NBA's formula (82 games, rest days, the All-Star break). 🔥 marks a rivalry.</p>
     <div class="sm-dates">${key.map(([k, l, d, where]) => `<div class="sm-date small"><span class="sm-ic">${dayIcon(k)}</span><span><b>${l}</b><br><span class="muted">${esc(d)}</span>${where ? `<br><span class="muted">${esc(where)}</span>` : ''}</span></div>`).join('')}</div>
-    <h4 class="ov-h">${dayIcon('opening')} Opening Night</h4><div class="stack">${picks.opening.map((g, i) => slot('opening', i, g)).join('')}</div>${dup('opening') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
-    <h4 class="ov-h">${xmasIcon()} Christmas Day</h4><div class="stack">${picks.christmas.map((g, i) => slot('christmas', i, g)).join('')}</div>${dup('christmas') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
-    <div class="grid2" style="margin-top:10px">${f.smUndo ? '<button class="btn off" data-act="smUndo">↺ Undo</button>' : '<button class="btn off" data-act="smReset">↺ Suggested</button>'}<button class="btn focus" data-act="smBuild" ${dup('opening') || dup('christmas') ? 'disabled' : ''}>🗓️ ${f.smUndo ? 'Rebuild' : 'Build the Schedule'}</button></div>
+    <h4 class="ov-h">${dayIcon('opening')} Opening Night</h4><p class="note small muted" style="margin:0 0 4px">The best teams, rivals first; the champion opens at home.</p><div class="stack">${picks.opening.map((g, i) => slot('opening', i, g)).join('')}</div>${dup('opening') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
+    <h4 class="ov-h">${xmasIcon()} Christmas Day</h4><p class="note small muted" style="margin:0 0 4px">The stars: matchups between the league's top players in their prime.</p><div class="stack">${picks.christmas.map((g, i) => slot('christmas', i, g)).join('')}</div>${dup('christmas') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
+    <h4 class="ov-h">${dayIcon('mlk')} MLK Day</h4><p class="note small muted" style="margin:0 0 4px">The league's top teams.</p><div class="stack">${picks.mlk.map((g, i) => slot('mlk', i, g)).join('')}</div>${dup('mlk') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
+    <div class="grid2" style="margin-top:10px">${f.smUndo ? '<button class="btn off" data-act="smUndo">↺ Undo</button>' : '<button class="btn off" data-act="smReset">↺ Suggested</button>'}<button class="btn focus" data-act="smBuild" ${dup('opening') || dup('christmas') || dup('mlk') ? 'disabled' : ''}>🗓️ ${f.smUndo ? 'Rebuild' : 'Build the Schedule'}</button></div>
     ${f.smUndo ? `<p class="note small up" style="margin-top:6px">✓ Built: ${f.smUndo.games} games over ${f.smUndo.days} days, every team at 82. The look at your schedule below is the new one.</p>` : ''}
   </fieldset>`;
 }
@@ -2752,7 +2762,8 @@ actions.smBuild = () => {
   const days = Math.max(60, (f.smUndo.sched.length) - (f.smUndo.sched.some(d => (d.results || []).some(g => g.gameType !== 0)) ? 1 : 0));
   S.schedule = cloneData(f.smUndo.sched); S.allStarWeekend = f.smUndo.as; S.tradeDeadline = f.smUndo.dl;
   const xmas = SM.dayFor('christmas', days);
-  const pins = [...picks.opening.map(([h, a]) => ({ day: 0, h, a })), ...picks.christmas.map(([h, a]) => ({ day: xmas, h, a }))];
+  const mlkD = SM.dayFor('mlk', days);
+  const pins = [...picks.opening.map(([h, a]) => ({ day: 0, h, a })), ...picks.christmas.map(([h, a]) => ({ day: xmas, h, a })), ...(picks.mlk || []).map(([h, a]) => ({ day: mlkD, h, a }))];
   // The NBA Cup: its group games on Cup nights of their own (like Opening Night and Christmas), placed here so the
   // export doesn't lay the season out again around them.
   const cupDrawn = cupOn() ? cupDraw() : null, cupP = cupDrawn ? CUP.cupPins(cupDrawn) : [];
@@ -2761,7 +2772,7 @@ actions.smBuild = () => {
   const bad = [...r.count.values()].filter(n => n !== 82).length;
   f.smUndo.games = [...r.count.values()].reduce((a, n) => a + n, 0) / 2; f.smUndo.days = r.days;
   state.dirty = true;
-  toast('🗓️ Schedule built', bad ? `${bad} teams aren't at 82: check the settings` : 'Opening Night and Christmas are set.', 3200, !!bad);
+  toast('🗓️ Schedule built', bad ? `${bad} teams aren't at 82: check the settings` : 'Opening Night, Christmas and MLK Day are set.', 3200, !!bad);
   render();
 };
 actions.smUndo = () => {
