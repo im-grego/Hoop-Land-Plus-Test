@@ -80,3 +80,44 @@ export function defaultSlate(cands, champ = null) {
   const mlk = slateFor(cands, 'mlk', 4, seen);
   return { opening, christmas, mlk };
 }
+
+// Any league (college too): the unplayed season laid out again with the pinned games on their days and everything
+// else filled around them, the way the game lays its own out (teams with the most games left first, nobody twice in a
+// day). The same games, home and away as they were; the special days (exhibitions, the All-Star day) back where they
+// were. `pins` = [{ day, h, a }] (either way round). Returns { placed, days }.
+export function placeAround(L, pins, seed = 1) {
+  const S = L.season, old = S.schedule || [];
+  const reg = [], special = [];
+  old.forEach((d, i) => { const sp = (d.results || []).filter(g => !(g.gameType === 0 && g.homeTeam && g.awayTeam)); if (sp.length) special.push([i, sp]); for (const g of d.results || []) if (g.gameType === 0 && g.homeTeam && g.awayTeam) reg.push(g); });
+  if (reg.some(g => g.homeScore || g.awayScore)) return { placed: 0, days: old.length };
+  let s = seed >>> 0; const rng = () => { s = (s + 0x6D2B79F5) >>> 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const used = new Set(), nights = new Map();
+  let placed = 0;
+  for (const p of pins) {
+    const g = reg.find(x => !used.has(x) && ((x.homeTeam === p.h && x.awayTeam === p.a) || (x.homeTeam === p.a && x.awayTeam === p.h)));
+    if (!g) continue;
+    used.add(g); (nights.get(p.day) || nights.set(p.day, []).get(p.day)).push(g); placed++;
+  }
+  const left = new Map();
+  for (const g of reg) for (const id of [g.homeTeam, g.awayTeam]) left.set(id, (left.get(id) || 0) + 1);
+  let pool = reg.filter(g => !used.has(g)).sort(() => rng() - 0.5);
+  const days = [];
+  for (let day = 0; (pool.length || [...nights.keys()].some(k => k >= day)) && day < 400; day++) {
+    const busy = new Set(), today = [];
+    const add = g => { today.push(g); busy.add(g.homeTeam); busy.add(g.awayTeam); left.set(g.homeTeam, left.get(g.homeTeam) - 1); left.set(g.awayTeam, left.get(g.awayTeam) - 1); };
+    for (const g of nights.get(day) || []) if (!busy.has(g.homeTeam) && !busy.has(g.awayTeam)) add(g); else pool.push(g);
+    pool.sort((x, y) => (left.get(y.homeTeam) + left.get(y.awayTeam)) - (left.get(x.homeTeam) + left.get(x.awayTeam)));
+    const rest = [];
+    for (const g of pool) { if (!busy.has(g.homeTeam) && !busy.has(g.awayTeam)) add(g); else rest.push(g); }
+    pool = rest;
+    days.push(today);
+  }
+  const sched = days.map(d => ({ results: d }));
+  for (const [i, sp] of special) sched.splice(Math.min(i, sched.length), 0, { results: sp });
+  S.schedule = sched;
+  let id = 1;
+  for (const d of sched) for (const g of d.results) if (g.gameType === 0) g.gId = id++;
+  for (const d of sched) for (const g of d.results) if (g.gameType !== 0) g.gId = id++;
+  if (L.meta) L.meta.uGID = id - 1;
+  return { placed, days: sched.length };
+}

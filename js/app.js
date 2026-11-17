@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.126';
+const APP_VERSION = '0.365.127';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3292,15 +3292,20 @@ function collegeSeasonCard() {
   const tName = t => `${t.logoURL ? `${logoImg(t)} ` : ''}<b class="${isUserTeam(t) ? 'gold' : ''}">${esc(t.shortName)}</b>`;
   const rank = poll(me);
   const started = played.length > 0;
-  return `<fieldset class="frame"><legend>🏀 ${dispYr(yr)} Season</legend>
+  const ciW = colCiWindow(L), ciDone = ciW && Object.keys(prog().colCi?.[`${cpYr()}:${ciW}`] || {}).length;
+  const rivals = colRivals(me, L), nextRival = games.filter(g => !played.includes(g)).find(g => rivals.some(r => r.t.id === g.opp));
+  const myDraft = (() => { const B = colBoard(), prev = draftPrev(); return B.list.filter(x => x.t === me && x.rank <= 60).slice(0, 2).map(x => `${esc(shortName(x.p))} <span class="muted">${esc(x.label)}${prev?.[x.p.id] && prev[x.p.id] !== x.rank ? ` ${prev[x.p.id] > x.rank ? `<span class="up">▲${prev[x.p.id] - x.rank}</span>` : `<span class="down">▼${x.rank - prev[x.p.id]}</span>`}` : ''}</span>`); })();
+  return `${colMadnessCard()}${colSmBox()}${ciW ? `<fieldset class="frame"><legend>💬 Season Check-in</legend><p class="note small">Check-in ${ciW} of 2: minutes, morale and who's thinking about the portal.${ciDone ? ` You've talked to ${ciDone}.` : ''}</p><button class="btn ${ciDone ? '' : 'focus'}" data-act="nav" data-to="colCheckin">💬 The Locker Room</button></fieldset>` : ''}<fieldset class="frame"><legend>🏀 ${dispYr(yr)} Season</legend>
     <div class="bio-grid"><div class="bio-box"><span class="glbl">Record</span><b>${st(me).W || 0}-${st(me).L || 0}</b></div><div class="bio-box"><span class="glbl">Conference</span><b>${wl(st(me).CONF)}</b></div><div class="bio-box"><span class="glbl">AP Poll</span><b>${rank ? `#${rank}` : 'NR'} ${(p => (p ? moveTag(rank, p.poll?.[me.id] ?? null) : ''))(pollPrev())}</b></div></div>
-    ${(() => { const B = bracketology(), x = B.field.find(f => f.t.id === me.id), bub = B.lastIn.some(r => r.t.id === me.id) ? ' · last four in' : B.firstOut.some(r => r.t.id === me.id) ? ' · first four out' : ''; return started ? `<p class="note small" style="margin:6px 0 0">📋 Bracketology: ${x ? `<b>${x.seed} seed</b> in the ${x.region}` : '<b class="down">out</b>'}${bub}</p>` : ''; })()}
+    ${(() => { const B = bracketology(), x = B.field.find(f => f.t.id === me.id), bub = B.lastIn.some(r => r.t.id === me.id) ? ' · last four in' : B.firstOut.some(r => r.t.id === me.id) ? ' · first four out' : ''; return started && !(L.season.playoffs || []).some(p => p.yr === yr && (p.rounds || []).length) ? `<p class="note small" style="margin:6px 0 0">📋 Bracketology: ${x ? `<b>${x.seed} seed</b> in the ${x.region}` : '<b class="down">out</b>'}${bub}</p>` : ''; })()}
     ${!started ? '<p class="note small">Tip-off: the season starts with your first game in Hoop Land.</p>' : ''}
     ${last.length ? `<p class="note small" style="margin:8px 0 2px"><b>Last ${last.length}</b></p><div class="stack">${last.reverse().map(x => `<div class="small"><span class="${x.won ? 'up' : 'down'}"><b>${x.won ? 'W' : 'L'}</b> ${x.mine}-${x.theirs}</span> ${x.g.home ? 'vs' : '@'} ${tName(opp(x.g.opp))}${poll(opp(x.g.opp)) ? ` <span class="muted">#${poll(opp(x.g.opp))}</span>` : ''}</div>`).join('')}</div>` : ''}
     ${next.length ? `<p class="note small" style="margin:8px 0 2px"><b>Up next</b></p><div class="stack">${next.map(g => `<div class="small">${g.home ? 'vs' : '@'} ${tName(opp(g.opp))}${poll(opp(g.opp)) ? ` <span class="muted">#${poll(opp(g.opp))}</span>` : ''} <span class="muted">· ${st(opp(g.opp)).W || 0}-${st(opp(g.opp)).L || 0}</span></div>`).join('')}</div>` : ''}
     ${leaders.length ? `<p class="note small" style="margin:8px 0 2px"><b>Your leaders</b></p><div class="stack">${leaders.map(({ p, l }) => `<div class="small"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b> <span class="muted">${l.ppg.toFixed(1)} pts · ${l.rpg.toFixed(1)} reb · ${l.apg.toFixed(1)} ast</span></div>`).join('')}</div>` : ''}
     ${(() => { const k = kind => me.roster.filter(p => streakOf(p.id) === kind).map(p => `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(shortName(p))}</b>`); const h = k('hot'), c = k('cold'); return h.length || c.length ? `<p class="note small" style="margin:8px 0 0">${h.length ? `🔥 ${h.join(', ')}` : ''}${h.length && c.length ? ' · ' : ''}${c.length ? `❄️ ${c.join(', ')}` : ''}</p>` : ''; })()}
-    <div class="grid2" style="margin-top:8px"><button class="btn small" data-act="nav" data-to="colPoll">🗳️ Top 25</button><button class="btn small" data-act="nav" data-to="colPoll" data-arg="bracket">📋 Bracketology</button><button class="btn small" data-act="nav" data-to="standings">📊 Standings</button><button class="btn small" data-act="nav" data-to="injuries">🩹 Injuries</button></div>
+    ${nextRival ? `<p class="note small" style="margin:6px 0 0">🔥 Rivalry game: ${nextRival.home ? 'vs' : '@'} <b>${esc(L.teams.find(x => x.id === nextRival.opp)?.shortName || '')}</b> (${esc(rivals.find(r => r.t.id === nextRival.opp).label)}), week ${colWeek(nextRival.day)}</p>` : ''}
+    ${myDraft.length ? `<p class="note small" style="margin:6px 0 0">🏀 Draft watch: ${myDraft.join(' · ')}</p>` : ''}
+    <div class="grid2" style="margin-top:8px"><button class="btn small" data-act="nav" data-to="colAwards">🏅 Award Races</button><button class="btn small" data-act="nav" data-to="colDraft">🏀 Draft Watch</button><button class="btn small" data-act="nav" data-to="colVisits">🎟️ Official Visits</button><button class="btn small" data-act="nav" data-to="colPoll">🗳️ Top 25</button><button class="btn small" data-act="nav" data-to="colPoll" data-arg="bracket">📋 Bracketology</button><button class="btn small" data-act="nav" data-to="standings">📊 Standings</button><button class="btn small" data-act="nav" data-to="injuries">🩹 Injuries</button></div>
     <p class="note small muted" style="margin-top:6px">The offseason opens when the season's over: load your Season Complete file.</p></fieldset>`;
 }
 // ---- College: the weekly poll and bracketology. The game keeps this week's AP poll on each team; the app keeps a
@@ -3322,7 +3327,8 @@ function pollSnapshot() {
   const poll = Object.fromEntries(L.teams.map(t => [t.id, colPoll(t)]).filter(([, v]) => v));
   const all = Object.fromEntries(L.teams.map(t => [t.id, colRow(t).poll]).filter(([, v]) => v >= 1 && v <= 40));
   const seeds = Object.fromEntries(bracketology().field.map(x => [x.t.id, x.seed]));
-  log.push({ day, poll, all, seeds });
+  const draft = Object.fromEntries(colBoard().list.slice(0, 100).map(x => [x.p.id, x.rank]));
+  log.push({ day, poll, all, seeds, draft });
   log.sort((a, b) => a.day - b.day);
   try { localStorage.setItem(pollKey(), JSON.stringify(log.slice(-30))); } catch { /* ignore */ }
 }
@@ -3420,6 +3426,287 @@ screens.colPoll = (args = {}) => {
     </fieldset>`;
   layout({ title: 'Poll & Bracketology', body: uiTabs('colpoll', [['poll', 'Top 25', pollTab], ['bracket', 'Bracketology', brTab]], args.tab || args.arg || 'poll') });
 };
+// ---- College in season, round two: rivalries, the NBA draft watch, the mid-season check-in, award races, official
+// visits, the March Madness hub and the schedule maker.
+
+// Real rivalries, matched by the team's full name (or its name alone for a school the save leaves without a city).
+const COL_RIVALS = [
+  ['Duke Blue Devils', 'North Carolina Tar Heels', 'Tobacco Road'], ['Kentucky Wildcats', 'Louisville Cardinals|=Cardinals', 'Battle for the Bluegrass'],
+  ['Kansas Jayhawks', 'Kansas State Wildcats', 'Sunflower Showdown'], ['Kansas Jayhawks', 'Missouri Tigers', 'Border War'],
+  ['Indiana Hoosiers', 'Purdue Boilermakers', 'Indiana vs. Purdue'], ['Michigan Wolverines', 'Michigan State Spartans', 'In-state war'],
+  ['Michigan Wolverines', 'Ohio State Buckeyes', 'The Game'], ['Arizona Wildcats', 'Arizona State Sun Devils', 'Duel in the Desert'],
+  ['UCLA Bruins', 'USC Trojans', 'L.A.\'s rivalry'], ['Villanova Wildcats', 'Georgetown Hoyas', 'Big East blood'], ['Syracuse Orange', 'Georgetown Hoyas', 'Old Big East'],
+  ['Cincinnati Bearcats', 'Xavier Musketeers', 'Crosstown Shootout'], ['Alabama Crimson Tide', 'Auburn Tigers', 'Iron Bowl on hardwood'],
+  ['Texas Longhorns', 'Texas A&M Aggies', 'Lone Star Showdown'], ['Oklahoma Sooners', 'Oklahoma State Cowboys', 'Bedlam'],
+  ['Iowa Hawkeyes', 'Iowa State Cyclones', 'Cy-Hawk'], ['Florida Gators', 'Florida State Seminoles', 'Sunshine Showdown'],
+  ['Kentucky Wildcats', 'Tennessee Volunteers', 'SEC grudge'], ['Marquette Golden Eagles', 'Wisconsin Badgers', 'I-94 rivalry'],
+  ['BYU Cougars', 'Utah Utes', 'Holy War'], ['Pittsburgh Panthers', 'West Virginia Mountaineers', 'Backyard Brawl'],
+  ['Virginia Cavaliers', 'Virginia Tech Hokies', 'Commonwealth Clash'], ['North Carolina State Wolfpack', 'North Carolina Tar Heels', 'Triangle rivalry'],
+  ['UConn Huskies', 'Syracuse Orange', 'Old Big East'], ['Washington Huskies', 'Washington State Cougars', 'Apple Cup'],
+  ['Oregon Ducks', 'Oregon State Beavers', 'Civil War'], ['Stanford Cardinal', 'California Golden Bears', 'The Big Game'],
+  ['Clemson Tigers', 'South Carolina Gamecocks', 'Palmetto rivalry'], ['Georgia Bulldogs', 'Georgia Tech Yellow Jackets', 'Clean, Old-Fashioned Hate'],
+  ['Ole Miss Rebels', 'Mississippi State Bulldogs', 'Egg Bowl'], ['Louisville Cardinals|=Cardinals', 'Memphis Tigers', 'Old Metro rivalry'],
+];
+const colIs = (t, key) => key.split('|').some(k => (k.startsWith('=') ? !t.city && (t.name || '').trim() === k.slice(1) : teamFull(t).toLowerCase().trim() === k.toLowerCase()));
+// Your rivals: [{ t, label }].
+function colRivals(me, L = league()) {
+  if (!me) return [];
+  const out = [];
+  for (const [a, b, label] of COL_RIVALS) {
+    const other = colIs(me, a) ? b : colIs(me, b) ? a : null;
+    if (!other) continue;
+    const t = L.teams.find(x => x !== me && colIs(x, other));
+    if (t && !out.some(o => o.t === t)) out.push({ t, label });
+  }
+  return out;
+}
+const colRivalOf = (me, opp) => colRivals(me).find(r => r.t === opp) || null;
+// The series in this league (the game's head-to-head record).
+const colSeries = (me, opp) => { const h = (me.headToHeads || []).find(x => x.tid === opp.id); return h ? `${h.W}-${h.L}` : '0-0'; };
+const colRivalLine = (me, opp) => { const r = colRivalOf(me, opp); return r ? `🔥 Rivalry: ${r.label} · you're ${colSeries(me, opp)} against ${opp.shortName}` : ''; };
+
+// The NBA draft watch: the college big board (level, ceiling, youth), and each player's move since the last file.
+const colBoard = () => CP.draftBoard(league(), shownLevel);
+const draftPrev = () => pollPrev()?.draft || null;
+// Regular-season days (the schedule before the conference tournaments and the NCAA tournament).
+function colRegDays(L = league()) {
+  const sc = L.season.schedule || [];
+  let last = -1;
+  sc.forEach((d, i) => { if ((d.results || []).some(g => g.gameType === 0 && !g.tRound && g.homeTeam && g.awayTeam)) last = i; });
+  return last + 1 || sc.length;
+}
+// The postseason has started: a conference tournament game on the schedule up to today, or the NCAA field set.
+function colPost(L = league()) {
+  const S = L.season, day = S.currentDay || 0, yr = S.currentYear;
+  if ((S.playoffs || []).some(p => p.yr === yr && (p.rounds || []).length)) return true;
+  return (S.schedule || []).some((d, i) => i <= day && (d.results || []).some(g => g.gameType === 2));
+}
+
+// ---- The mid-season check-in: two windows (about a third and two thirds of the way). Each rotation player's minutes,
+// morale and what's on his mind; a word from you (once a window) moves his morale, and it goes into the save.
+function colCiWindow(L = league()) {
+  const S = L.season, n = colRegDays(L), d = S.currentDay || 0;
+  if (S.phase < 9 || S.phase >= 15 || colPost(L)) return null;
+  if (d >= Math.round(n * 0.3) && d < Math.round(n * 0.55)) return 1;
+  if (d >= Math.round(n * 0.65) && d < Math.round(n * 0.92)) return 2;
+  return null;
+}
+function colCiRows(t) {
+  const L = league(), yr = L.season.currentYear;
+  const ps = t.roster.map(p => ({ p, l: seasonLine(p, state.leagueIdx, yr), lv: shownLevel(p) }));
+  const byLv = [...ps].sort((a, b) => b.lv - a.lv), byMin = [...ps].sort((a, b) => (b.l?.mpg || 0) - (a.l?.mpg || 0));
+  return byLv.slice(0, 11).map(x => {
+    const lvRank = byLv.indexOf(x) + 1, minRank = byMin.indexOf(x) + 1, morale = x.p.season?.morale ?? 70, fr = (x.p.yrs ?? 0) === 0;
+    const wants = lvRank <= 8 && minRank - lvRank >= 3 ? 'wants more minutes' : fr && lvRank <= 6 && !(x.l?.starts > (x.l?.gp || 0) / 2) ? 'a freshman pushing to start' : morale < 45 ? 'unhappy' : null;
+    // Portal risk: playing under his level, low morale, and the minutes ahead of him.
+    const risk = Math.max(2, Math.min(70, Math.round((wants ? 18 : 4) + Math.max(0, minRank - lvRank) * 3 + Math.max(0, 65 - morale) * 0.6 + (fr ? 0 : 3))));
+    return { ...x, lvRank, minRank, morale, wants, risk };
+  });
+}
+screens.colCheckin = () => {
+  const L = league(), t = L.teams.find(isUserTeam), w = colCiWindow(L);
+  if (!isCollege() || !t) { goHome(); return; }
+  const P = prog(), yr = cpYr(), key = `${yr}:${w || 0}`, done = ((P.colCi ||= {})[key] ||= {});
+  const rows = colCiRows(t);
+  const act = (r, k, l) => `<button class="btn small ${k === 'leave' ? 'off' : ''}" data-act="colCiAct" data-id="${r.p.id}" data-k="${k}" ${done[r.p.id] || !w ? 'disabled' : ''}>${l}</button>`;
+  layout({ title: 'Season Check-in', body: `<p class="note small">${w ? `Check-in ${w} of 2. A word from you moves a player's morale (it goes into the save). Each player once a check-in.` : 'Check-ins open about a third and two thirds of the way through the regular season.'}</p>
+    <div class="stack">${rows.map(r => `<div class="drill-row wrap"><span class="grow"><b class="tap" data-act="openPlayer" data-id="${r.p.id}">${esc(playerName(r.p))}</b> ${lvTag(r.p)} <span class="muted small">${esc(posName(r.p))} · ${['Fr', 'So', 'Jr', 'Sr'][Math.min(3, r.p.yrs ?? 0)] || ''}</span><br>
+      <span class="small">${(r.l?.mpg || 0).toFixed(1)} MPG · ${(r.l?.ppg || 0).toFixed(1)} PPG · morale <b class="${r.morale >= 70 ? 'up' : r.morale < 45 ? 'down' : ''}">${r.morale}</b> · portal risk <b class="${r.risk >= 30 ? 'down' : ''}">${r.risk}%</b></span>
+      ${r.wants ? `<br><span class="small gold">${esc(r.wants)}</span>` : ''}${done[r.p.id] ? `<br><span class="small muted">${esc(done[r.p.id])}</span>` : ''}</span>
+      ${w && !done[r.p.id] ? `<span class="grid3" style="width:100%;margin-top:6px">${act(r, 'talk', '💬 Talk')}${act(r, 'promise', r.wants === 'wants more minutes' ? '⏱️ Promise minutes' : '⭐ Praise')}${act(r, 'leave', 'Leave it')}</span>` : ''}</div>`).join('')}</div>` });
+};
+actions.colCiAct = d => {
+  const L = league(), t = L.teams.find(isUserTeam), w = colCiWindow(L); if (!t || !w) return;
+  const P = prog(), key = `${cpYr()}:${w}`, done = ((P.colCi ||= {})[key] ||= {});
+  const p = t.roster.find(x => x.id === +d.id); if (!p || done[p.id]) return;
+  const r = colCiRows(t).find(x => x.p.id === p.id), add = d.k === 'talk' ? (r?.wants ? 6 : 3) : d.k === 'promise' ? (r?.wants ? 10 : 5) : (r?.wants ? -4 : 0);
+  if (p.season) p.season.morale = Math.max(0, Math.min(100, (p.season.morale ?? 70) + add));
+  done[p.id] = d.k === 'talk' ? `You talked it through (morale ${add >= 0 ? '+' : ''}${add}).` : d.k === 'promise' ? `${r?.wants === 'wants more minutes' ? 'You promised him more minutes' : 'You praised him in front of the team'} (morale +${add}).` : `You let it be${add ? ` (morale ${add})` : ''}.`;
+  if (d.k === 'promise' && r?.wants === 'wants more minutes') { ((P.colPromise ||= {})[cpYr()] ||= []).push(p.id); }
+  saveProg(); state.dirty = true; render();
+};
+
+// ---- Award races: Player of the Year, Freshman of the Year, the All-Americans, your All-Conference team and Coach
+// of the Year. A player's score: his game score a game (36 minutes-ish), a share for winning and for playing big minutes.
+function colAwardScores() {
+  const L = league(), yr = L.season.currentYear, R = colResumes();
+  return L.teams.flatMap(t => t.roster.map(p => { const l = seasonLine(p, state.leagueIdx, yr); if (!l || l.gp < Math.max(3, Math.round(colRegDays(L) * 0.2))) return null;
+    const wp = R.get(t.id)?.pct ?? 0.5, sc = l.gs * (0.75 + wp * 0.5) * Math.min(1, 0.6 + l.mpg / 25);
+    return { p, t, l, sc, fr: (p.yrs ?? 0) === 0 }; })).filter(Boolean).sort((a, b) => b.sc - a.sc);
+}
+screens.colAwards = () => {
+  const L = league(), me = L.teams.find(isUserTeam);
+  if (!isCollege()) { goHome(); return; }
+  const all = colAwardScores(), R = colResumes(), post = colPost(L) || L.season.phase >= 15;
+  const row = (x, i) => `<div class="drill-row"><span class="pk">${i + 1}</span><span class="grow"><b class="tap ${isUserTeam(x.t) ? 'gold' : ''}" data-act="openPlayer" data-id="${x.p.id}">${esc(playerName(x.p))}</b> <span class="muted small">${esc(x.t.shortName)} · ${esc(posName(x.p))}</span><br><span class="small">${x.l.ppg.toFixed(1)} pts · ${x.l.rpg.toFixed(1)} reb · ${x.l.apg.toFixed(1)} ast · ${R.get(x.t.id)?.w || 0}-${R.get(x.t.id)?.l || 0}</span></span></div>`;
+  const aa = all.slice(0, 15), team = (n, list) => `<p class="note small" style="margin:6px 0 2px"><b>${n}</b></p><div class="stack">${list.map((x, i) => `<div class="small">${esc(playerName(x.p))} <span class="muted">${esc(x.t.shortName)} · ${x.l.ppg.toFixed(1)} ppg</span></div>`).join('')}</div>`;
+  const conf = me ? all.filter(x => x.t.division === me.division).slice(0, 5) : [];
+  // Coach of the Year: the team furthest past where it started (the first poll this season, else unranked = 40).
+  const first = pollLog()[0]?.all || {};
+  const coy = [...R.values()].filter(r => r.w + r.l >= 5).map(r => ({ r, d: (first[r.t.id] || 40) - (colRow(r.t).poll || 40) + r.pct * 10 })).sort((a, b) => b.d - a.d).slice(0, 5);
+  layout({ title: 'Award Races', body: `<p class="note small">${post ? 'The final ladders.' : `As of week ${colWeek(L.season.currentDay)}: production, winning and minutes.`}</p>
+    ${uiTabs('colaw', [
+      ['poy', 'Player', `<fieldset class="frame"><legend>🏅 Player of the Year</legend><div class="stack">${all.slice(0, 10).map(row).join('')}</div></fieldset>`],
+      ['foy', 'Freshman', `<fieldset class="frame"><legend>🌱 Freshman of the Year</legend><div class="stack">${all.filter(x => x.fr).slice(0, 10).map(row).join('') || '<p class="note muted">No freshmen in the race yet.</p>'}</div></fieldset>`],
+      ['aa', 'All-America', `<fieldset class="frame"><legend>📜 All-American Teams</legend>${team('First Team', aa.slice(0, 5))}${team('Second Team', aa.slice(5, 10))}${team('Third Team', aa.slice(10, 15))}${me ? `<p class="note small" style="margin-top:10px"><b>All-${esc(confName(me) || 'Conference')}</b></p><div class="stack">${conf.map(x => `<div class="small">${esc(playerName(x.p))} <span class="muted">${esc(x.t.shortName)} · ${x.l.ppg.toFixed(1)} ppg</span></div>`).join('')}</div>` : ''}</fieldset>`],
+      ['coy', 'Coach', `<fieldset class="frame"><legend>🧑‍🏫 Coach of the Year</legend><p class="note small muted">Who's beaten expectations: where the team started in the poll against where it is.</p><div class="stack">${coy.map((x, i) => `<div class="drill-row"><span class="pk">${i + 1}</span><span class="grow"><b class="${isUserTeam(x.r.t) ? 'gold' : ''}">${esc(teamFull(x.r.t))}</b><br><span class="small">${x.r.w}-${x.r.l} · ${first[x.r.t.id] ? `started #${first[x.r.t.id]}` : 'started unranked'} · ${colPoll(x.r.t) ? `now #${colPoll(x.r.t)}` : 'unranked'}</span></span></div>`).join('')}</div></fieldset>`],
+    ], 'poy')}` });
+};
+
+// ---- Official visits: host recruits at a home game (three a season). The game decides how it goes; the pull it adds
+// (more for a win, most for a win over a ranked team) feeds the spring's recruiting with the rest of the program's pull.
+const COL_VISITS = 3;
+function colVisitsNow() { const P = prog(); return ((P.visits ||= {})[cpYr()] ||= []); }
+function colVisitPull(yr = cpYr()) {
+  const L = league(), vs = (prog().visits || {})[yr] || [];
+  return vs.reduce((a, v) => { const g = (L.season.schedule?.[v.day]?.results || []).find(x => x.homeTeam === v.home && x.awayTeam === v.away);
+    if (!g || !(g.homeScore || g.awayScore)) return a; const won = g.homeScore > g.awayScore; return a + (won ? (v.ranked ? 6 : 4) : 1); }, 0);
+}
+screens.colVisits = () => {
+  const L = league(), me = L.teams.find(isUserTeam), S = L.season;
+  if (!isCollege() || !me) { goHome(); return; }
+  const vs = colVisitsNow(), day = S.currentDay || 0;
+  const home = teamGames(L, me).filter(g => g.home && g.day >= day).slice(0, 12);
+  const opp = id => L.teams.find(t => t.id === id);
+  const res = v => { const g = (S.schedule?.[v.day]?.results || []).find(x => x.homeTeam === v.home && x.awayTeam === v.away); return g && (g.homeScore || g.awayScore) ? (g.homeScore > g.awayScore ? `<span class="up">W ${g.homeScore}-${g.awayScore}: the visitors loved it (+${v.ranked ? 6 : 4})</span>` : `<span class="down">L ${g.homeScore}-${g.awayScore}: a quiet ride home (+1)</span>`) : '<span class="muted">coming up</span>'; };
+  layout({ title: 'Official Visits', body: `<p class="note small">Bring recruits to a home game: ${COL_VISITS} visit weekends a season. A win sells the program (a win over a ranked team most of all), and it all adds to your pull when recruiting opens in the spring.</p>
+    <fieldset class="frame"><legend>🎟️ Your Visits (${vs.length}/${COL_VISITS})</legend>${vs.length ? `<div class="stack">${vs.map(v => `<div class="small">vs <b>${esc(opp(v.away)?.shortName || '?')}</b>${v.ranked ? ' <span class="muted">(ranked)</span>' : ''} · ${res(v)}</div>`).join('')}</div><p class="note small">Pull so far: <b class="up">+${colVisitPull()}</b></p>` : '<p class="note muted">None yet.</p>'}</fieldset>
+    <fieldset class="frame"><legend>🏟️ Upcoming Home Games</legend><div class="stack">${home.map(g => { const o = opp(g.opp), taken = vs.some(v => v.day === g.day);
+      return `<div class="drill-row"><span class="grow">vs <b>${esc(o?.shortName || '?')}</b>${colPoll(o) ? ` <span class="muted">#${colPoll(o)}</span>` : ''}${colRivalOf(me, o) ? ' 🔥' : ''}<br><span class="small muted">Week ${colWeek(g.day)}</span></span>${taken ? '<span class="small up">Visit set</span>' : `<button class="btn small" data-act="colVisit" data-day="${g.day}" data-away="${g.opp}" ${vs.length >= COL_VISITS || g.day <= day ? 'disabled' : ''}>Host a visit</button>`}</div>`; }).join('') || '<p class="note muted">No home games left.</p>'}</div></fieldset>` });
+};
+actions.colVisit = d => { const L = league(), me = L.teams.find(isUserTeam), vs = colVisitsNow(); if (!me || vs.length >= COL_VISITS) return; const o = L.teams.find(t => t.id === +d.away);
+  vs.push({ day: +d.day, home: me.id, away: +d.away, ranked: !!colPoll(o) }); saveProg(); toast('🎟️ Visit weekend set', `Recruits will be in the building against ${o?.shortName || ''}.`); render(); };
+
+// ---- NBA draft watch: the college big board and your players.
+screens.colDraft = () => {
+  const L = league(), me = L.teams.find(isUserTeam);
+  if (!isCollege()) { goHome(); return; }
+  const B = colBoard(), prev = draftPrev();
+  const chip = x => { const w = prev?.[x.p.id]; return !prev ? '' : w == null ? '<span class="mv-chip new">NEW</span>' : w > x.rank ? `<span class="mv-chip up">▲${w - x.rank}</span>` : w < x.rank ? `<span class="mv-chip down">▼${x.rank - w}</span>` : '<span class="mv-chip same">—</span>'; };
+  const card = x => { const tint = teamTint(x.t); return `<div class="recap-row ${isUserTeam(x.t) ? 'mine' : ''}" ${tint ? `style="${tint}"` : ''}><span class="pk">${x.rank}</span><span class="grow tap" data-act="openPlayer" data-id="${x.p.id}"><b>${esc(playerName(x.p))}</b><br><span class="small">${esc(x.t.shortName)} · ${esc(posName(x.p))} · ${x.p.age}y · ${esc(x.label)}</span></span>${chip(x)}</div>`; };
+  const mine = me ? B.list.filter(x => x.t === me && x.rank <= 75) : [];
+  layout({ title: 'NBA Draft Watch', body: `<p class="note small">How NBA scouts see the college game this week: level, ceiling and age.${prev ? ' Moves are since your last file.' : ' Moves start with your next file.'}</p>
+    ${me ? `<fieldset class="frame"><legend>📋 Your Prospects</legend>${mine.length ? `<div class="stack recap">${mine.map(card).join('')}</div>` : '<p class="note muted">Nobody on the board yet.</p>'}</fieldset>` : ''}
+    <fieldset class="frame"><legend>🏀 Big Board</legend><div class="stack recap">${B.list.slice(0, 30).map(card).join('')}</div></fieldset>` });
+};
+
+// ---- The March Madness hub: the conference tournaments, Selection Sunday, the bracket and One Shining Moment.
+function colMadness(L = league()) {
+  const S = L.season, yr = S.currentYear, po = (S.playoffs || []).find(p => p.yr === yr);
+  const games = (S.schedule || []).flatMap((d, day) => (d.results || []).map(g => ({ ...g, day })));
+  const conf = games.filter(g => g.gameType === 2);
+  const byConf = new Map();
+  for (const g of conf) { const t = L.teams.find(x => x.id === g.homeTeam); const c = t ? confName(t) : '?'; (byConf.get(c) || byConf.set(c, []).get(c)).push(g); }
+  const seedOf = t => colRow(t).seed || null, line = o => (o ? Math.ceil(o / 4) : null);
+  const ncaa = r => games.filter(g => g.gameType === 0 && g.tRound === r + 1);
+  return { po, byConf, seedOf, line, ncaa, rounds: po?.rounds || [] };
+}
+const ROUND_NAMES = n => ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite Eight', 'Final Four', 'National Championship'].slice(6 - n);
+screens.colMadness = (args = {}) => {
+  const L = league(), me = L.teams.find(isUserTeam);
+  if (!isCollege()) { goHome(); return; }
+  const M = colMadness(L), tm = id => L.teams.find(t => t.id === id), nm = id => esc(tm(id)?.shortName || '?');
+  const sc = g => { const w = g.homeScore > g.awayScore ? [g.homeTeam, g.homeScore, g.awayTeam, g.awayScore] : [g.awayTeam, g.awayScore, g.homeTeam, g.homeScore]; return g.homeScore || g.awayScore ? `<b class="${isUserTeam(tm(w[0]) || {}) ? 'gold' : ''}">${nm(w[0])}</b> ${w[1]}, <span class="${isUserTeam(tm(w[2]) || {}) ? 'gold' : ''}">${nm(w[2])}</span> ${w[3]}` : `${nm(g.awayTeam)} vs ${nm(g.homeTeam)}`; };
+  const ln = id => M.line(M.seedOf(tm(id) || {}));
+  // Conference tournaments.
+  const confTab = M.byConf.size ? [...M.byConf.entries()].map(([c, gs]) => { const last = gs[gs.length - 1], champ = last.homeScore || last.awayScore ? (last.homeScore > last.awayScore ? last.homeTeam : last.awayTeam) : null;
+    return `<fieldset class="frame"><legend>${esc(c)}</legend><div class="stack">${gs.map(g => `<div class="small">${sc(g)}</div>`).join('')}</div>${champ ? `<p class="note small up">🏆 ${esc(teamFull(tm(champ)))} win the ${esc(c)} and the automatic bid.</p>` : ''}</fieldset>`; }).join('') : '<p class="note">The conference tournaments start when the regular season ends.</p>';
+  // Selection Sunday.
+  const field = M.rounds[0]?.series || [];
+  const REG = ['East', 'West', 'South', 'Midwest'];
+  const regionOf = tId => REG[Math.floor(tId / 8) % 4];
+  const myS = me ? field.find(s => s.topSeed === me.id || s.lowerSeed === me.id) : null;
+  const proj = me && pollLog().filter(x => x.seeds).pop()?.seeds?.[me.id];
+  const selTab = field.length ? `<fieldset class="frame"><legend>📺 Selection Sunday</legend>
+      ${me ? `<p class="note">${myS ? `<b class="gold">${esc(teamFull(me))}</b>: a <b>${ln(me.id)} seed</b> in the ${regionOf(myS.tId)}${proj ? ` · we projected a ${proj} (${proj === ln(me.id) ? 'right on' : proj > ln(me.id) ? '<span class="up">better than projected</span>' : '<span class="down">lower than projected</span>'})` : ''}.` : `<b class="down">${esc(teamFull(me))} were left out.</b>${proj ? ` We had you a ${proj} seed.` : ''}`}</p>` : ''}
+      ${REG.map((r, ri) => `<p class="note small" style="margin:8px 0 2px"><b>${r}</b></p><div class="stack">${field.filter(s => Math.floor(s.tId / 8) % 4 === ri).map(s => `<div class="small">${ln(s.topSeed)} ${nm(s.topSeed)} vs ${ln(s.lowerSeed)} ${nm(s.lowerSeed)}</div>`).join('')}</div>`).join('')}</fieldset>`
+    : '<p class="note">The field is set on Selection Sunday, after the conference tournaments.</p>';
+  // The bracket, round by round, with upsets and your path.
+  const names = ROUND_NAMES(Math.max(1, M.rounds.length));
+  const upsets = [];
+  const brTab = M.rounds.length ? M.rounds.map((r, i) => { const gs = M.ncaa(i); if (!gs.length) return '';
+    const rows = gs.map(g => { const won = g.homeScore > g.awayScore ? g.homeTeam : g.awayTeam, lost = won === g.homeTeam ? g.awayTeam : g.homeTeam, up = g.homeScore || g.awayScore ? (ln(won) || 0) - (ln(lost) || 0) : 0;
+      if (up >= 4) upsets.push({ g, won, lost, up, round: names[i] });
+      const mine = me && (g.homeTeam === me.id || g.awayTeam === me.id);
+      return `<div class="small ${mine ? 'gold' : ''}">${up >= 4 ? '⚡ ' : ''}<span class="muted">${ln(g.homeTeam)}</span> ${nm(g.homeTeam)} ${g.homeScore || ''} · <span class="muted">${ln(g.awayTeam)}</span> ${nm(g.awayTeam)} ${g.awayScore || ''}</div>`; }).join('');
+    return `<fieldset class="frame"><legend>${esc(names[i])}</legend><div class="stack">${rows}</div></fieldset>`; }).reverse().join('') : '<p class="note">The bracket fills in as the tournament is played.</p>';
+  // Your run.
+  let myRun = '';
+  if (me && myS) { const mine = M.rounds.flatMap((r, i) => M.ncaa(i).filter(g => g.homeTeam === me.id || g.awayTeam === me.id).map(g => ({ g, i })));
+    const lastG = mine[mine.length - 1];
+    if (lastG && (lastG.g.homeScore || lastG.g.awayScore)) { const won = (lastG.g.homeTeam === me.id ? lastG.g.homeScore > lastG.g.awayScore : lastG.g.awayScore > lastG.g.homeScore);
+      myRun = won && lastG.i === M.rounds.length - 1 ? '🏆 National champions.' : won ? `Alive: through the ${names[lastG.i]}.` : `Out in the ${names[lastG.i]} to ${nm(lastG.g.homeTeam === me.id ? lastG.g.awayTeam : lastG.g.homeTeam)}.`; } }
+  // One Shining Moment: the champion, the final, the Most Outstanding Player (the champion's best tournament line), the Cinderella.
+  const fin = M.rounds.length ? M.ncaa(M.rounds.length - 1)[0] : null;
+  let osm = '';
+  if (fin && (fin.homeScore || fin.awayScore)) {
+    const champ = fin.homeScore > fin.awayScore ? fin.homeTeam : fin.awayTeam, ru = champ === fin.homeTeam ? fin.awayTeam : fin.homeTeam, ct = tm(champ);
+    const mop = (ct?.roster || []).map(p => ({ p, l: seasonLine(p, state.leagueIdx, L.season.currentYear, 'playoffs') })).filter(x => x.l?.gp).sort((a, b) => b.l.gs - a.l.gs)[0];
+    const cind = M.rounds.slice(2).flatMap(r => r.series.flatMap(s => [s.topSeed, s.lowerSeed])).map(id => ({ id, ln: ln(id) })).sort((a, b) => b.ln - a.ln)[0];
+    osm = `<fieldset class="frame oly-final"><legend>✨ One Shining Moment</legend>
+      <p class="note"><b>${esc(teamFull(ct))}</b> are national champions, beating ${esc(teamFull(tm(ru)))} ${Math.max(fin.homeScore, fin.awayScore)}-${Math.min(fin.homeScore, fin.awayScore)}.</p>
+      ${mop ? `<p class="note small">Most Outstanding Player: <b class="tap" data-act="openPlayer" data-id="${mop.p.id}">${esc(playerName(mop.p))}</b> (${mop.l.ppg.toFixed(1)} points, ${mop.l.rpg.toFixed(1)} rebounds a game in the tournament).</p>` : ''}
+      ${cind && cind.ln >= 7 ? `<p class="note small">Cinderella: the ${cind.ln}-seed ${esc(teamFull(tm(cind.id)))} made the Sweet 16.</p>` : ''}
+      ${upsets.length ? `<p class="note small">Biggest upset: ${upsets.sort((a, b) => b.up - a.up)[0].round}, ${ln(upsets[0].won)} ${nm(upsets[0].won)} over ${ln(upsets[0].lost)} ${nm(upsets[0].lost)}.</p>` : ''}
+      ${myRun ? `<p class="note small gold">Your season: ${esc(myRun)}</p>` : ''}</fieldset>`;
+  }
+  const upTab = upsets.length ? `<fieldset class="frame"><legend>⚡ Upsets</legend><div class="stack">${upsets.sort((a, b) => b.up - a.up).map(u => `<div class="small">${esc(u.round)}: ${ln(u.won)} ${nm(u.won)} over ${ln(u.lost)} ${nm(u.lost)}, ${Math.max(u.g.homeScore, u.g.awayScore)}-${Math.min(u.g.homeScore, u.g.awayScore)}</div>`).join('')}</div></fieldset>` : '';
+  layout({ title: 'March Madness', body: `${myRun && !osm ? `<p class="note gold">${esc(myRun)}</p>` : ''}${osm}${uiTabs('madhub', [['bracket', 'Bracket', brTab + upTab], ['selection', 'Selection', selTab], ['conf', 'Conf. Tourneys', confTab]], osm || M.rounds.length ? 'bracket' : 'conf')}` });
+};
+function colMadnessCard() {
+  const L = league(); if (!colPost(L)) return '';
+  const M = colMadness(L), me = L.teams.find(isUserTeam), myS = me && (M.rounds[0]?.series || []).find(s => s.topSeed === me.id || s.lowerSeed === me.id);
+  const fin = M.rounds.length ? M.ncaa(M.rounds.length - 1)[0] : null, done = fin && (fin.homeScore || fin.awayScore);
+  return `<fieldset class="frame"><legend>🏆 March Madness</legend><p class="note small">${done ? `${esc(teamFull(L.teams.find(t => t.id === (fin.homeScore > fin.awayScore ? fin.homeTeam : fin.awayTeam))))} are national champions.` : M.rounds.length ? (myS ? `You're a <b>${M.line(M.seedOf(me))} seed</b>. The bracket is live.` : 'The bracket is set. You were left out.') : 'Conference tournament week: the automatic bids are on the line.'}</p>
+    <button class="btn focus" data-act="nav" data-to="colMadness">🏆 ${done ? 'One Shining Moment' : M.rounds.length ? 'The Bracket' : 'Conference Tournaments'}</button></fieldset>`;
+}
+
+// ---- The schedule maker (a season-start file, before the first game): Opening Night, the Champions Classic and Rivalry
+// Week, then the season laid out around them (the same games, nobody twice a day).
+function colSmPicks(L = league()) {
+  const f = calFlags();
+  if (f.colSm) return f.colSm;
+  const R = colResumes(), str = t => (colRow(t).poll ? 30 - colRow(t).poll : 0) + (R.get(t.id)?.score || 0) * 0.1;
+  const prestige = t => (colRow(t).prestige > 0 ? colRow(t).prestige : 0) + str(t);
+  const top = [...L.teams].sort((a, b) => prestige(b) - prestige(a));
+  const used = new Set(), pair = (a, b) => { used.add(a.id); used.add(b.id); return [a.id, b.id]; };
+  const pickPairs = (list, n) => { const out = []; for (let i = 0; i < list.length && out.length < n; i++) for (let j = i + 1; j < list.length && out.length < n; j++) { const a = list[i], b = list[j]; if (used.has(a.id) || used.has(b.id) || !colHasGame(L, a.id, b.id)) continue; out.push(pair(a, b)); break; } return out; };
+  // The Champions Classic is Duke, Kentucky, Kansas and Michigan State when they play each other; else the next best.
+  const blue = ['Duke Blue Devils', 'Kentucky Wildcats', 'Kansas Jayhawks', 'Michigan State Spartans'].map(n => L.teams.find(t => colIs(t, n))).filter(Boolean);
+  const opening = pickPairs(top, 2), classic = pickPairs(blue, 2);
+  if (classic.length < 2) classic.push(...pickPairs(top, 2 - classic.length));
+  const rivalry = []; const seen = new Set();
+  for (const t of L.teams) for (const r of colRivals(t, L)) { const k = [t.id, r.t.id].sort().join('-'); if (seen.has(k) || !colHasGame(L, t.id, r.t.id)) continue; seen.add(k); rivalry.push([t.id, r.t.id]); }
+  return (f.colSm = { opening, classic, rivalry });
+}
+const colHasGame = (L, a, b) => (L.season.schedule || []).some(d => (d.results || []).some(g => g.gameType === 0 && ((g.homeTeam === a && g.awayTeam === b) || (g.homeTeam === b && g.awayTeam === a))));
+const colSmOn = () => { const L = league(); return isCollege() && L.season.phase === 9 && !(L.season.schedule || []).some(d => (d.results || []).some(g => g.homeScore || g.awayScore)); };
+function colSmBox() {
+  if (!colSmOn()) return '';
+  const L = league(), f = calFlags(), P = colSmPicks(L), tm = id => L.teams.find(t => t.id === id)?.shortName || '?';
+  const days = colRegDays(L), D = colSmDays(days);
+  // Day numbers as the game will show them: a special day (an exhibition) before a night pushes it back one.
+  const sp = (S0 => (S0.schedule || []).map((d, i) => ((d.results || []).some(g => g.gameType !== 0) ? i : -1)).filter(i => i >= 0))(L.season);
+  const dn = d => { let x = d; for (const i of sp) if (i <= x) x++; return x + 1; };
+  const list = (ps, sep = ' vs ') => ps.map(([a, b]) => `${esc(tm(a))}${sep}${esc(tm(b))}`).join(' · ') || '<span class="muted">none on the schedule</span>';
+  return `<fieldset class="frame"><legend>🗓️ Schedule Maker</legend><p class="note small">Before the first game: set the marquee nights and lay the season out around them. The same games, every team's count unchanged.</p>
+    <div class="stack small"><div>${dayIcon('opening')} <b>Opening Night</b> (Day ${dn(D.opening)}): ${list(P.opening)}</div><div>🏆 <b>Champions Classic</b> (Day ${dn(D.classic)}): ${list(P.classic)}</div><div>🔥 <b>Rivalry Week</b> (Days ${dn(D.rivalry)}–${dn(D.rivalry + 2)}): ${list(P.rivalry)}</div></div>
+    <div class="grid2" style="margin-top:8px">${f.colSmUndo ? '<button class="btn off" data-act="colSmUndo">↺ Undo</button>' : '<span></span>'}<button class="btn focus" data-act="colSmBuild">🗓️ ${f.colSmUndo ? 'Rebuild' : 'Build the Season'}</button></div>
+    ${f.colSmUndo ? '<p class="note small up" style="margin-top:6px">✓ Built. Export the file and load it in Hoop Land.</p>' : ''}</fieldset>`;
+}
+const colSmDays = days => ({ opening: 0, classic: Math.max(1, Math.round(days * 0.06)), rivalry: Math.max(3, Math.round(days * 0.78)) });
+actions.colSmBuild = () => {
+  const L = league(), S = L.season, f = calFlags(), P = colSmPicks(L);
+  if (!f.colSmUndo) f.colSmUndo = { sched: cloneData(S.schedule || []), uGID: L.meta?.uGID };
+  S.schedule = cloneData(f.colSmUndo.sched);
+  const D = colSmDays(colRegDays(L));
+  const pins = [...P.opening.map(([h, a]) => ({ day: D.opening, h, a })), ...P.classic.map(([h, a]) => ({ day: D.classic, h, a })), ...P.rivalry.map(([h, a], i) => ({ day: D.rivalry + (i % 3), h, a }))];
+  const r = SM.placeAround(L, pins, (saveSalt() ^ S.currentYear) >>> 0);
+  state.dirty = true;
+  toast('🗓️ Season built', `${r.placed} marquee games set · ${r.days} days`, 3200);
+  render();
+};
+actions.colSmUndo = () => { const L = league(), f = calFlags(); if (!f.colSmUndo) return; L.season.schedule = f.colSmUndo.sched; if (L.meta && f.colSmUndo.uGID != null) L.meta.uGID = f.colSmUndo.uGID; delete f.colSmUndo; state.dirty = true; render(); };
 function calendarCard() {
   const s = league().season;
   if (isCollege() && s.phase >= 9 && s.phase < 15) return collegeSeasonCard();
@@ -4121,7 +4408,7 @@ function nextGameCard() {
     const xmas = ng.d === xmasDay();
     return `<fieldset class="frame mu-card ${xmas ? 'xmas' : ''}"><legend>${xmas ? `${xmasIcon()} Christmas Day` : '🏀 Next Game'}</legend>
       <div class="mu-vs tap" data-act="nav" data-to="matchup"><span class="mu-tm">${logoImg(me, 'logo-sm')}<b>${esc(me.shortName)}</b><small>${rec(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(ng.opp, 'logo-sm')}<b>${esc(ng.opp.shortName)}</b><small>${rec(ng.opp)}</small></span></div>
-      ${keys.map(([i, s]) => `<p class="note small mu-key">${i} ${s}</p>`).join('')}
+      ${isCollege() && colRivalLine(me, ng.opp) ? `<p class="note small gold mu-key">${esc(colRivalLine(me, ng.opp))}</p>` : ''}${keys.map(([i, s]) => `<p class="note small mu-key">${i} ${s}</p>`).join('')}
       <button class="btn focus" data-act="nav" data-to="matchup">📋 Scouting Report</button></fieldset>`;
   } catch { return ''; }
 }
@@ -4358,7 +4645,7 @@ screens.matchup = () => {
   const xmas = ng.d === xmasDay();
   layout({
     title: 'Scouting Report',
-    body: `${xmas ? `<p class="note xmas-note">${xmasIcon()} <b>Christmas Day game</b></p>` : ''}<div class="mu-vs big"><span class="mu-tm">${logoImg(me)}<b>${esc(me.shortName)}</b><small>${rec(me)}</small><small class="muted">${l10(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(opp)}<b>${esc(opp.shortName)}</b><small>${rec(opp)}</small><small class="muted">${l10(opp)}</small></span></div>
+    body: `${xmas ? `<p class="note xmas-note">${xmasIcon()} <b>Christmas Day game</b></p>` : ''}${isCollege() && colRivalLine(me, opp) ? `<p class="note xmas-note gold">${esc(colRivalLine(me, opp))}</p>` : ''}<div class="mu-vs big"><span class="mu-tm">${logoImg(me)}<b>${esc(me.shortName)}</b><small>${rec(me)}</small><small class="muted">${l10(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(opp)}<b>${esc(opp.shortName)}</b><small>${rec(opp)}</small><small class="muted">${l10(opp)}</small></span></div>
       ${ptwCard(opp)}
       <fieldset class="frame"><legend>Keys to the Game</legend>${muKeys(me, opp).map(([i, s]) => `<p class="note small mu-key">${i} ${s}</p>`).join('')}</fieldset>
       <fieldset class="frame"><legend>How They Play</legend>${muStyle(opp).map(s => `<p class="note small mu-key">• ${esc(s)}</p>`).join('')}
@@ -22205,7 +22492,7 @@ function programCulture(t) {
   const P = prog(), yr = cpYr();
   const lg = CP.legacyOf(league(), t, P);
   const ex = CP.scheduleEffect(P.schedule[yr - 1]).exposure;
-  return lg.culture * (P.madness[yr - 1] ? 1.04 : 1) * (1 + ex * 0.005);
+  return lg.culture * (P.madness[yr - 1] ? 1.04 : 1) * (1 + (ex + colVisitPull(yr)) * 0.005);   // + the official visits from the season just played
 }
 // Every program decision back into the loaded save, plus the redshirt years owed.
 function applyCollegeProgram() {
