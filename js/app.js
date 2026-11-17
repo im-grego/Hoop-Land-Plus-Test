@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.125';
+const APP_VERSION = '0.365.126';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3320,8 +3320,9 @@ function pollSnapshot() {
   const log = pollLog(), day = s.currentDay || 0;
   if (log.some(x => x.day === day)) return;
   const poll = Object.fromEntries(L.teams.map(t => [t.id, colPoll(t)]).filter(([, v]) => v));
+  const all = Object.fromEntries(L.teams.map(t => [t.id, colRow(t).poll]).filter(([, v]) => v >= 1 && v <= 40));
   const seeds = Object.fromEntries(bracketology().field.map(x => [x.t.id, x.seed]));
-  log.push({ day, poll, seeds });
+  log.push({ day, poll, all, seeds });
   log.sort((a, b) => a.day - b.day);
   try { localStorage.setItem(pollKey(), JSON.stringify(log.slice(-30))); } catch { /* ignore */ }
 }
@@ -3385,16 +3386,19 @@ screens.colPoll = (args = {}) => {
   const risers = moves.filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 3), fallers = moves.filter(x => x.d < 0).sort((a, b) => a.d - b.d).slice(0, 3);
   const newIn = prev ? top.filter(t => was(t) == null) : [], droppedOut = prev ? Object.keys(prev.poll).map(Number).filter(id => !top.some(t => t.id === id)).map(id => L.teams.find(t => t.id === id)).filter(Boolean) : [];
   const wk = colWeek(L.season.currentDay);
-  const pollTab = `<fieldset class="frame"><legend>🗳️ AP Top 25 · Week ${wk}</legend>
-      ${prev ? `<p class="note small muted">Movement since your last file (week ${colWeek(prev.day)}).</p>` : '<p class="note small muted">The arrows start with your next file: the app keeps this week\'s poll to compare.</p>'}
-      ${me ? `<p class="note">${tName(me)}: ${colPoll(me) ? `<b>#${colPoll(me)}</b> ${prev ? moveTag(colPoll(me), was(me)) : ''}` : `<b>unranked</b>${prev && was(me) ? ` <span class="down small">(was #${was(me)})</span>` : ''}`}</p>` : ''}
-      <div class="stack">${top.map(t => `<div class="drill-row"><span class="pk">${colPoll(t)}</span><span class="grow">${tName(t)} <span class="muted small">${rec(t)} · ${esc(confName(t))}</span></span>${prev ? moveTag(colPoll(t), was(t)) : ''}</div>`).join('')}</div>
-      ${risers.length || fallers.length || newIn.length || droppedOut.length ? `<div class="stack" style="margin-top:8px">
-        ${risers.length ? `<p class="note small"><b class="up">Biggest risers:</b> ${risers.map(x => `${esc(x.t.shortName)} ▲${x.d}`).join(' · ')}</p>` : ''}
-        ${fallers.length ? `<p class="note small"><b class="down">Biggest fallers:</b> ${fallers.map(x => `${esc(x.t.shortName)} ▼${-x.d}`).join(' · ')}</p>` : ''}
-        ${newIn.length ? `<p class="note small"><b>New:</b> ${newIn.map(t => esc(t.shortName)).join(', ')}</p>` : ''}
-        ${droppedOut.length ? `<p class="note small"><b>Dropped out:</b> ${droppedOut.map(t => esc(t.shortName)).join(', ')}</p>` : ''}</div>` : ''}
-    </fieldset>`;
+  // Mock-draft style: a card per team (rank, logo and name, record and conference, the move on the right), then who
+  // dropped out and the bubble (the game ranks past 25) underneath, like the mock's "Out of the First Round".
+  const pollAll = t => { const v = colRow(t).poll; return v >= 1 ? v : null; };
+  const chip = (now, before) => (!prev ? '' : before == null ? '<span class="mv-chip new">NEW</span>' : before > now ? `<span class="mv-chip up">▲${before - now}</span>` : before < now ? `<span class="mv-chip down">▼${now - before}</span>` : '<span class="mv-chip same">—</span>');
+  const card = t => { const tint = teamTint(t);
+    return `<div class="recap-row ${isUserTeam(t) ? 'mine' : ''}" ${tint ? `style="${tint}"` : ''}><span class="pk">${colPoll(t)}</span>${t.logoURL ? logoImg(t).replace('<img ', '<img onerror="this.style.visibility=\'hidden\'" ') : '<span class="logo-gap"></span>'}
+      <span class="grow tap" data-act="nav" data-to="roster" data-arg="${t.id}"><b>${esc(teamFull(t))}</b><br><span class="small">${rec(t)} · ${esc(confName(t))}</span></span>${chip(colPoll(t), was(t))}</div>`; };
+  const outRow = (t, left, right) => `<div class="out-row"><b class="tap" data-act="nav" data-to="roster" data-arg="${t.id}">${esc(teamFull(t))}</b> <span class="muted small">${rec(t)} · ${esc(confName(t))}</span><span class="out-mv">${left}</span>${right ? `<span class="out-mv" style="margin-left:6px">${right}</span>` : ''}</div>`;
+  const bubbleT = L.teams.filter(t => { const v = pollAll(t); return v > 25 && v <= 30 && !droppedOut.includes(t); }).sort((a, b) => pollAll(a) - pollAll(b));
+  const pollTab = `<p class="note small">${prev ? `Week ${wk}: movement since your last file (week ${colWeek(prev.day)}).` : `Week ${wk}. The arrows start with your next file: the app keeps this week's poll to compare.`}${me ? ` ${esc(me.shortName)}: ${colPoll(me) ? `<b>#${colPoll(me)}</b>` : '<b>unranked</b>'}.` : ''}</p>
+    <div class="stack recap" style="margin-top:8px">${top.map(card).join('')}</div>
+    ${droppedOut.length ? `<fieldset class="frame"><legend>Dropped Out</legend><div class="stack">${droppedOut.map(t => outRow(t, `<span>#${prev.poll[t.id]}</span> → <span class="down">${pollAll(t) ? `#${pollAll(t)}` : 'NR'}</span>`)).join('')}</div></fieldset>` : ''}
+    ${bubbleT.length ? `<fieldset class="frame"><legend>On the Bubble</legend><p class="note small muted">Also receiving votes.</p><div class="stack">${bubbleT.map(t => { const b = prev?.all?.[t.id]; return outRow(t, `<span>#${pollAll(t)}</span>`, b ? (b > pollAll(t) ? `<span class="up">▲${b - pollAll(t)}</span>` : b < pollAll(t) ? `<span class="down">▼${pollAll(t) - b}</span>` : '') : ''); }).join('')}</div></fieldset>` : ''}`;
   // ---- Bracketology.
   const B = bracketology(), mine = me && B.field.find(x => x.t.id === me.id), prevSeed = me && prev?.seeds?.[me.id];
   const bubble = me && [...B.lastIn].some(r => r.t.id === me.id) ? 'last four in' : me && B.firstOut.some(r => r.t.id === me.id) ? 'first four out' : me && B.nextOut.some(r => r.t.id === me.id) ? 'next four out' : null;
