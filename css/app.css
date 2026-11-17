@@ -61,23 +61,27 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: flex;
   align-items: center;
 }
+/* The title comes in from the right, crosses all the way out the left, then comes in again: one at a time. One
+   transform does it all (100cqw = the box's width, -100% = the title's own), so the loop can't show it mid-reset. */
+.marquee { container-type: inline-size; }
 .marquee-track {
-  display: flex;
+  position: absolute; top: 0; bottom: 0; left: 0;
+  display: flex; align-items: center;
   white-space: nowrap;
-  animation: scroll 8s linear infinite;
+  transform: translateX(100cqw);
+  will-change: transform;
+  animation: scroll var(--md, 8s) linear infinite;
 }
 .marquee-track span {
   font-family: var(--pixel);
   font-size: 26px;
   letter-spacing: 4px;
-  padding-right: 80px;
   text-transform: uppercase;
 }
-@keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes scroll { from { transform: translateX(100cqw); } to { transform: translateX(-100%); } }
 @media (prefers-reduced-motion: reduce) {
-  .marquee-track { animation: none; }
+  .marquee-track { animation: none; position: static; transform: none; }
   .marquee { justify-content: center; }
-  .marquee-track span:nth-child(2) { display: none; }
 }
 
 .nav-btn {
@@ -2500,6 +2504,17 @@ body::after {
   background: var(--bg) url("../icons/bg-tile.jpg") 0 0 / 300px 200px repeat; image-rendering: pixelated;
 }
 #app { min-height: 100vh; min-height: 100lvh; box-sizing: border-box; }
+
+/* College / overseas box header: logo or flag, then the name on its own line and the tag under it */
+.col-hd { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; flex: 1; min-width: 0; }
+.col-hd b { white-space: nowrap; overflow: hidden; max-width: 100%; font-size: 18px; }
+.col-box .outlook-top .col-hd .status { margin-left: 0; }
+.col-box .outlook-top .flag { flex: none; box-shadow: 0 0 0 2px #0b2f6b; }
+.col-box.col-pro .outlook-top { background: linear-gradient(90deg, #14101e, #0b2f6b); margin: -12px -12px 4px; padding: 12px; border-bottom: 5px solid var(--gold); }
+
+/* A real school without a logo: its short name in a badge where the logo would be */
+.sch-badge { flex: none; display: grid; place-items: center; min-width: 56px; height: 56px; padding: 0 6px; border: 3px solid; font-weight: 900; font-size: 15px; letter-spacing: 0.02em; box-shadow: 0 2px 0 #0008; text-shadow: none; }
+
 /* Draft outlook: next year's picks, the rest in a dropdown */
 .ol-more { margin-top: 4px; }
 .ol-more > summary { cursor: pointer; color: var(--dim, #b9c8e8); font-weight: 700; padding: 2px 0; list-style: none; }
@@ -2507,6 +2522,10 @@ body::after {
 .ol-more > summary::before { content: "▸ "; }
 .ol-more[open] > summary::before { content: "▾ "; }
 .ol-more > .ol-yr { margin-top: 4px; }
+
+/* College/club box: the flag sits in the right corner */
+.col-box .outlook-top .col-flag { margin-left: auto; display: flex; align-items: center; }
+.logo-halo { filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff); }
 
 /* Dropbox upload progress */
 .dbx-bar { height: 14px; border: 2px solid var(--btn-edge, #1b5fc1); background: #0b2f6b; margin: 6px 0 4px; }
@@ -2590,3 +2609,21 @@ body::after {
 .ru-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, .08); }
 .ru-scroll .ru-list { margin: 4px 0; }
 html:has(.ru-box), html:has(.ru-box) body { overflow: hidden; }
+/* Pixel art inline with text (the holiday ball): crisp, about a line tall. */
+.px-art { height: 1.25em; width: auto; vertical-align: -0.28em; margin-right: 3px; image-rendering: pixelated; image-rendering: crisp-edges; }
+legend .px-art { height: 1.4em; vertical-align: -0.32em; }
+.xmas-note { text-align: center; margin: 0 0 6px; }
+/* Key dates: every icon in the same box, centered, so the names line up; the date on its own line under the name. */
+.sm-date { display: flex; align-items: flex-start; gap: 6px; }
+.sm-ic { flex: none; width: 1.6em; height: 1.6em; display: flex; align-items: center; justify-content: center; }
+.sm-ic .px-art { margin: 0; height: 1.35em; vertical-align: 0; }
+.sm-dates { gap: 6px 8px; }
+.sm-date b { white-space: nowrap; }
+.sm-date > span:last-child { min-width: 0; }
+@media (max-width: 359px) { .sm-date b { white-space: normal; } }
+/* A row of big numbers keeps a gap and shrinks to fit a phone (NIL Collective: Budget · Committed · Left). */
+.score-card { gap: 8px; }
+.score-card > div { min-width: 0; flex: 1 1 0; }
+.score-card .big-n { font-size: clamp(20px, 7vw, 34px); white-space: nowrap; }
+.recap-row .logo-gap { flex: none; width: 34px; }   /* a team with no logo keeps the names lined up */
+.out-row .out-mv + .out-mv { margin-left: 6px; }

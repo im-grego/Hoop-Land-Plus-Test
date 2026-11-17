@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.136';
+const APP_VERSION = '0.365.137';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -24948,7 +24948,7 @@ const DBX_FLAG = 'hlc:dbxbeta';
 // Test-site features: on everywhere but the live site (hooplandplus.com, or the live GitHub Pages path). 'hlc:lab' = '1'
 // turns them on in a browser, '0' turns them off (to check what the live site shows).
 // A build that previews the live site (the test site while a release is being filmed): test features off by default.
-const LIVE_PREVIEW = true;
+const LIVE_PREVIEW = false;
 const liveSite = () => LIVE_PREVIEW || counting() || (/\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus\//i.test(location.pathname));
 function labOn() { try { const v = localStorage.getItem('hlc:lab'); if (v === '0') return false; if (v === '1' || localStorage.getItem('hlc:dbxbeta') === '1') return true; } catch { /* ignore */ } return !liveSite(); }
 // ?lab=off shows a browser exactly what the live site shows (?lab=on turns the test features back on; it sticks).

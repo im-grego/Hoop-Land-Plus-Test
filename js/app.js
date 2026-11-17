@@ -3,10 +3,10 @@ import {
   setBlessed, playerName, heightStr, avgRating, lastSeasonMpg, leaguePlayers, snapshot, restore, diffPlayer, jerseyClashes, fixJerseyNumbers, undoJerseyNumbers, levelOf, cloneData, MINOR_INJURY, potCap, ceilTotal, canGrow,
 } from './savefile.js';
 import { collegeProduction, productionWord, setDevPlans, PLAN_ATTRS, DEFAULT_PARAMS, runProgression, buildSkillProfiles, rankSkillsFor, unlockSkill, mulberry32, runRookieBump, injuryRisk, earnsNaturalLongevity, productionScores, spendHeldPoints } from './progression.js';
-import { setMadeLines, groupOf as posGroupOf } from './draft.js';
+import { setMadeLines, setPreferMade, groupOf as posGroupOf } from './draft.js';
 import { LOGO_MAP } from './logomap.js';
 import { setMadeGameScores, collegeGameScore } from './progression.js';
-import { makeLines } from './madeprod.js';
+import { makeLines, clubFor, clubNamed } from './madeprod.js';
 import { buildSchedule, needsSchedule } from './schedule.js';
 import { SCREEN_HELP, SECTION_HELP } from './helptext.js';
 import {
@@ -76,45 +76,24 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.367.52';
+const APP_VERSION = '0.365.137';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
-const SHOWN_VERSION = 'Beta 0.2.1';
+const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
 // the player hasn't looked at yet.
 const DEVLOG = [
   { v: 'Beta 0.2.1', sections: [
-    ['Start a Franchise', [
-      'New start dates: Nov 14 and Nov 17, with real results, standings and stats through the night before and that day\'s injury report',
-      'Every start file uses the official NBA 2027 by Grego league: ratings, habits, looks, positions, skills, coaches and sim sliders',
-      'Roster Moves: Risers & Fallers: who went up or down in the latest ratings pass (level and potential), biggest moves first, on Risers and Fallers tabs',
-      'Files come ready to play: real jersey numbers, retired numbers in order on the rafters, gear and suits matched, lineups optimized',
-      'A player may wear a number retired for his family (Tim Hardaway Jr. in his dad\'s #10)',
-      'Nov 17 tells the real story: Dejounte Murray has asked out of New Orleans (Phoenix, Miami and Dallas are calling) and Hoop Gram\'s rumor mill has the names in the news. Nobody else starts on the trade block',
-      'Sim the Trade Block (on the home screen and in Hoop Gram): every player on the block shows the teams interested in him (up to three for a star, fewer for a role player), and a deal goes through when the offer is there. Some days nobody bites and he stays on the block. Murray\'s suitors each make an offer, and the odds decide where he lands',
-      'The lineup\'s bench starts sorted by level (By Minutes and By Position still re-sort it)',
-      'Your players on the block (Murray if you take over the Pelicans): the home screen\'s Your Offers card lists each interested team\'s package with its trade value against his. Accept one, or keep him. Sim the Trade Block is its own card. A deal around the league just names the other teams that showed interest',
-      'Every NBA team starts with its three real rivals and the history behind them',
-      'The real All-Star hosts: Phoenix in 2027, Miami in 2028',
-      'The team picker shows who\'s out (and how long) on the right of a top player\'s row',
-    ]],
     ['Features', [
       'Resume: the save you\'re working on is kept on your device, so closing the app doesn\'t lose it. Pick up where you left off from the start screen',
-      'Scouting Report: Player to Watch, the opponent\'s top scorer on a card (his league ranks and line), with three keys to stopping him read from his own game',
+      'The Expansion Draft step can be skipped',
+      'Screen titles scroll like a scoreboard: in from the right, all the way out the left, one at a time',
+      'Christmas games get the holiday ball: on the Next Game card, the Scouting Report, Schedule Release and the schedule maker',
+      'Settings → Look: Hide Potential keeps potential stars, potential up or down and regression age out of sight (Edit mode still shows them)',
+      'Hot and cold streaks (and other temporary changes) show in the app, but the file you export keeps everyone\'s real ratings',
+      'Scouting Report: Player to Watch, the opponent\'s top scorer on a card (his face in his team\'s colors, his league ranks and line), with three keys to stopping him',
       'Team stats show shot volume next to efficiency: shots, threes taken, the share of shots from three and free throws a game (Scouting Report and League → Teams)',
       'Scouting Report reads volume and efficiency together: a team that rarely shoots threes but makes them is called inside-out, not a three-point team',
       'Scouting Report team stats are colored green or red only when the gap is real; close numbers stay white',
-      'Free agency: a level 77+ player never falls through to a camp deal; a team (contenders first) signs him in Week 3',
-      'Editing a player\'s ratings shows the stat each rating drives right over its bar (shooting, scoring, minutes)',
-      'Edit Ceilings: lowering a ceiling below his rating takes the rating down with it',
-      'Player profile: his main stats up top under the stars, Trade and Cuts down by Done, personality and play style in Traits',
-      'Free agent lists show stars, level, position and age; the stats are on the player\'s page',
-      'Hot and cold streaks (and other temporary changes) show in the app, but the file you export keeps everyone\'s real ratings',
-      'The Expansion Draft step can be skipped',
-      'Class Lab: Match My League and Generate Names ask before restyling or renaming the whole class',
-      'Back and Home take you to the top of the screen',
-      'Roadmap: coming soon is the draft class overhaul, scouting, the Olympics, the in-season tournament and Career mode',
-      'Career mode steps back into testing while it gets finished: Career saves come back with it (see the Roadmap)',
-      'Privacy policy at hooplandplus.com/privacy.html: your saves stay on your device',
     ]],
     ['Bug Fixes', [
       'A step whose screen breaks now offers a Skip instead of leaving you stuck',
@@ -124,15 +103,10 @@ const DEVLOG = [
       'Strength, speed and stamina never drop below 8',
       'Surgery is only offered after a major injury',
       'Season Preview: an injury comeback counts no more than a season of games, and a player who missed the year is called out for the season',
-      'Defensive Player of the Year favorites need a track record',
       'Top stories only feature signings of Lv 80+ players',
       'Trades before draft day aren\'t called draft-day trades',
       'Media Day\'s Rumors tab shows rumors only',
       'Camp signings explain the 18-player offseason limit and dim the buttons when the roster is full',
-      'Your team\'s account no longer calls an opening-night win "another" one',
-      'Glasses (accessory 10) are no longer flagged as a gear mismatch',
-      'Roster Moves: the list scrolls on its own, and the page behind it stays put',
-      'The score ticker along the bottom keeps scrolling when you tap a button or change screens, instead of starting over',
     ]],
   ] },
   { v: 'Beta 0.2.0', sections: [
@@ -155,28 +129,9 @@ const DEVLOG = [
       'Team page shows points for, points against and margin with league ranks',
       'Trade machine: team logos, live cap bars, record and team tag, and a trade recap',
       'Lineup editor like the game\'s: swap players, set minutes by position, Optimize Lineup and Optimize Minutes',
-      'Swap a player in or out of the rotation, and sort the bench by level, minutes or position',
-      'Set a rotation of 5 to 12 players on any lineup tab, with suggested minutes for that size',
-      'Healthy Lineup: save your full-strength lineup and bring it back in one tap',
-      'Lineup changes save as you go',
-      'Promises on the lineup screen: see every starting-role and minutes promise you\'ve made, with a heads-up when a change breaks one',
       'Injuries show in games, with the game number a player is back for',
       'League ticker along the bottom with scores and the stat leaders',
       'Team logos saved in the app',
-      'Next Game card on the home screen with a full Scouting Report: keys to the game, how they play, team stats and ranks, matchups, injuries and who\'s hot',
-      'Hot and cold streaks: hot players get a temporary ratings boost and cold players a dip, shown on the ratings, lineup, My Team and check-ins',
-      'Hoop Gram team account hypes big nights and hot streaks, and welcomes new players (home state, MVPs, rings, All-Stars)',
-      'Realistic NBA settings from the main menu, with your pick of the 2027, 2028 and 2029 realistic draft classes',
-      'Team picker shows who\'s hot, cold or hurt among each team\'s best players (a white ✚ and Out for the injured), and the lineup screen marks injured players the same way',
-      'Home screen reorganized around your next game',
-      'Long names shrink to fit instead of getting cut off',
-      'Full screen when installed on Android',
-      'Draft outlook shows next year\'s picks, with the rest of your future picks in a dropdown',
-      'Draft tabs keep your place when you switch between Prospects, My Board and Front Office',
-      'G League send-down list runs from worst to best',
-      'Team page: Lineup, Coach and Payroll on one row, Fans and Chemistry as color-coded bars under the points boxes (tap for what moved them), History under the roster',
-      'After saving a season file: copy it to the clipboard, or upload it to Dropbox (with a progress bar) and the link is copied for Hoop Land',
-      'Potential can be set as high as 12 in the editor (no player gets past 10 on his own), and trade value keeps climbing with it',
     ]],
     ['CPU Logic', [
       'Rotations built from real NBA minutes',
@@ -188,10 +143,6 @@ const DEVLOG = [
       'Less dated player comparisons for prospects',
       'Future draft prospects are assigned schools',
       'CPU teams use the game\'s Optimized lineups so players return from injury on their own',
-      'Smarter starting spots: combo guards, wings and forwards placed by passing, height and weight',
-      'Developing rotations play young, high-potential players while still trying to win',
-      'Promised starters start, and promised minutes hold in Real NBA lineups too',
-      'Player meetings work on the one habit you talk about',
     ]],
     ['Bug Fixes', [
       'Season files with stray characters now load',
@@ -205,14 +156,6 @@ const DEVLOG = [
       'Importing a save no longer changes your lineup',
       'Trades made in Hoop Land show as trades',
       'Loading a new Start Today file clears the moves from your last start',
-      'Tapping a button no longer jumps the page',
-      'Back (and swiping back) from Edit Minutes returns to the lineup',
-      'Taking minutes from a player comes off his own position',
-      'A new save with the same name gets the Realistic NBA setup and realistic draft classes again',
-      'The background now reaches the bottom of the screen',
-      'Tiers on My Board show with a filter on',
-      'Team and player options on contracts already in their last year are cleared (a pending extension stays)',
-      'A prospect\'s class (Fr, So, Jr, Sr) matches his scouting background',
     ]],
   ] },
 ];
@@ -339,12 +282,19 @@ function madeStore() {
   if (madeCache?.key !== madeKey()) { let m = {}; try { m = JSON.parse(localStorage.getItem(madeKey())) || {}; } catch { m = {}; } madeCache = { key: madeKey(), m }; }
   return madeCache.m;
 }
+// An overseas prospect's league, by country (filled in as the real leagues come in); "Professional league" otherwise.
+const INTL_LEAGUES = {};
+// Country codes some class files use.
+const COUNTRY = { FR: 'France', ES: 'Spain', RS: 'Serbia', CA: 'Canada', AU: 'Australia', NZ: 'New Zealand', US: 'USA', HU: 'Hungary', LT: 'Lithuania', LK: 'Lithuania', DE: 'Germany', GR: 'Greece', TR: 'Turkey', IT: 'Italy', SI: 'Slovenia', HR: 'Croatia' };
+const intlLeague = ped => { const c = /International \(([^)]+)\)/.exec(ped || '')?.[1]; return (c && INTL_LEAGUES[c]) || ''; };
 function makeClassLines(cls, yr, meta = labMeta()) {
-  const need = cls.filter(p => !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0)));
+  const need = cls.filter(p => meta[p.id] || !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0)));
   if (!need.length) return;
   const m = madeStore();
   // Placed against the whole class (made-up and real alike), so a real season and a made-up one sit on the same scale.
-  const lines = makeLines(cls, { yr, pedOf: p => meta[p.id]?.ped || '', salt: saveSalt() });
+  const sch = assignSchools(cls, meta), progs = collegePrograms(), tierOf = p => { const s = sch[p.id]; if (s?.name) return realSchoolTier(s.name); return progs.find(x => x.li === s?.li && x.tid === s?.tid)?.kind || 'mid'; };
+  const lines = makeLines(cls, { yr, pedOf: p => meta[p.id]?.ped || '', salt: saveSalt(), tierOf, styleOf: p => meta[p.id]?.style || '', leagueOf: p => intlLeague(meta[p.id]?.ped || ''), rankOf: p => meta[p.id]?.rank ?? null,
+    clubOf: p => { const named = meta[p.id]?.club; if (named) return clubNamed(named); const c = /International \(([^)]+)\)/.exec(meta[p.id]?.ped || '')?.[1]; return c ? clubFor(COUNTRY[c] || c, { seed: (saveSalt() ^ Math.imul(p.id + 7, 2654435761)) >>> 0, rank: meta[p.id]?.rank ?? null }) : null; } });
   for (const p of need) if (!m[p.id]) m[p.id] = lines.get(p.id);
   try { localStorage.setItem(madeKey(), JSON.stringify(m)); } catch { /* storage full or blocked: lines stay for this session */ }
 }
@@ -367,6 +317,40 @@ const POWERHOUSES = ['Duke', 'Kentucky', 'Kansas', 'North Carolina', 'UCLA', 'Ar
 const HIGH_MIDS = ['Gonzaga', "Saint Mary's", 'San Diego State', 'Memphis', 'Dayton', 'VCU', 'Drake', 'New Mexico', 'UNLV', 'Wichita State', 'Boise State',
   'Utah State', 'Nevada', 'Colorado State', 'Davidson', 'Florida Atlantic', 'Grand Canyon', 'Belmont', 'Butler', 'Xavier', 'Cincinnati', 'Saint Louis',
   'Loyola Chicago', 'Liberty', 'McNeese', 'Seton Hall', 'Providence', 'Georgetown', 'Wake Forest', 'Pittsburgh', 'Clemson', 'Mississippi State', 'Ole Miss', 'Oklahoma State'];
+// Real schools a class file names (from the big boards): their colors and a short badge name, shown in place of a logo.
+const REAL_SCHOOLS = {
+  Kansas: ['0051BA', 'E8000D', 'KU'], BYU: ['002E5D', 'FFFFFF', 'BYU'], Arkansas: ['9D2235', 'FFFFFF', 'ARK'], Arizona: ['CC0033', '003366', 'ARIZ'],
+  Illinois: ['E84A27', '13294B', 'ILL'], UConn: ['000E2F', 'FFFFFF', 'UCONN'], Florida: ['0021A5', 'FA4616', 'UF'], Duke: ['003087', 'FFFFFF', 'DUKE'],
+  Louisville: ['AD0000', '000000', 'LOU'], Texas: ['BF5700', 'FFFFFF', 'TEX'], Kentucky: ['0033A0', 'FFFFFF', 'UK'], 'Ohio State': ['BB0000', '666666', 'OSU'],
+  'North Carolina': ['7BAFD4', '13294B', 'UNC'], Alabama: ['9E1B32', '828A8F', 'BAMA'], USC: ['990000', 'FFC72C', 'USC'], Missouri: ['F1B82D', '000000', 'MIZ'],
+  Miami: ['F47321', '005030', 'MIA'], Michigan: ['00274C', 'FFCB05', 'MICH'], Villanova: ['00205B', '13B5EA', 'NOVA'], Vanderbilt: ['866D4B', '000000', 'VANDY'],
+  'West Virginia': ['002855', 'EAAA00', 'WVU'], Maryland: ['E03A3E', 'FFD520', 'UMD'], Tennessee: ['FF8200', '58595B', 'TENN'], 'Michigan State': ['18453B', 'FFFFFF', 'MSU'],
+  "St. John's": ['BA0C2F', 'FFFFFF', 'SJU'], Gonzaga: ['002967', 'C8102E', 'ZAGS'], Providence: ['000000', 'A2AAAD', 'PC'], Houston: ['C8102E', 'FFFFFF', 'UH'],
+  LSU: ['461D7C', 'FDD023', 'LSU'], Nebraska: ['E41C38', 'FFFFFF', 'NEB'], 'NC State': ['CC0000', 'FFFFFF', 'NCST'], Virginia: ['232D4B', 'F84C1E', 'UVA'],
+  Purdue: ['CEB888', '000000', 'PUR'], TCU: ['4D1979', 'A3A9AC', 'TCU'], Wisconsin: ['C5050C', 'FFFFFF', 'WIS'], SMU: ['354CA1', 'CC0035', 'SMU'],
+  'Arizona State': ['8C1D40', 'FFC627', 'ASU'], 'Iowa State': ['C8102E', 'F1BE48', 'ISU'], Auburn: ['0C2340', 'E87722', 'AUB'], 'Virginia Tech': ['630031', 'CF4420', 'VT'],
+  Marquette: ['003366', 'FFCC00', 'MU'], Georgia: ['BA0C2F', '000000', 'UGA'], Baylor: ['154734', 'FFB81C', 'BAY'], 'Texas Tech': ['CC0000', '000000', 'TTU'],
+  Syracuse: ['F76900', '000E54', 'CUSE'], 'Utah State': ['0F2439', 'FFFFFF', 'USU'],
+  // Every other school with an NBA pick in the last ten drafts (2017–2026): ESPN's colors and logos.
+  Akron: ['041E42', 'C5B783', 'AKR'], Belmont: ['182142', 'C9262D', 'BEL'], 'Boise State': ['0033A0', 'D64309', 'BOIS'], 'Boston College': ['8C2232', 'DBCCA6', 'BC'],
+  California: ['041E42', 'FFC72C', 'CAL'], Charleston: ['7A2531', '9E8959', 'COFC'], Cincinnati: ['000000', 'E00122', 'CIN'], Clemson: ['F56600', 'FFFFFF', 'CLEM'],
+  Colorado: ['000000', 'CFB87C', 'COLO'], 'Colorado State': ['004C23', 'C8C372', 'CSU'], Creighton: ['005CA9', '6CADDE', 'CREI'], Dayton: ['004B8D', 'FFFFFF', 'DAY'],
+  DePaul: ['2D649C', 'CE1125', 'DEP'], 'Eastern Michigan': ['006938', 'FFFFFF', 'EMU'], 'Florida State': ['782F40', 'CEB888', 'FSU'], Furman: ['582C83', 'FFFFFF', 'FUR'],
+  Georgetown: ['110E42', '001C58', 'GTWN'], 'Georgia Tech': ['B3A369', 'FFFFFF', 'GT'], Hofstra: ['003594', 'FFC72C', 'HOF'], Indiana: ['970310', 'FFFFFF', 'IU'],
+  Iowa: ['231F20', 'FCD116', 'IOWA'], 'Kansas State': ['330A57', 'E2E3E4', 'KSU'], Liberty: ['0A254E', 'B72025', 'LIB'], 'Loyola Maryland': ['76A7A0', 'C9CBCA', 'L-MD'],
+  Memphis: ['004991', '8E908F', 'MEM'], Milwaukee: ['000000', 'FFC20E', 'MILW'], Minnesota: ['5E0A2F', 'FAB41C', 'MINN'], 'Mississippi State': ['5D1725', 'C1C6C8', 'MSST'],
+  'Missouri State': ['5E0009', 'FFFFFF', 'MOST'], 'Murray State': ['002148', '000E00', 'MUR'], Nevada: ['041E42', '8A8D8F', 'NEV'], Northwestern: ['492F92', 'FFFFFF', 'NU'],
+  'Notre Dame': ['062340', 'C99700', 'ND'], Ohio: ['154734', 'FFFFFF', 'OHIO'], Oklahoma: ['990000', 'FFFFFF', 'OU'], 'Oklahoma State': ['FE5C00', '000000', 'OKST'],
+  Oregon: ['00934B', 'FFF41B', 'ORE'], 'Penn State': ['061440', 'FFFFFF', 'PSU'], Pepperdine: ['003A72', 'DC762F', 'PEPP'], Pittsburgh: ['003594', 'FFB81C', 'PITT'],
+  Rutgers: ['CE0E2D', 'FFFFFF', 'RUTG'], "Saint Joseph's": ['9E1B32', '6C6F70', 'JOES'], 'San Diego State': ['A6192E', '000000', 'SDSU'], 'San Francisco': ['005A36', 'FFFFFF', 'SF'],
+  'Santa Clara': ['690B0B', '101010', 'SCU'], 'Seton Hall': ['0857B1', '8A8D8F', 'HALL'], 'South Carolina': ['73000A', '000000', 'SC'], 'South Florida': ['006747', 'CFC493', 'USF'],
+  Stanford: ['8C1515', 'FFFFFF', 'STAN'], 'Texas A&M': ['500000', 'FFFFFF', 'TA&M'], Toledo: ['0B2240', 'FFCD00', 'TOL'], Tulane: ['006747', '418FDE', 'TULN'],
+  'UC Santa Barbara': ['1E1840', 'FEBC11', 'UCSB'], UCF: ['000000', 'B4A169', 'UCF'], UCLA: ['2774AE', 'F2A900', 'UCLA'], 'UT Arlington': ['004B7C', 'F58024', 'UTA'],
+  Utah: ['BE0000', 'FFFFFF', 'UTAH'], VCU: ['000000', 'FFAF00', 'VCU'], Valparaiso: ['794500', 'FFFFFF', 'VAL'], 'Wake Forest': ['2C2A29', 'CEB888', 'WAKE'],
+  Washington: ['33006F', 'E8D3A2', 'WASH'], 'Washington State': ['A60F2D', '4D4D4D', 'WSU'], 'Weber State': ['18005A', 'EBEBEB', 'WEB'], 'Western Kentucky': ['E13A3E', 'FFFFFF', 'WKU'],
+  'Wichita State': ['27251F', 'FFCD00', 'WICH'], Wyoming: ['492F24', 'FFC425', 'WYO'], Xavier: ['21304E', 'A5A7A8', 'XAV'], Yale: ['004A81', '286DC0', 'YALE'],
+};
+const realSchoolTier = n => (POWERHOUSES.includes(n) || ['UConn', 'Duke', 'Kansas', 'Kentucky', 'North Carolina', 'Arizona', 'Florida', 'Arkansas', 'Michigan', 'Michigan State', 'Illinois', 'Alabama', 'Houston', 'Tennessee', 'Auburn', 'Purdue', 'Texas', 'Ohio State', 'USC', 'BYU', 'Gonzaga', "St. John's", 'Louisville', 'Baylor', 'Texas Tech', 'Virginia', 'Wisconsin', 'Maryland', 'Iowa State', 'Marquette'].includes(n) ? 'power' : 'mid');
 const schoolKey = () => `hlc:schools:${saveTag()}`;
 function schoolStore() { try { return JSON.parse(localStorage.getItem(schoolKey())) || {}; } catch { return {}; } }
 function collegePrograms() {
@@ -384,15 +368,18 @@ function collegePrograms() {
   rest.slice(0, Math.round(rest.length / 4)).forEach(x => { x.kind = 'mid'; });
   return out;
 }
-function assignSchools(cls) {
+function assignSchools(cls, meta = labMeta()) {
   const st = schoolStore(), progs = collegePrograms();
   if (!progs.length) return st;
-  const need = cls.filter(p => !st[p.id] && !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0))).sort((a, b) => (b.pot || 0) - (a.pot || 0) || levelOf(b) - levelOf(a));
+  let named = false;
+  for (const p of cls) { const sc = meta[p.id]?.school; if (sc && st[p.id]?.name !== sc) { st[p.id] = { name: sc }; named = true; } }
+  if (named) { try { localStorage.setItem(schoolKey(), JSON.stringify(st)); } catch { /* ignore */ } }
+  const need = cls.filter(p => !st[p.id] && (meta[p.id] || !(p.stats || []).some(s => s.league > 0 && (s.season || []).some(r => r.GP > 0)))).sort((a, b) => (b.pot || 0) - (a.pot || 0) || levelOf(b) - levelOf(a));
   if (!need.length) return st;
   const used = new Map(Object.values(st).map(s => [`${s.li}:${s.tid}`, 0]));
   const W = pot => (pot >= 9 ? { power: 0.75, mid: 0.25, other: 0 } : pot >= 8 ? { power: 0.5, mid: 0.35, other: 0.15 } : pot >= 7 ? { power: 0.25, mid: 0.3, other: 0.45 } : { power: 0.1, mid: 0.25, other: 0.65 });
   for (const p of need) {
-    const ped = labMeta()[p.id]?.ped || '';
+    const ped = meta[p.id]?.ped || '';
     if (/International \(/.test(ped)) continue;   // overseas: his pro club
     const rng = CG.mulberry((saveSalt() ^ Math.imul(p.id, 2654435761)) >>> 0), w = W(p.pot || 6);
     let roll = rng(), kind = roll < w.power ? 'power' : roll < w.power + w.mid ? 'mid' : 'other';
@@ -409,14 +396,16 @@ function assignSchools(cls) {
   return st;
 }
 function withSchool(p, line) {
-  if (!line || /^Pro club/.test(line.team || '')) return line;
+  if (!line || line.intl || /^Pro club/.test(line.team || '')) return line;
   let s = schoolStore()[p.id];
   if (!s) { const L = league(); s = assignSchools((L.draftClass || []).includes(p) ? L.draftClass : [p])[p.id]; }
+  if (s?.name) return { ...line, team: s.name, cl: (line.team || '').replace(/ season$/, ''), school: { name: s.name } };
   const t = s && state.data.seasonLeagues[s.li]?.teams?.find(x => x.id === s.tid);
   if (!t) return line;
   return { ...line, team: `${t.city ? `${t.city} ` : ''}${t.name || ''}`.trim() || t.shortName, cl: (line.team || '').replace(/ season$/, ''), school: { li: s.li, tid: s.tid } };
 }
 setMadeLines(madeLineOf);
+setPreferMade(p => { if (!state.data || isCollege()) return false; const L = league(); return (L.draftClass || []).includes(p) ? !!labMeta()[p.id] : !!madeStore()[p.id]; });
 setMadeGameScores(p => madeLineOf(p)?.gs ?? null);
 // Body: frame (strength, and weight for his height against the group's fit) and pedigree, as z within his group.
 function bodyZ(p) {
@@ -861,7 +850,7 @@ function layout({ title, left = '', right = '', body, action = null, actionLeft 
       ${state.stack.length === 2 && !(state.stack[1].name === 'lineup' && state.stack[1].args?.edit != null) ? `<button class="btn back home-btn" data-act="back" aria-label="Main menu">${HOME_ICON}</button>` : state.stack.length >= 2 ? `<button class="btn back" data-act="back" aria-label="Back">${BACK_ARROW}</button>` : state.data ? `<button class="btn back home-btn" data-act="toTitle" aria-label="Title screen">${HOME_ICON}</button>` : ''}
       ${left}
       <div class="marquee" role="heading" aria-level="1" aria-label="${t}">
-        <div class="marquee-track" aria-hidden="true"><span>${t}</span><span>${t}</span></div>
+        <div class="marquee-track" aria-hidden="true" style="--md:${(4 + title.length * 0.32).toFixed(1)}s"><span>${t}</span></div>
       </div>
       ${right}
       ${gramBox()}
@@ -1011,7 +1000,7 @@ function render() {
 }
 
 // Names never wrap or get cut off: a name too long for its spot gets a smaller font, as big as still fits.
-const FIT_NAMES = '.pl-name, .lu-nm b, .lu-c-name > b, .ir-name, .mu-tr > span, .prow .name, .lu-frame > legend, .lu-cycle b, .ts-team b, .start-detail .sd-line';
+const FIT_NAMES = '.ptw-name, .col-hd b, .pl-name, .lu-nm b, .lu-c-name > b, .ir-name, .mu-tr > span, .prow .name, .lu-frame > legend, .lu-cycle b, .ts-team b, .start-detail .sd-line';
 function fitText(root = $app) {
   try {
     const els = new Set(root.querySelectorAll(FIT_NAMES));
@@ -1351,7 +1340,8 @@ async function loadFile(file) {
     const planned = !isCollege() && applyClassPlan();
     if (!isCollege() && settleRetirees(league())) state.dirty = true;
     if (!isCollege() && playoffRotations()) state.dirty = true;
-    if (!isCollege() && applyStreaks()) state.dirty = true;   // hot and cold streaks
+    if (applyStreaks()) state.dirty = true;   // hot and cold streaks (college too, on its shorter season)
+    if (isCollege()) pollSnapshot();
     if (!isCollege()) storyTrades();
     if (!isCollege() && applyFatigue()) state.dirty = true;
     if (!isCollege()) cupKnockout();
@@ -2693,7 +2683,44 @@ function teamGames(L, t) {
   (L.season.schedule || []).forEach((d, i) => { for (const g of d.results || []) if (g.gameType === 0 && g.homeTeam && g.awayTeam && (g.homeTeam === t.id || g.awayTeam === t.id)) out.push({ day: i, home: g.homeTeam === t.id, opp: g.homeTeam === t.id ? g.awayTeam : g.homeTeam }); });
   return out;
 }
-// ---- The schedule maker: key dates, the marquee games for Opening Night (two) and Christmas (five), then the whole
+// Christmas Day in this season's schedule. Start files and the schedule maker give it a day of its own (a small slate
+// between full ones): that day, near where Dec 25 falls. Otherwise where it falls on the calendar.
+function xmasDay(L = league()) { return slateDay(L, 'christmas'); }
+// A holiday's day in the schedule (Christmas, MLK Day): a small slate of its own between full days, near where it falls
+// on the calendar (start files and the schedule maker give it one); else where it falls.
+function slateDay(L, key) {
+  if (isCollege()) return -1;   // the NBA's days; college plays its own calendar
+  const sched = L.season.schedule || [], days = sched.length - ((sched.some(d => (d.results || []).some(g => g.gameType !== 0 && g.gameType !== 2))) ? 1 : 0);
+  if (days < 30) return -1;
+  const est = SM.dayFor(key, days), n = d => (sched[d]?.results || []).filter(g => g.gameType === 0 && g.homeTeam && g.awayTeam).length;
+  for (const off of [0, -1, 1, -2, 2, -3, 3, -4, 4]) { const d = est + off; if (n(d) >= 2 && n(d) <= 6 && n(d - 1) >= n(d) + 2 && n(d + 1) >= n(d) + 2) return d; }
+  return est;
+}
+// A game on one of the season's marked days, with the key date's art: { k, label } or null. The NBA Cup's group games,
+// Christmas, MLK Day, Opening Night and the last day of the season.
+function gameDayKind(L, day, g = null) {
+  if (isCollege() || day == null || day < 0) return null;
+  const c = typeof cupOn === 'function' && cupOn() ? cupGet() : null;
+  if (c?.games && g && c.games.some(x => x.day === day && ((x.home === g.homeTeam && x.away === g.awayTeam) || (x.home === g.awayTeam && x.away === g.homeTeam)))) return { k: 'cup', label: 'NBA Cup' };
+  if (day === xmasDay(L)) return { k: 'xmas', label: 'Christmas Day' };
+  if (day === slateDay(L, 'mlk')) return { k: 'mlk', label: 'MLK Day' };
+  const sc = L.season.schedule || [], reg = i => (sc[i]?.results || []).some(x => x.gameType === 0 && x.homeTeam && x.awayTeam && !x.tRound);
+  const first = sc.findIndex((_, i) => reg(i)); let last = -1; sc.forEach((_, i) => { if (reg(i)) last = i; });
+  if (day === first) return { k: 'opening', label: 'Opening Night' };
+  if (day === last) return { k: 'last', label: 'Last Day of the Season' };
+  return null;
+}
+// The holiday ball (Christmas games), in the game's pixel style.
+const xmasIcon = (cls = '') => `<img class="px-art ${cls}" src="img/holiday/xmas-ball.png" alt="🎄">`;
+// Holiday art for the key dates: the tree (Christmas Day) and the raised fist (MLK Day).
+const DAY_ART = { cup: ['awards/champ', '🏆'], opening: ['holiday/ball', '🏀'], xmas: ['holiday/xmas-tree', '🎄'], mlk: ['holiday/mlk-fist', '✊'], deadline: ['holiday/swap', '🔁'], allStar: ['holiday/allstar', '⭐'], last: ['holiday/flag', '🏁'] };
+const dayIcon = k => `<img class="px-art" src="img/${DAY_ART[k][0]}.png" alt="${DAY_ART[k][1]}">`;
+// Where the All-Star Game is: the host's city and state (Phoenix, Arizona), not the team.
+const STATE_OF = { ATL: 'GA', BOS: 'MA', BKN: 'NY', CHA: 'NC', CHO: 'NC', CHI: 'IL', CLE: 'OH', DAL: 'TX', DEN: 'CO', DET: 'MI', GSW: 'CA', HOU: 'TX', IND: 'IN', LAC: 'CA', LAL: 'CA', MEM: 'TN', MIA: 'FL', MIL: 'WI', MIN: 'MN', NOP: 'LA', NYK: 'NY', OKC: 'OK', ORL: 'FL', PHI: 'PA', PHX: 'AZ', POR: 'OR', SAC: 'CA', SAS: 'TX', TOR: 'ON', UTA: 'UT', WAS: 'DC', SEA: 'WA', LVV: 'NV', LV: 'NV' };
+// The city a team plays in, where its name is a state or region (Golden State, Indiana, Minnesota, Utah) or a borough.
+const CITY_OF = { GSW: 'San Francisco', IND: 'Indianapolis', MIN: 'Minneapolis', UTA: 'Salt Lake City', BKN: 'Brooklyn', LAC: 'Los Angeles', LAL: 'Los Angeles', NYK: 'New York', WAS: 'Washington', NOP: 'New Orleans', OKC: 'Oklahoma City', SAS: 'San Antonio' };
+const hostPlace = t => { const city = CITY_OF[t.shortName] || t.city || t.name, st = STATE_OF[t.shortName]; return st ? `${city}, ${st}` : city; };
+// ---- The schedule maker: key dates, the marquee games for Opening Night (three), Christmas and MLK Day (four each), then the whole
 // season built around them with the NBA's formula. Only before any game is played; Undo puts the game's own back.
 const smOn = () => labOn() && !isCollege() && league().leagueType === 0 && !(league().season.schedule || []).some(d => (d.results || []).some(g => g.homeScore || g.awayScore));
 function smChamp(L) {
@@ -2701,33 +2728,47 @@ function smChamp(L) {
   const fin = po?.rounds[po.rounds.length - 1]?.series?.[0];
   return fin && fin.winner >= 0 ? fin.winner : null;
 }
+// Star power for Christmas: the league's top 20 players (the higher, the more), full weight in their prime (24-31),
+// less for the young and the old: the names people tune in for.
+function smStars(L) {
+  const top = L.teams.flatMap(t => FA.signedRoster(t)).sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 20);
+  const m = new Map();
+  top.forEach((p, i) => { const prime = p.age >= 24 && p.age <= 31 ? 1 : p.age >= 22 && p.age <= 33 ? 0.7 : 0.45; m.set(p.tid, (m.get(p.tid) || 0) + (20 - i) / 4 * prime); });
+  return m;
+}
 function smCands(L) {
-  const R = teamRatings(), rv = new Map(L.teams.map(t => [t.id, new Map((rivalsOf(L, t) || []).map(r => [r.id, r.score]))]));
-  return SM.marqueeCandidates(L, { rivalScore: (a, b) => Math.max(rv.get(a.id)?.get(b.id) || 0, rv.get(b.id)?.get(a.id) || 0), strength: id => R.get(id)?.all || 70, champ: smChamp(L) });
+  const R = teamRatings(), rv = new Map(L.teams.map(t => [t.id, new Map((rivalsOf(L, t) || []).map(r => [r.id, r.score]))])), st = smStars(L);
+  return SM.marqueeCandidates(L, { rivalScore: (a, b) => Math.max(rv.get(a.id)?.get(b.id) || 0, rv.get(b.id)?.get(a.id) || 0), strength: id => R.get(id)?.all || 70, stars: id => st.get(id) || 0, champ: smChamp(L) });
 }
 function smPicks(L) {
   const f = calFlags();
-  if (!f.smPicks) { const d = SM.defaultSlate(smCands(L), smChamp(L)); f.smPicks = { opening: d.opening.map(x => [x.h, x.aw]), christmas: d.christmas.map(x => [x.h, x.aw]) }; }
+  if (!f.smPicks || !f.smPicks.mlk || f.smPicks.opening.length !== 3 || f.smPicks.christmas.length !== 4) { const d = SM.defaultSlate(smCands(L), smChamp(L)); f.smPicks = { opening: d.opening.map(x => [x.h, x.aw]), mlk: d.mlk.map(x => [x.h, x.aw]), christmas: d.christmas.map(x => [x.h, x.aw]) }; }
   return f.smPicks;
 }
 function scheduleMakerBox() {
   if (!smOn()) return '';
   const L = league(), S = L.season, yr = S.currentYear, f = calFlags();
   const days = Math.max(60, (S.schedule || []).length - ((S.schedule || []).some(d => (d.results || []).some(g => g.gameType !== 0)) ? 1 : 0));
-  const picks = smPicks(L), cands = smCands(L).slice(0, 60), tm = id => evTeam(id);
+  const picks = smPicks(L), all = smCands(L), tm = id => evTeam(id);
+  const NIGHT_KEY = { opening: 'opening', mlk: 'mlk', christmas: 'xmas' }, candsFor = night => [...all].sort((x, y) => y[NIGHT_KEY[night]] - x[NIGHT_KEY[night]]).slice(0, 60);
   const host = L.teams.find(t => t.id === S.allStarHostId);
-  const key = [['🏀 Opening Night', SM.realDate(yr, 0, days)], ['🎄 Christmas Day', SM.realDate(yr, SM.dayFor('christmas', days), days)], ['✊ MLK Day', SM.realDate(yr, SM.dayFor('mlk', days), days)],
-    ['🔁 Trade Deadline', SM.realDate(yr, SM.dayFor('deadline', days), days)], ['⭐ All-Star Weekend', `${SM.realDate(yr, SM.dayFor('allStar', days), days)}${host ? ` · ${esc(teamFull(host))}` : ''}`], ['🏁 Last Day', SM.realDate(yr, days - 1, days)]];
-  const opt = (h, a) => cands.map(c => `<option value="${c.h}-${c.aw}" ${(c.h === h && c.aw === a) || (c.h === a && c.aw === h) ? 'selected' : ''}>${esc(tm(c.aw)?.shortName || '?')} @ ${esc(tm(c.h)?.shortName || '?')}${c.r >= 3 ? ' 🔥' : ''}</option>`).join('');
+  // Day numbers as the game counts them (Opening Night is Day 1); after the All-Star break, one more for its own day.
+  const asD = SM.dayFor('allStar', days), dayN = d => d + 1 + (d >= asD ? 1 : 0);
+  const on = (d, extra = '') => `${SM.realDate(yr, d, days)} (Day ${dayN(d)})${extra}`;
+  const cupN = cupOn() ? CUP.CUP_ROUND_NIGHTS.filter(n => n < days) : [];
+  const key = [['opening', 'Opening Night', on(0)], ...(cupN.length ? [['cup', 'NBA Cup', `${SM.realDate(yr, cupN[0], days)} – ${SM.realDate(yr, cupN[cupN.length - 1], days)} (Days ${dayN(cupN[0])}–${dayN(cupN[cupN.length - 1])})`, '5 group nights, then the knockout']] : []), ['xmas', 'Christmas Day', on(SM.dayFor('christmas', days))], ['mlk', 'MLK Day', on(SM.dayFor('mlk', days))],
+    ['deadline', 'Trade Deadline', on(SM.dayFor('deadline', days))], ['allStar', 'All-Star Weekend', `${SM.realDate(yr, asD, days)} (Day ${asD + 1})`, host ? hostPlace(host) : ''], ['last', 'Last Day', on(days - 1)]];
+  const opt = (night, h, a) => candsFor(night).map(c => `<option value="${c.h}-${c.aw}" ${(c.h === h && c.aw === a) || (c.h === a && c.aw === h) ? 'selected' : ''}>${esc(tm(c.aw)?.shortName || '?')} @ ${esc(tm(c.h)?.shortName || '?')}${c.r >= 3 ? ' 🔥' : ''}</option>`).join('');
   const slot = (night, i, [h, a]) => `<div class="sm-slot"><span class="sm-n">${i + 1}</span><span class="sm-game">${logoImg(tm(a))} <b>${esc(tm(a)?.shortName || '?')}</b> @ ${logoImg(tm(h))} <b>${esc(tm(h)?.shortName || '?')}</b></span>
-    <select class="sel-team sm-sel" data-change="smPick" data-night="${night}" data-i="${i}">${opt(h, a)}</select></div>`;
+    <select class="sel-team sm-sel" data-change="smPick" data-night="${night}" data-i="${i}">${opt(night, h, a)}</select></div>`;
   const dup = night => { const ids = picks[night].flat(); return ids.length !== new Set(ids).size; };
   return `<fieldset class="frame"><legend>🗓️ Schedule Maker</legend>
     <p class="note small">Set the marquee nights, then build the whole season around them with the NBA's formula (82 games, rest days, the All-Star break). 🔥 marks a rivalry.</p>
-    <div class="sm-dates">${key.map(([l, d]) => `<div class="small"><b>${l}</b> <span class="muted">${esc(d)}</span></div>`).join('')}</div>
-    <h4 class="ov-h">Opening Night</h4><div class="stack">${picks.opening.map((g, i) => slot('opening', i, g)).join('')}</div>${dup('opening') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
-    <h4 class="ov-h">Christmas Day</h4><div class="stack">${picks.christmas.map((g, i) => slot('christmas', i, g)).join('')}</div>${dup('christmas') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
-    <div class="grid2" style="margin-top:10px">${f.smUndo ? '<button class="btn off" data-act="smUndo">↺ Undo</button>' : '<button class="btn off" data-act="smReset">↺ Suggested</button>'}<button class="btn focus" data-act="smBuild" ${dup('opening') || dup('christmas') ? 'disabled' : ''}>🗓️ ${f.smUndo ? 'Rebuild' : 'Build the Schedule'}</button></div>
+    <div class="sm-dates">${key.map(([k, l, d, where]) => `<div class="sm-date small"><span class="sm-ic">${dayIcon(k)}</span><span><b>${l}</b><br><span class="muted">${esc(d)}</span>${where ? `<br><span class="muted">${esc(where)}</span>` : ''}</span></div>`).join('')}</div>
+    <h4 class="ov-h">${dayIcon('opening')} Opening Night</h4><p class="note small muted" style="margin:0 0 4px">The best teams, rivals first; the champion opens at home.</p><div class="stack">${picks.opening.map((g, i) => slot('opening', i, g)).join('')}</div>${dup('opening') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
+    <h4 class="ov-h">${dayIcon('xmas')} Christmas Day</h4><p class="note small muted" style="margin:0 0 4px">The stars: matchups between the league's top players in their prime.</p><div class="stack">${picks.christmas.map((g, i) => slot('christmas', i, g)).join('')}</div>${dup('christmas') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
+    <h4 class="ov-h">${dayIcon('mlk')} MLK Day</h4><p class="note small muted" style="margin:0 0 4px">The league's top teams.</p><div class="stack">${picks.mlk.map((g, i) => slot('mlk', i, g)).join('')}</div>${dup('mlk') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
+    <div class="grid2" style="margin-top:10px">${f.smUndo ? '<button class="btn off" data-act="smUndo">↺ Undo</button>' : '<button class="btn off" data-act="smReset">↺ Suggested</button>'}<button class="btn focus" data-act="smBuild" ${dup('opening') || dup('christmas') || dup('mlk') ? 'disabled' : ''}>🗓️ ${f.smUndo ? 'Rebuild' : 'Build the Schedule'}</button></div>
     ${f.smUndo ? `<p class="note small up" style="margin-top:6px">✓ Built: ${f.smUndo.games} games over ${f.smUndo.days} days, every team at 82. The look at your schedule below is the new one.</p>` : ''}
   </fieldset>`;
 }
@@ -2744,17 +2785,23 @@ actions.smBuild = () => {
   const days = Math.max(60, (f.smUndo.sched.length) - (f.smUndo.sched.some(d => (d.results || []).some(g => g.gameType !== 0)) ? 1 : 0));
   S.schedule = cloneData(f.smUndo.sched); S.allStarWeekend = f.smUndo.as; S.tradeDeadline = f.smUndo.dl;
   const xmas = SM.dayFor('christmas', days);
-  const pins = [...picks.opening.map(([h, a]) => ({ day: 0, h, a })), ...picks.christmas.map(([h, a]) => ({ day: xmas, h, a }))];
-  const r = SM.buildSeason(L, { pins, seed: (saveSalt() ^ S.currentYear) >>> 0 });
+  const mlkD = SM.dayFor('mlk', days);
+  const pins = [...picks.opening.map(([h, a]) => ({ day: 0, h, a })), ...picks.christmas.map(([h, a]) => ({ day: xmas, h, a })), ...(picks.mlk || []).map(([h, a]) => ({ day: mlkD, h, a }))];
+  // The NBA Cup: its group games on Cup nights of their own (like Opening Night and Christmas), placed here so the
+  // export doesn't lay the season out again around them.
+  const cupDrawn = cupOn() ? cupDraw() : null, cupP = cupDrawn ? CUP.cupPins(cupDrawn) : [];
+  const r = SM.buildSeason(L, { pins: [...pins, ...cupP], seed: (saveSalt() ^ S.currentYear) >>> 0 });
+  if (cupDrawn) { const games = []; S.schedule.forEach((d, di) => (d.results || []).forEach(g => { if (g.gameType === 0 && cupP.some(p => p.day === di && ((p.h === g.homeTeam && p.a === g.awayTeam) || (p.h === g.awayTeam && p.a === g.homeTeam)))) games.push({ day: di, home: g.homeTeam, away: g.awayTeam }); })); cupSet({ draw: cupDrawn, games }); }
   const bad = [...r.count.values()].filter(n => n !== 82).length;
   f.smUndo.games = [...r.count.values()].reduce((a, n) => a + n, 0) / 2; f.smUndo.days = r.days;
   state.dirty = true;
-  toast('🗓️ Schedule built', bad ? `${bad} teams aren't at 82: check the settings` : 'Opening Night and Christmas are set.', 3200, !!bad);
+  toast('🗓️ Schedule built', bad ? `${bad} teams aren't at 82: check the settings` : 'Opening Night, Christmas and MLK Day are set.', 3200, !!bad);
   render();
 };
 actions.smUndo = () => {
   const L = league(), S = L.season, f = calFlags(); if (!f.smUndo) return;
   S.schedule = f.smUndo.sched; S.allStarWeekend = f.smUndo.as; S.tradeDeadline = f.smUndo.dl; if (L.meta && f.smUndo.uGID != null) L.meta.uGID = f.smUndo.uGID;
+  if (cupOn() && cupGet()?.games && !cupGet()?.ko) cupSet({ draw: cupGet().draw });   // the Cup goes back to placing its own nights at export
   delete f.smUndo; state.dirty = true; render();
 };
 screens.schedRelease = () => {
@@ -2771,9 +2818,11 @@ screens.schedRelease = () => {
     const marquee = g.filter(x => top.has(x.opp) || rivals.has(x.opp)).filter((x, i, a) => a.findIndex(y => y.opp === x.opp) === i).slice(0, 8);
     const opener = g[0], homeOpener = g.find(x => x.home);
     const vs = x => `${x.home ? 'vs' : '@'} ${logoImg(evTeam(x.opp))} <b>${esc(evTeam(x.opp)?.shortName || '?')}</b>`;
-    const cup = typeof cupOn === 'function' && cupOn() ? (() => { const d = cupDraw(), grp = d.groups.find(x => x.teams.includes(t.id)); return grp ? `<p class="note small">🏆 NBA Cup: <b>${esc(grp.name)}</b> with ${grp.teams.filter(id => id !== t.id).map(id => esc(evTeam(id)?.shortName || '?')).join(', ')}.</p>` : ''; })() : '';
+    const cup = typeof cupOn === 'function' && cupOn() ? (() => { const d = cupDraw(), grp = d.groups.find(x => x.teams.includes(t.id)); return grp ? `<p class="note small">${dayIcon('cup')} NBA Cup: <b>${esc(grp.name)}</b> with ${grp.teams.filter(id => id !== t.id).map(id => esc(evTeam(id)?.shortName || '?')).join(', ')}.</p>` : ''; })() : '';
     return `<fieldset class="frame"><legend>${esc(teamFull(t))}</legend>
-      <p class="note">Opening night: ${vs(opener)}${homeOpener && homeOpener !== opener ? ` · Home opener: ${vs(homeOpener)} (game ${g.indexOf(homeOpener) + 1})` : ''}</p>
+      <p class="note">${dayIcon('opening')} Opening night: ${vs(opener)}${homeOpener && homeOpener !== opener ? ` · Home opener: ${vs(homeOpener)} (game ${g.indexOf(homeOpener) + 1})` : ''}</p>
+      ${(xd => { const x = g.find(y => y.day === xd); return x ? `<p class="note">${dayIcon('xmas')} Christmas Day: ${vs(x)}</p>` : ''; })(xmasDay(L))}
+      ${(md => { const x = g.find(y => y.day === md); return x ? `<p class="note">${dayIcon('mlk')} MLK Day: ${vs(x)}</p>` : ''; })(slateDay(L, 'mlk'))}
       <div class="bio-grid"><div class="bio-box"><span class="glbl">Games</span><b>${g.length}</b></div><div class="bio-box"><span class="glbl">Big games</span><b>${g.filter(x => top.has(x.opp) || rivals.has(x.opp)).length}</b></div><div class="bio-box"><span class="glbl">Toughness</span><b>${ordN(sosRank.get(t.id))}</b></div>
         <div class="bio-box"><span class="glbl">Longest trip</span><b>${road} road</b></div><div class="bio-box"><span class="glbl">Homestand</span><b>${home} home</b></div><div class="bio-box"><span class="glbl">Home / Away</span><b>${g.filter(x => x.home).length}-${g.filter(x => !x.home).length}</b></div></div>
       ${marquee.length ? `<p class="note small" style="margin-top:6px"><b>Marquee nights</b> (contenders and rivals, first meeting):</p><div class="stack">${marquee.map(x => `<div class="small">Game ${g.indexOf(x) + 1}: ${vs(x)}${rivals.has(x.opp) ? ' <span class="gold">· rivalry</span>' : ''}</div>`).join('')}</div>` : ''}
@@ -3130,7 +3179,7 @@ async function realClassCheck() {
   const nm = p => `${p.fn} ${p.ln}`.trim().toLowerCase();
   const here = new Map();
   for (const lg of state.data.seasonLeagues) for (const q of [...(lg.draftClass || []), ...lg.teams.flatMap(t => t.roster)]) if ((q.stats || []).some(st => st.league > 0)) here.set(nm(q), q);
-  for (const p of cls) { const q = here.get(nm(p)); if (q) p.stats = JSON.parse(JSON.stringify(q.stats)); }
+  void here;   // the game's simulated college seasons aren't used: every prospect gets a line built from who he is
   // No college season here (an NBA-only save, or a player not on a college roster): a made-up one, so every prospect
   // has production to judge.
   makeClassLines(cls, yr, meta);
@@ -3247,8 +3296,442 @@ function seasonAwardsCard() {
     ${rows.length ? `<div class="stack">${rows.map(([n, ps]) => `<div class="small mv-row aw-row"><span class="mv-l">${awardSprite(n)}<b>${esc(n)}</b></span><span class="mv-r">${ps.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</span>`).join(', ')}</span></div>`).join('')}</div>` : '<p class="note small muted">The awards aren\'t in this save yet.</p>'}
     <p class="note small" style="margin-top:8px">The regular season is over. Keep going in Hoop Land: the play-in and the playoffs are played there. Load the save again at the start of the playoffs for the playoff preview, or once the season ends (Pre-Lottery) to run the offseason.</p></fieldset>`;
 }
+// ---- The college season (phases 9-14; 15 is Season Complete): the same in-season home as the pros, minus what
+// college doesn't have (trades, the deadline, the G League, the Cup). Your record and conference, the poll, your
+// leaders, the last five and the next three, and the national Top 25.
+function collegeSeasonCard() {
+  const L = league(), s = L.season, yr = s.currentYear, me = L.teams.find(isUserTeam);
+  if (!me) return '';
+  const row = t => (t.season || []).find(x => x.yr === yr) || {}, st = t => row(t).seasonStats || {};
+  const wl = a => (Array.isArray(a) ? `${a[0]}-${a[1]}` : '0-0');
+  const poll = t => { const v = row(t).poll; return v >= 1 && v <= 25 ? v : null; };
+  const games = teamGames(L, me), played = games.filter(g => { const r = (s.schedule[g.day]?.results || []).find(x => (x.homeTeam === me.id || x.awayTeam === me.id) && x.gameType === 0); return r && (r.homeScore || r.awayScore); });
+  const res = g => { const r = (s.schedule[g.day]?.results || []).find(x => (x.homeTeam === me.id || x.awayTeam === me.id) && x.gameType === 0); const mine = g.home ? r.homeScore : r.awayScore, theirs = g.home ? r.awayScore : r.homeScore; return { g, won: mine > theirs, mine, theirs }; };
+  const last = played.slice(-5).map(res), next = games.filter(g => !played.includes(g)).slice(0, 3);
+  const opp = id => L.teams.find(x => x.id === id);
+  const leaders = FA.signedRoster(me).map(p => ({ p, l: seasonLine(p, state.leagueIdx, yr) })).filter(x => x.l?.gp).sort((a, b) => b.l.ppg - a.l.ppg).slice(0, 3);
+  const top25 = L.teams.filter(poll).sort((a, b) => poll(a) - poll(b));
+  const tName = t => `${t.logoURL ? `${logoImg(t)} ` : ''}<b class="${isUserTeam(t) ? 'gold' : ''}">${esc(t.shortName)}</b>`;
+  const rank = poll(me);
+  const started = played.length > 0;
+  const ciW = colCiWindow(L), ciDone = ciW && Object.keys(prog().colCi?.[`${cpYr()}:${ciW}`] || {}).length;
+  const rivals = colRivals(me, L), nextRival = games.filter(g => !played.includes(g)).find(g => rivals.some(r => r.t.id === g.opp));
+  const myDraft = (() => { const B = colBoard(), prev = draftPrev(); return B.list.filter(x => x.t === me && x.rank <= 60).slice(0, 2).map(x => `${esc(shortName(x.p))} <span class="muted">${esc(x.label)}${prev?.[x.p.id] && prev[x.p.id] !== x.rank ? ` ${prev[x.p.id] > x.rank ? `<span class="up">▲${prev[x.p.id] - x.rank}</span>` : `<span class="down">▼${x.rank - prev[x.p.id]}</span>`}` : ''}</span>`); })();
+  return `${colMadnessCard()}${colSmBox()}${ciW ? `<fieldset class="frame"><legend>💬 Season Check-in</legend><p class="note small">Check-in ${ciW} of 2: minutes, morale and who's thinking about the portal.${ciDone ? ` You've talked to ${ciDone}.` : ''}</p><button class="btn ${ciDone ? '' : 'focus'}" data-act="nav" data-to="colCheckin">💬 The Locker Room</button></fieldset>` : ''}<fieldset class="frame"><legend>🏀 ${dispYr(yr)} Season</legend>
+    <div class="bio-grid"><div class="bio-box"><span class="glbl">Record</span><b>${st(me).W || 0}-${st(me).L || 0}</b></div><div class="bio-box"><span class="glbl">Conference</span><b>${wl(st(me).CONF)}</b></div><div class="bio-box"><span class="glbl">AP Poll</span><b>${rank ? `#${rank}` : 'NR'} ${(p => (p ? moveTag(rank, p.poll?.[me.id] ?? null) : ''))(pollPrev())}</b></div></div>
+    ${(() => { const B = bracketology(), x = B.field.find(f => f.t.id === me.id), bub = B.lastIn.some(r => r.t.id === me.id) ? ' · last four in' : B.firstOut.some(r => r.t.id === me.id) ? ' · first four out' : ''; return started && !(L.season.playoffs || []).some(p => p.yr === yr && (p.rounds || []).length) ? `<p class="note small" style="margin:6px 0 0">📋 Bracketology: ${x ? `<b>${x.seed} seed</b> in the ${x.region}` : '<b class="down">out</b>'}${bub}</p>` : ''; })()}
+    ${!started ? '<p class="note small">Tip-off: the season starts with your first game in Hoop Land.</p>' : ''}
+    ${last.length ? `<p class="note small" style="margin:8px 0 2px"><b>Last ${last.length}</b></p><div class="stack">${last.reverse().map(x => `<div class="small"><span class="${x.won ? 'up' : 'down'}"><b>${x.won ? 'W' : 'L'}</b> ${x.mine}-${x.theirs}</span> ${x.g.home ? 'vs' : '@'} ${tName(opp(x.g.opp))}${poll(opp(x.g.opp)) ? ` <span class="muted">#${poll(opp(x.g.opp))}</span>` : ''}</div>`).join('')}</div>` : ''}
+    ${next.length ? `<p class="note small" style="margin:8px 0 2px"><b>Up next</b></p><div class="stack">${next.map(g => `<div class="small">${g.home ? 'vs' : '@'} ${tName(opp(g.opp))}${poll(opp(g.opp)) ? ` <span class="muted">#${poll(opp(g.opp))}</span>` : ''} <span class="muted">· ${st(opp(g.opp)).W || 0}-${st(opp(g.opp)).L || 0}</span></div>`).join('')}</div>` : ''}
+    ${leaders.length ? `<p class="note small" style="margin:8px 0 2px"><b>Your leaders</b></p><div class="stack">${leaders.map(({ p, l }) => `<div class="small"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b> <span class="muted">${l.ppg.toFixed(1)} pts · ${l.rpg.toFixed(1)} reb · ${l.apg.toFixed(1)} ast</span></div>`).join('')}</div>` : ''}
+    ${(() => { const k = kind => me.roster.filter(p => streakOf(p.id) === kind).map(p => `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(shortName(p))}</b>`); const h = k('hot'), c = k('cold'); return h.length || c.length ? `<p class="note small" style="margin:8px 0 0">${h.length ? `🔥 ${h.join(', ')}` : ''}${h.length && c.length ? ' · ' : ''}${c.length ? `❄️ ${c.join(', ')}` : ''}</p>` : ''; })()}
+    ${nextRival ? `<p class="note small" style="margin:6px 0 0">🔥 Rivalry game: ${nextRival.home ? 'vs' : '@'} <b>${esc(L.teams.find(x => x.id === nextRival.opp)?.shortName || '')}</b> (${esc(rivals.find(r => r.t.id === nextRival.opp).label)}), week ${colWeek(nextRival.day)}</p>` : ''}
+    ${myDraft.length ? `<p class="note small" style="margin:6px 0 0">🏀 Draft watch: ${myDraft.join(' · ')}</p>` : ''}
+    <div class="grid2" style="margin-top:8px"><button class="btn small" data-act="nav" data-to="colAwards">🏅 Award Races</button><button class="btn small" data-act="nav" data-to="colDraft">🏀 Draft Watch</button><button class="btn small" data-act="nav" data-to="colVisits">🎟️ Official Visits</button><button class="btn small" data-act="nav" data-to="colPoll">🗳️ Top 25</button><button class="btn small" data-act="nav" data-to="colPoll" data-arg="bracket">📋 Bracketology</button><button class="btn small" data-act="nav" data-to="standings">📊 Standings</button><button class="btn small" data-act="nav" data-to="injuries">🩹 Injuries</button></div>
+    <p class="note small muted" style="margin-top:6px">The offseason opens when the season's over: load your Season Complete file.</p></fieldset>`;
+}
+// ---- College: the weekly poll and bracketology. The game keeps this week's AP poll on each team; the app keeps a
+// snapshot every time a college file comes in mid-season, so the next one shows the movement. Bracketology projects
+// the tournament field from the résumés: conference leaders take the automatic bids (Independents have none), the rest
+// go in on résumé, seeded on the S-curve over four regions.
+const pollKey = (yr = league().season.currentYear) => `hlc:poll:${saveTag()}:${yr}`;
+function pollLog() { try { return JSON.parse(localStorage.getItem(pollKey())) || []; } catch { return []; } }
+const colYr = () => league().season.currentYear;
+const colRow = t => (t.season || []).find(x => x.yr === colYr()) || {};
+const colPoll = t => { const v = colRow(t).poll; return v >= 1 && v <= 25 ? v : null; };
+const colWeek = (day, L = league()) => 1 + Math.floor((day || 0) / Math.max(1, Math.round((L.season.schedule?.length || 35) / 18)));
+// The snapshot on load (one a day): the poll and the projected seeds.
+function pollSnapshot() {
+  const L = league(), s = L.season;
+  if (!isCollege() || s.phase < 9 || s.phase >= 15) return;
+  const log = pollLog(), day = s.currentDay || 0;
+  if (log.some(x => x.day === day)) return;
+  const poll = Object.fromEntries(L.teams.map(t => [t.id, colPoll(t)]).filter(([, v]) => v));
+  const all = Object.fromEntries(L.teams.map(t => [t.id, colRow(t).poll]).filter(([, v]) => v >= 1 && v <= 40));
+  const seeds = Object.fromEntries(bracketology().field.map(x => [x.t.id, x.seed]));
+  const draft = Object.fromEntries(colBoard().list.slice(0, 100).map(x => [x.p.id, x.rank]));
+  log.push({ day, poll, all, seeds, draft });
+  log.sort((a, b) => a.day - b.day);
+  try { localStorage.setItem(pollKey(), JSON.stringify(log.slice(-30))); } catch { /* ignore */ }
+}
+// Last week: the latest snapshot from before today.
+const pollPrev = () => { const day = league().season.currentDay || 0; return pollLog().filter(x => x.day < day).pop() || null; };
+// The résumés, from the season's results: win %, margin, strength of schedule, wins over the Top 25, bad losses.
+function colResumes() {
+  const L = league(), S = L.season, rec = new Map(L.teams.map(t => [t.id, { t, w: 0, l: 0, pf: 0, pa: 0, opps: [], top: 0, bad: 0 }]));
+  const played = (S.schedule || []).flatMap(d => (d.results || []).filter(g => g.gameType === 0 && g.homeTeam && g.awayTeam && (g.homeScore || g.awayScore)));
+  for (const g of played) for (const [me, op, mine, theirs] of [[g.homeTeam, g.awayTeam, g.homeScore, g.awayScore], [g.awayTeam, g.homeTeam, g.awayScore, g.homeScore]]) {
+    const r = rec.get(me); if (!r) continue;
+    r.pf += mine; r.pa += theirs; r.opps.push(op); if (mine > theirs) r.w++; else r.l++;
+  }
+  const pct = id => { const r = rec.get(id); return r && r.w + r.l ? r.w / (r.w + r.l) : 0.5; };
+  for (const g of played) for (const [me, op, mine, theirs] of [[g.homeTeam, g.awayTeam, g.homeScore, g.awayScore], [g.awayTeam, g.homeTeam, g.awayScore, g.homeScore]]) {
+    const r = rec.get(me), o = L.teams.find(x => x.id === op); if (!r || !o) continue;
+    if (mine > theirs && colPoll(o)) r.top++;
+    if (mine < theirs && pct(op) < 0.35) r.bad++;
+  }
+  for (const r of rec.values()) {
+    const gp = r.w + r.l || 1;
+    r.pct = (r.w + r.l) ? r.w / gp : 0;
+    r.margin = (r.pf - r.pa) / gp;
+    r.sos = r.opps.length ? r.opps.reduce((a, id) => a + pct(id), 0) / r.opps.length : 0.5;
+    r.score = 30 * r.pct + 0.9 * r.margin + 25 * (r.sos - 0.5) + 2 * r.top - 2 * r.bad + (colPoll(r.t) ? (26 - colPoll(r.t)) * 0.25 : 0);
+  }
+  return rec;
+}
+const confName = t => (league().divisions || [])[t.division] || '';
+// The projected field: { field: [{ t, seed, region, auto }], lastIn, firstOut, nextOut }.
+function bracketology() {
+  const L = league(), R = colResumes(), size = Math.min(L.season.playoffTeams || 64, L.teams.length);
+  const all = [...R.values()].sort((a, b) => b.score - a.score);
+  // Automatic bids: each conference's leader by conference record (then résumé). No bid for Independents.
+  const confs = new Map();
+  for (const r of all) { const c = confName(r.t); if (!c || /independent/i.test(c)) continue; (confs.get(c) || confs.set(c, []).get(c)).push(r); }
+  const confPct = r => { const c = colRow(r.t).seasonStats?.CONF; return Array.isArray(c) && c[0] + c[1] ? c[0] / (c[0] + c[1]) : r.pct; };
+  const auto = new Set([...confs.values()].map(rs => [...rs].sort((a, b) => confPct(b) - confPct(a) || b.score - a.score)[0].t.id));
+  const atLarge = all.filter(r => !auto.has(r.t.id));
+  const nAt = Math.max(0, size - auto.size);
+  const inAt = atLarge.slice(0, nAt), out = atLarge.slice(nAt);
+  const field = [...all.filter(r => auto.has(r.t.id)), ...inAt].sort((a, b) => b.score - a.score);
+  const REG = ['East', 'West', 'South', 'Midwest'];
+  const per = Math.max(1, Math.ceil(field.length / 4));
+  const rows = field.map((r, i) => { const line = Math.floor(i / 4), k = i % 4; return { r, t: r.t, seed: Math.min(16, line + 1), region: REG[line % 2 ? 3 - k : k], auto: auto.has(r.t.id) }; });
+  const everyone = size >= L.teams.length;   // a league no bigger than the field: no bubble
+  return { field: rows, lastIn: everyone ? [] : inAt.slice(-4), firstOut: out.slice(0, 4), nextOut: out.slice(4, 8), size, per };
+}
+const moveTag = (now, was) => (was == null ? (now ? '<span class="up small">NEW</span>' : '') : now == null ? '' : now < was ? `<span class="up small">▲${was - now}</span>` : now > was ? `<span class="down small">▼${now - was}</span>` : '<span class="muted small">–</span>');
+screens.colPoll = (args = {}) => {
+  const L = league();
+  if (!isCollege()) { goHome(); return; }
+  if (args.arg) (state.uiTab ||= {}).colpoll = args.arg;   // a button that opens a tab
+  const prev = pollPrev(), me = L.teams.find(isUserTeam), R = colResumes();
+  const tName = t => `${t.logoURL ? `${logoImg(t)} ` : ''}<b class="${isUserTeam(t) ? 'gold' : ''} tap" data-act="nav" data-to="roster" data-arg="${t.id}">${esc(t.shortName)}</b>`;
+  const rec = t => `${R.get(t.id)?.w || 0}-${R.get(t.id)?.l || 0}`;
+  // ---- The poll.
+  const top = L.teams.filter(colPoll).sort((a, b) => colPoll(a) - colPoll(b));
+  const was = t => (prev?.poll?.[t.id] ?? null);
+  const moves = top.filter(t => was(t) != null).map(t => ({ t, d: was(t) - colPoll(t) }));
+  const risers = moves.filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 3), fallers = moves.filter(x => x.d < 0).sort((a, b) => a.d - b.d).slice(0, 3);
+  const newIn = prev ? top.filter(t => was(t) == null) : [], droppedOut = prev ? Object.keys(prev.poll).map(Number).filter(id => !top.some(t => t.id === id)).map(id => L.teams.find(t => t.id === id)).filter(Boolean) : [];
+  const wk = colWeek(L.season.currentDay);
+  // Mock-draft style: a card per team (rank, logo and name, record and conference, the move on the right), then who
+  // dropped out and the bubble (the game ranks past 25) underneath, like the mock's "Out of the First Round".
+  const pollAll = t => { const v = colRow(t).poll; return v >= 1 ? v : null; };
+  const chip = (now, before) => (!prev ? '' : before == null ? '<span class="mv-chip new">NEW</span>' : before > now ? `<span class="mv-chip up">▲${before - now}</span>` : before < now ? `<span class="mv-chip down">▼${now - before}</span>` : '<span class="mv-chip same">—</span>');
+  const card = t => { const tint = teamTint(t);
+    return `<div class="recap-row ${isUserTeam(t) ? 'mine' : ''}" ${tint ? `style="${tint}"` : ''}><span class="pk">${colPoll(t)}</span>${t.logoURL ? logoImg(t).replace('<img ', '<img onerror="this.style.visibility=\'hidden\'" ') : '<span class="logo-gap"></span>'}
+      <span class="grow tap" data-act="nav" data-to="roster" data-arg="${t.id}"><b>${esc(teamFull(t))}</b><br><span class="small">${rec(t)} · ${esc(confName(t))}</span></span>${chip(colPoll(t), was(t))}</div>`; };
+  const outRow = (t, left, right) => `<div class="out-row"><b class="tap" data-act="nav" data-to="roster" data-arg="${t.id}">${esc(teamFull(t))}</b> <span class="muted small">${rec(t)} · ${esc(confName(t))}</span><span class="out-mv">${left}</span>${right ? `<span class="out-mv" style="margin-left:6px">${right}</span>` : ''}</div>`;
+  const bubbleT = L.teams.filter(t => { const v = pollAll(t); return v > 25 && v <= 30 && !droppedOut.includes(t); }).sort((a, b) => pollAll(a) - pollAll(b));
+  const pollTab = `<p class="note small">${prev ? `Week ${wk}: movement since your last file (week ${colWeek(prev.day)}).` : `Week ${wk}. The arrows start with your next file: the app keeps this week's poll to compare.`}${me ? ` ${esc(me.shortName)}: ${colPoll(me) ? `<b>#${colPoll(me)}</b>` : '<b>unranked</b>'}.` : ''}</p>
+    <div class="stack recap" style="margin-top:8px">${top.map(card).join('')}</div>
+    ${droppedOut.length ? `<fieldset class="frame"><legend>Dropped Out</legend><div class="stack">${droppedOut.map(t => outRow(t, `<span>#${prev.poll[t.id]}</span> → <span class="down">${pollAll(t) ? `#${pollAll(t)}` : 'NR'}</span>`)).join('')}</div></fieldset>` : ''}
+    ${bubbleT.length ? `<fieldset class="frame"><legend>On the Bubble</legend><p class="note small muted">Also receiving votes.</p><div class="stack">${bubbleT.map(t => { const b = prev?.all?.[t.id]; return outRow(t, `<span>#${pollAll(t)}</span>`, b ? (b > pollAll(t) ? `<span class="up">▲${b - pollAll(t)}</span>` : b < pollAll(t) ? `<span class="down">▼${pollAll(t) - b}</span>` : '') : ''); }).join('')}</div></fieldset>` : ''}`;
+  // ---- Bracketology.
+  const B = bracketology(), mine = me && B.field.find(x => x.t.id === me.id), prevSeed = me && prev?.seeds?.[me.id];
+  const bubble = me && [...B.lastIn].some(r => r.t.id === me.id) ? 'last four in' : me && B.firstOut.some(r => r.t.id === me.id) ? 'first four out' : me && B.nextOut.some(r => r.t.id === me.id) ? 'next four out' : null;
+  const meLine = me ? (mine ? `<b>${mine.seed} seed</b> in the ${mine.region}${mine.auto ? ` (automatic bid: leads the ${esc(confName(me))})` : ''}${bubble ? ` · <span class="gold">${bubble}</span>` : ''}${prevSeed ? (prevSeed > mine.seed ? ` <span class="up small">▲ from a ${prevSeed}</span>` : prevSeed < mine.seed ? ` <span class="down small">▼ from a ${prevSeed}</span>` : '') : ''}` : `<b class="down">Out</b>${bubble ? ` · ${bubble}` : ''}${prevSeed ? ` <span class="down small">(was a ${prevSeed} seed)</span>` : ''}`) : '';
+  const r0 = me && R.get(me.id);
+  const lines = Array.from({ length: 16 }, (_, i) => B.field.filter(x => x.seed === i + 1)).filter(l => l.length);
+  // Names only in the lists (logos come in every size).
+  const tPlain = t => `<b class="${isUserTeam(t) ? 'gold' : ''} tap" data-act="nav" data-to="roster" data-arg="${t.id}">${esc(t.shortName)}</b>`;
+  const brTab = `<fieldset class="frame"><legend>📋 Bracketology · Week ${wk}</legend>
+      ${me ? `<p class="note">${tName(me)}: ${meLine}</p>${r0 ? `<p class="note small muted">Résumé: ${r0.w}-${r0.l} · margin ${r0.margin >= 0 ? '+' : ''}${r0.margin.toFixed(1)} · schedule ${Math.round(r0.sos * 100)}% opp. wins · ${r0.top} win${r0.top === 1 ? '' : 's'} over the Top 25 · ${r0.bad} bad loss${r0.bad === 1 ? '' : 'es'}</p>` : ''}` : ''}
+      ${B.size >= L.teams.length ? `<p class="note small">With ${L.teams.length} teams and a ${B.size}-team tournament, everyone's in: it's all about the seed.</p>` : ''}
+      ${B.size >= L.teams.length ? '' : `<details class="cmb-fold" open><summary>🫧 The bubble</summary>
+        <p class="note small"><b>Last four in:</b> ${B.lastIn.map(r => `${tPlain(r.t)} <span class="muted small">${rec(r.t)}</span>`).join(' · ') || 'none'}</p>
+        <p class="note small"><b>First four out:</b> ${B.firstOut.map(r => `${tPlain(r.t)} <span class="muted small">${rec(r.t)}</span>`).join(' · ') || 'none'}</p>
+        <p class="note small"><b>Next four out:</b> ${B.nextOut.map(r => `${tPlain(r.t)} <span class="muted small">${rec(r.t)}</span>`).join(' · ') || 'none'}</p></details>`}
+      <details class="cmb-fold"><summary>🗂️ The seed list (${B.field.length} teams)</summary><div class="stack">${lines.map((l, i) => `<div class="drill-row"><span class="pk">${i + 1}</span><span class="grow small">${l.map(x => `${tPlain(x.t)}${x.auto ? '<span class="muted">*</span>' : ''} <span class="muted">${x.region[0]}</span>`).join(' · ')}</span></div>`).join('')}</div>
+        <p class="note small muted">* automatic bid (leads its conference). E/W/S/M: the region. Seeded on the S-curve.</p></details>
+      <p class="note small muted">The projection: win %, scoring margin, strength of schedule, wins over the Top 25 and bad losses, as if the season ended today. It updates with every file.</p>
+    </fieldset>`;
+  layout({ title: 'Poll & Bracketology', body: uiTabs('colpoll', [['poll', 'Top 25', pollTab], ['bracket', 'Bracketology', brTab]], args.tab || args.arg || 'poll') });
+};
+// ---- College in season, round two: rivalries, the NBA draft watch, the mid-season check-in, award races, official
+// visits, the March Madness hub and the schedule maker.
+
+// Real rivalries, matched by the team's full name (or its name alone for a school the save leaves without a city).
+const COL_RIVALS = [
+  ['Duke Blue Devils', 'North Carolina Tar Heels', 'Tobacco Road'], ['Kentucky Wildcats', 'Louisville Cardinals|=Cardinals', 'Battle for the Bluegrass'],
+  ['Kansas Jayhawks', 'Kansas State Wildcats', 'Sunflower Showdown'], ['Kansas Jayhawks', 'Missouri Tigers', 'Border War'],
+  ['Indiana Hoosiers', 'Purdue Boilermakers', 'Indiana vs. Purdue'], ['Michigan Wolverines', 'Michigan State Spartans', 'In-state war'],
+  ['Michigan Wolverines', 'Ohio State Buckeyes', 'The Game'], ['Arizona Wildcats', 'Arizona State Sun Devils', 'Duel in the Desert'],
+  ['UCLA Bruins', 'USC Trojans', 'L.A.\'s rivalry'], ['Villanova Wildcats', 'Georgetown Hoyas', 'Big East blood'], ['Syracuse Orange', 'Georgetown Hoyas', 'Old Big East'],
+  ['Cincinnati Bearcats', 'Xavier Musketeers', 'Crosstown Shootout'], ['Alabama Crimson Tide', 'Auburn Tigers', 'Iron Bowl on hardwood'],
+  ['Texas Longhorns', 'Texas A&M Aggies', 'Lone Star Showdown'], ['Oklahoma Sooners', 'Oklahoma State Cowboys', 'Bedlam'],
+  ['Iowa Hawkeyes', 'Iowa State Cyclones', 'Cy-Hawk'], ['Florida Gators', 'Florida State Seminoles', 'Sunshine Showdown'],
+  ['Kentucky Wildcats', 'Tennessee Volunteers', 'SEC grudge'], ['Marquette Golden Eagles', 'Wisconsin Badgers', 'I-94 rivalry'],
+  ['BYU Cougars', 'Utah Utes', 'Holy War'], ['Pittsburgh Panthers', 'West Virginia Mountaineers', 'Backyard Brawl'],
+  ['Virginia Cavaliers', 'Virginia Tech Hokies', 'Commonwealth Clash'], ['North Carolina State Wolfpack', 'North Carolina Tar Heels', 'Triangle rivalry'],
+  ['UConn Huskies', 'Syracuse Orange', 'Old Big East'], ['Washington Huskies', 'Washington State Cougars', 'Apple Cup'],
+  ['Oregon Ducks', 'Oregon State Beavers', 'Civil War'], ['Stanford Cardinal', 'California Golden Bears', 'The Big Game'],
+  ['Clemson Tigers', 'South Carolina Gamecocks', 'Palmetto rivalry'], ['Georgia Bulldogs', 'Georgia Tech Yellow Jackets', 'Clean, Old-Fashioned Hate'],
+  ['Ole Miss Rebels', 'Mississippi State Bulldogs', 'Egg Bowl'], ['Louisville Cardinals|=Cardinals', 'Memphis Tigers', 'Old Metro rivalry'],
+];
+const colIs = (t, key) => key.split('|').some(k => (k.startsWith('=') ? !t.city && (t.name || '').trim() === k.slice(1) : teamFull(t).toLowerCase().trim() === k.toLowerCase()));
+// Your rivals: [{ t, label }].
+function colRivals(me, L = league()) {
+  if (!me) return [];
+  const out = [];
+  for (const [a, b, label] of COL_RIVALS) {
+    const other = colIs(me, a) ? b : colIs(me, b) ? a : null;
+    if (!other) continue;
+    const t = L.teams.find(x => x !== me && colIs(x, other));
+    if (t && !out.some(o => o.t === t)) out.push({ t, label });
+  }
+  return out;
+}
+const colRivalOf = (me, opp) => colRivals(me).find(r => r.t === opp) || null;
+// The series in this league (the game's head-to-head record).
+const colSeries = (me, opp) => { const h = (me.headToHeads || []).find(x => x.tid === opp.id); return h ? `${h.W}-${h.L}` : '0-0'; };
+const colRivalLine = (me, opp) => { const r = colRivalOf(me, opp); return r ? `🔥 Rivalry: ${r.label} · you're ${colSeries(me, opp)} against ${opp.shortName}` : ''; };
+
+// The NBA draft watch: the college big board (level, ceiling, youth), and each player's move since the last file.
+const colBoard = () => CP.draftBoard(league(), shownLevel);
+const draftPrev = () => pollPrev()?.draft || null;
+// Regular-season days (the schedule before the conference tournaments and the NCAA tournament).
+function colRegDays(L = league()) {
+  const sc = L.season.schedule || [];
+  let last = -1;
+  sc.forEach((d, i) => { if ((d.results || []).some(g => g.gameType === 0 && !g.tRound && g.homeTeam && g.awayTeam)) last = i; });
+  return last + 1 || sc.length;
+}
+// The postseason has started: a conference tournament game on the schedule up to today, or the NCAA field set.
+function colPost(L = league()) {
+  const S = L.season, day = S.currentDay || 0, yr = S.currentYear;
+  if ((S.playoffs || []).some(p => p.yr === yr && (p.rounds || []).length)) return true;
+  return (S.schedule || []).some((d, i) => i <= day && (d.results || []).some(g => g.gameType === 2));
+}
+
+// ---- The mid-season check-in: two windows (about a third and two thirds of the way). Each rotation player's minutes,
+// morale and what's on his mind; a word from you (once a window) moves his morale, and it goes into the save.
+function colCiWindow(L = league()) {
+  const S = L.season, n = colRegDays(L), d = S.currentDay || 0;
+  if (S.phase < 9 || S.phase >= 15 || colPost(L)) return null;
+  if (d >= Math.round(n * 0.3) && d < Math.round(n * 0.55)) return 1;
+  if (d >= Math.round(n * 0.65) && d < Math.round(n * 0.92)) return 2;
+  return null;
+}
+function colCiRows(t) {
+  const L = league(), yr = L.season.currentYear;
+  const ps = t.roster.map(p => ({ p, l: seasonLine(p, state.leagueIdx, yr), lv: shownLevel(p) }));
+  const byLv = [...ps].sort((a, b) => b.lv - a.lv), byMin = [...ps].sort((a, b) => (b.l?.mpg || 0) - (a.l?.mpg || 0));
+  return byLv.slice(0, 11).map(x => {
+    const lvRank = byLv.indexOf(x) + 1, minRank = byMin.indexOf(x) + 1, morale = x.p.season?.morale ?? 70, fr = (x.p.yrs ?? 0) === 0;
+    const wants = lvRank <= 8 && minRank - lvRank >= 3 ? 'wants more minutes' : fr && lvRank <= 6 && !(x.l?.starts > (x.l?.gp || 0) / 2) ? 'a freshman pushing to start' : morale < 45 ? 'unhappy' : null;
+    // Portal risk: playing under his level, low morale, and the minutes ahead of him.
+    const risk = Math.max(2, Math.min(70, Math.round((wants ? 18 : 4) + Math.max(0, minRank - lvRank) * 3 + Math.max(0, 65 - morale) * 0.6 + (fr ? 0 : 3))));
+    return { ...x, lvRank, minRank, morale, wants, risk };
+  });
+}
+screens.colCheckin = () => {
+  const L = league(), t = L.teams.find(isUserTeam), w = colCiWindow(L);
+  if (!isCollege() || !t) { goHome(); return; }
+  const P = prog(), yr = cpYr(), key = `${yr}:${w || 0}`, done = ((P.colCi ||= {})[key] ||= {});
+  const rows = colCiRows(t);
+  const act = (r, k, l) => `<button class="btn small ${k === 'leave' ? 'off' : ''}" data-act="colCiAct" data-id="${r.p.id}" data-k="${k}" ${done[r.p.id] || !w ? 'disabled' : ''}>${l}</button>`;
+  layout({ title: 'Season Check-in', body: `<p class="note small">${w ? `Check-in ${w} of 2. A word from you moves a player's morale (it goes into the save). Each player once a check-in.` : 'Check-ins open about a third and two thirds of the way through the regular season.'}</p>
+    <div class="stack">${rows.map(r => `<div class="drill-row wrap"><span class="grow"><b class="tap" data-act="openPlayer" data-id="${r.p.id}">${esc(playerName(r.p))}</b> ${lvTag(r.p)} <span class="muted small">${esc(posName(r.p))} · ${['Fr', 'So', 'Jr', 'Sr'][Math.min(3, r.p.yrs ?? 0)] || ''}</span><br>
+      <span class="small">${(r.l?.mpg || 0).toFixed(1)} MPG · ${(r.l?.ppg || 0).toFixed(1)} PPG · morale <b class="${r.morale >= 70 ? 'up' : r.morale < 45 ? 'down' : ''}">${r.morale}</b> · portal risk <b class="${r.risk >= 30 ? 'down' : ''}">${r.risk}%</b></span>
+      ${r.wants ? `<br><span class="small gold">${esc(r.wants)}</span>` : ''}${done[r.p.id] ? `<br><span class="small muted">${esc(done[r.p.id])}</span>` : ''}</span>
+      ${w && !done[r.p.id] ? `<span class="grid3" style="width:100%;margin-top:6px">${act(r, 'talk', '💬 Talk')}${act(r, 'promise', r.wants === 'wants more minutes' ? '⏱️ Promise minutes' : '⭐ Praise')}${act(r, 'leave', 'Leave it')}</span>` : ''}</div>`).join('')}</div>` });
+};
+actions.colCiAct = d => {
+  const L = league(), t = L.teams.find(isUserTeam), w = colCiWindow(L); if (!t || !w) return;
+  const P = prog(), key = `${cpYr()}:${w}`, done = ((P.colCi ||= {})[key] ||= {});
+  const p = t.roster.find(x => x.id === +d.id); if (!p || done[p.id]) return;
+  const r = colCiRows(t).find(x => x.p.id === p.id), add = d.k === 'talk' ? (r?.wants ? 6 : 3) : d.k === 'promise' ? (r?.wants ? 10 : 5) : (r?.wants ? -4 : 0);
+  if (p.season) p.season.morale = Math.max(0, Math.min(100, (p.season.morale ?? 70) + add));
+  done[p.id] = d.k === 'talk' ? `You talked it through (morale ${add >= 0 ? '+' : ''}${add}).` : d.k === 'promise' ? `${r?.wants === 'wants more minutes' ? 'You promised him more minutes' : 'You praised him in front of the team'} (morale +${add}).` : `You let it be${add ? ` (morale ${add})` : ''}.`;
+  if (d.k === 'promise' && r?.wants === 'wants more minutes') { ((P.colPromise ||= {})[cpYr()] ||= []).push(p.id); }
+  saveProg(); state.dirty = true; render();
+};
+
+// ---- Award races: Player of the Year, Freshman of the Year, the All-Americans, your All-Conference team and Coach
+// of the Year. A player's score: his game score a game (36 minutes-ish), a share for winning and for playing big minutes.
+function colAwardScores() {
+  const L = league(), yr = L.season.currentYear, R = colResumes();
+  return L.teams.flatMap(t => t.roster.map(p => { const l = seasonLine(p, state.leagueIdx, yr); if (!l || l.gp < Math.max(3, Math.round(colRegDays(L) * 0.2))) return null;
+    const wp = R.get(t.id)?.pct ?? 0.5, sc = l.gs * (0.75 + wp * 0.5) * Math.min(1, 0.6 + l.mpg / 25);
+    return { p, t, l, sc, fr: (p.yrs ?? 0) === 0 }; })).filter(Boolean).sort((a, b) => b.sc - a.sc);
+}
+screens.colAwards = () => {
+  const L = league(), me = L.teams.find(isUserTeam);
+  if (!isCollege()) { goHome(); return; }
+  const all = colAwardScores(), R = colResumes(), post = colPost(L) || L.season.phase >= 15;
+  const row = (x, i) => `<div class="drill-row"><span class="pk">${i + 1}</span><span class="grow"><b class="tap ${isUserTeam(x.t) ? 'gold' : ''}" data-act="openPlayer" data-id="${x.p.id}">${esc(playerName(x.p))}</b> <span class="muted small">${esc(x.t.shortName)} · ${esc(posName(x.p))}</span><br><span class="small">${x.l.ppg.toFixed(1)} pts · ${x.l.rpg.toFixed(1)} reb · ${x.l.apg.toFixed(1)} ast · ${R.get(x.t.id)?.w || 0}-${R.get(x.t.id)?.l || 0}</span></span></div>`;
+  const aa = all.slice(0, 15), team = (n, list) => `<p class="note small" style="margin:6px 0 2px"><b>${n}</b></p><div class="stack">${list.map((x, i) => `<div class="small">${esc(playerName(x.p))} <span class="muted">${esc(x.t.shortName)} · ${x.l.ppg.toFixed(1)} ppg</span></div>`).join('')}</div>`;
+  const conf = me ? all.filter(x => x.t.division === me.division).slice(0, 5) : [];
+  // Coach of the Year: the team furthest past where it started (the first poll this season, else unranked = 40).
+  const first = pollLog()[0]?.all || {};
+  const coy = [...R.values()].filter(r => r.w + r.l >= 5).map(r => ({ r, d: (first[r.t.id] || 40) - (colRow(r.t).poll || 40) + r.pct * 10 })).sort((a, b) => b.d - a.d).slice(0, 5);
+  layout({ title: 'Award Races', body: `<p class="note small">${post ? 'The final ladders.' : `As of week ${colWeek(L.season.currentDay)}: production, winning and minutes.`}</p>
+    ${uiTabs('colaw', [
+      ['poy', 'Player', `<fieldset class="frame"><legend>🏅 Player of the Year</legend><div class="stack">${all.slice(0, 10).map(row).join('')}</div></fieldset>`],
+      ['foy', 'Freshman', `<fieldset class="frame"><legend>🌱 Freshman of the Year</legend><div class="stack">${all.filter(x => x.fr).slice(0, 10).map(row).join('') || '<p class="note muted">No freshmen in the race yet.</p>'}</div></fieldset>`],
+      ['aa', 'All-America', `<fieldset class="frame"><legend>📜 All-American Teams</legend>${team('First Team', aa.slice(0, 5))}${team('Second Team', aa.slice(5, 10))}${team('Third Team', aa.slice(10, 15))}${me ? `<p class="note small" style="margin-top:10px"><b>All-${esc(confName(me) || 'Conference')}</b></p><div class="stack">${conf.map(x => `<div class="small">${esc(playerName(x.p))} <span class="muted">${esc(x.t.shortName)} · ${x.l.ppg.toFixed(1)} ppg</span></div>`).join('')}</div>` : ''}</fieldset>`],
+      ['coy', 'Coach', `<fieldset class="frame"><legend>🧑‍🏫 Coach of the Year</legend><p class="note small muted">Who's beaten expectations: where the team started in the poll against where it is.</p><div class="stack">${coy.map((x, i) => `<div class="drill-row"><span class="pk">${i + 1}</span><span class="grow"><b class="${isUserTeam(x.r.t) ? 'gold' : ''}">${esc(teamFull(x.r.t))}</b><br><span class="small">${x.r.w}-${x.r.l} · ${first[x.r.t.id] ? `started #${first[x.r.t.id]}` : 'started unranked'} · ${colPoll(x.r.t) ? `now #${colPoll(x.r.t)}` : 'unranked'}</span></span></div>`).join('')}</div></fieldset>`],
+    ], 'poy')}` });
+};
+
+// ---- Official visits: host recruits at a home game (three a season). The game decides how it goes; the pull it adds
+// (more for a win, most for a win over a ranked team) feeds the spring's recruiting with the rest of the program's pull.
+const COL_VISITS = 3;
+function colVisitsNow() { const P = prog(); return ((P.visits ||= {})[cpYr()] ||= []); }
+function colVisitPull(yr = cpYr()) {
+  const L = league(), vs = (prog().visits || {})[yr] || [];
+  return vs.reduce((a, v) => { const g = (L.season.schedule?.[v.day]?.results || []).find(x => x.homeTeam === v.home && x.awayTeam === v.away);
+    if (!g || !(g.homeScore || g.awayScore)) return a; const won = g.homeScore > g.awayScore; return a + (won ? (v.ranked ? 6 : 4) : 1); }, 0);
+}
+screens.colVisits = () => {
+  const L = league(), me = L.teams.find(isUserTeam), S = L.season;
+  if (!isCollege() || !me) { goHome(); return; }
+  const vs = colVisitsNow(), day = S.currentDay || 0;
+  const home = teamGames(L, me).filter(g => g.home && g.day >= day).slice(0, 12);
+  const opp = id => L.teams.find(t => t.id === id);
+  const res = v => { const g = (S.schedule?.[v.day]?.results || []).find(x => x.homeTeam === v.home && x.awayTeam === v.away); return g && (g.homeScore || g.awayScore) ? (g.homeScore > g.awayScore ? `<span class="up">W ${g.homeScore}-${g.awayScore}: the visitors loved it (+${v.ranked ? 6 : 4})</span>` : `<span class="down">L ${g.homeScore}-${g.awayScore}: a quiet ride home (+1)</span>`) : '<span class="muted">coming up</span>'; };
+  layout({ title: 'Official Visits', body: `<p class="note small">Bring recruits to a home game: ${COL_VISITS} visit weekends a season. A win sells the program (a win over a ranked team most of all), and it all adds to your pull when recruiting opens in the spring.</p>
+    <fieldset class="frame"><legend>🎟️ Your Visits (${vs.length}/${COL_VISITS})</legend>${vs.length ? `<div class="stack">${vs.map(v => `<div class="small">vs <b>${esc(opp(v.away)?.shortName || '?')}</b>${v.ranked ? ' <span class="muted">(ranked)</span>' : ''} · ${res(v)}</div>`).join('')}</div><p class="note small">Pull so far: <b class="up">+${colVisitPull()}</b></p>` : '<p class="note muted">None yet.</p>'}</fieldset>
+    <fieldset class="frame"><legend>🏟️ Upcoming Home Games</legend><div class="stack">${home.map(g => { const o = opp(g.opp), taken = vs.some(v => v.day === g.day);
+      return `<div class="drill-row"><span class="grow">vs <b>${esc(o?.shortName || '?')}</b>${colPoll(o) ? ` <span class="muted">#${colPoll(o)}</span>` : ''}${colRivalOf(me, o) ? ' 🔥' : ''}<br><span class="small muted">Week ${colWeek(g.day)}</span></span>${taken ? '<span class="small up">Visit set</span>' : `<button class="btn small" data-act="colVisit" data-day="${g.day}" data-away="${g.opp}" ${vs.length >= COL_VISITS || g.day <= day ? 'disabled' : ''}>Host a visit</button>`}</div>`; }).join('') || '<p class="note muted">No home games left.</p>'}</div></fieldset>` });
+};
+actions.colVisit = d => { const L = league(), me = L.teams.find(isUserTeam), vs = colVisitsNow(); if (!me || vs.length >= COL_VISITS) return; const o = L.teams.find(t => t.id === +d.away);
+  vs.push({ day: +d.day, home: me.id, away: +d.away, ranked: !!colPoll(o) }); saveProg(); toast('🎟️ Visit weekend set', `Recruits will be in the building against ${o?.shortName || ''}.`); render(); };
+
+// ---- NBA draft watch: the college big board and your players.
+screens.colDraft = () => {
+  const L = league(), me = L.teams.find(isUserTeam);
+  if (!isCollege()) { goHome(); return; }
+  const B = colBoard(), prev = draftPrev();
+  const chip = x => { const w = prev?.[x.p.id]; return !prev ? '' : w == null ? '<span class="mv-chip new">NEW</span>' : w > x.rank ? `<span class="mv-chip up">▲${w - x.rank}</span>` : w < x.rank ? `<span class="mv-chip down">▼${x.rank - w}</span>` : '<span class="mv-chip same">—</span>'; };
+  const card = x => { const tint = teamTint(x.t); return `<div class="recap-row ${isUserTeam(x.t) ? 'mine' : ''}" ${tint ? `style="${tint}"` : ''}><span class="pk">${x.rank}</span><span class="grow tap" data-act="openPlayer" data-id="${x.p.id}"><b>${esc(playerName(x.p))}</b><br><span class="small">${esc(x.t.shortName)} · ${esc(posName(x.p))} · ${x.p.age}y · ${esc(x.label)}</span></span>${chip(x)}</div>`; };
+  const mine = me ? B.list.filter(x => x.t === me && x.rank <= 75) : [];
+  layout({ title: 'NBA Draft Watch', body: `<p class="note small">How NBA scouts see the college game this week: level, ceiling and age.${prev ? ' Moves are since your last file.' : ' Moves start with your next file.'}</p>
+    ${me ? `<fieldset class="frame"><legend>📋 Your Prospects</legend>${mine.length ? `<div class="stack recap">${mine.map(card).join('')}</div>` : '<p class="note muted">Nobody on the board yet.</p>'}</fieldset>` : ''}
+    <fieldset class="frame"><legend>🏀 Big Board</legend><div class="stack recap">${B.list.slice(0, 30).map(card).join('')}</div></fieldset>` });
+};
+
+// ---- The March Madness hub: the conference tournaments, Selection Sunday, the bracket and One Shining Moment.
+function colMadness(L = league()) {
+  const S = L.season, yr = S.currentYear, po = (S.playoffs || []).find(p => p.yr === yr);
+  const games = (S.schedule || []).flatMap((d, day) => (d.results || []).map(g => ({ ...g, day })));
+  const conf = games.filter(g => g.gameType === 2);
+  const byConf = new Map();
+  for (const g of conf) { const t = L.teams.find(x => x.id === g.homeTeam); const c = t ? confName(t) : '?'; (byConf.get(c) || byConf.set(c, []).get(c)).push(g); }
+  const seedOf = t => colRow(t).seed || null, line = o => (o ? Math.ceil(o / 4) : null);
+  const ncaa = r => games.filter(g => g.gameType === 0 && g.tRound === r + 1);
+  return { po, byConf, seedOf, line, ncaa, rounds: po?.rounds || [] };
+}
+const ROUND_NAMES = n => ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite Eight', 'Final Four', 'National Championship'].slice(6 - n);
+screens.colMadness = (args = {}) => {
+  const L = league(), me = L.teams.find(isUserTeam);
+  if (!isCollege()) { goHome(); return; }
+  const M = colMadness(L), tm = id => L.teams.find(t => t.id === id), nm = id => esc(tm(id)?.shortName || '?');
+  const sc = g => { const w = g.homeScore > g.awayScore ? [g.homeTeam, g.homeScore, g.awayTeam, g.awayScore] : [g.awayTeam, g.awayScore, g.homeTeam, g.homeScore]; return g.homeScore || g.awayScore ? `<b class="${isUserTeam(tm(w[0]) || {}) ? 'gold' : ''}">${nm(w[0])}</b> ${w[1]}, <span class="${isUserTeam(tm(w[2]) || {}) ? 'gold' : ''}">${nm(w[2])}</span> ${w[3]}` : `${nm(g.awayTeam)} vs ${nm(g.homeTeam)}`; };
+  const ln = id => M.line(M.seedOf(tm(id) || {}));
+  // Conference tournaments.
+  const confTab = M.byConf.size ? [...M.byConf.entries()].map(([c, gs]) => { const last = gs[gs.length - 1], champ = last.homeScore || last.awayScore ? (last.homeScore > last.awayScore ? last.homeTeam : last.awayTeam) : null;
+    return `<fieldset class="frame"><legend>${esc(c)}</legend><div class="stack">${gs.map(g => `<div class="small">${sc(g)}</div>`).join('')}</div>${champ ? `<p class="note small up">🏆 ${esc(teamFull(tm(champ)))} win the ${esc(c)} and the automatic bid.</p>` : ''}</fieldset>`; }).join('') : '<p class="note">The conference tournaments start when the regular season ends.</p>';
+  // Selection Sunday.
+  const field = M.rounds[0]?.series || [];
+  const REG = ['East', 'West', 'South', 'Midwest'];
+  const regionOf = tId => REG[Math.floor(tId / 8) % 4];
+  const myS = me ? field.find(s => s.topSeed === me.id || s.lowerSeed === me.id) : null;
+  const proj = me && pollLog().filter(x => x.seeds).pop()?.seeds?.[me.id];
+  const selTab = field.length ? `<fieldset class="frame"><legend>📺 Selection Sunday</legend>
+      ${me ? `<p class="note">${myS ? `<b class="gold">${esc(teamFull(me))}</b>: a <b>${ln(me.id)} seed</b> in the ${regionOf(myS.tId)}${proj ? ` · we projected a ${proj} (${proj === ln(me.id) ? 'right on' : proj > ln(me.id) ? '<span class="up">better than projected</span>' : '<span class="down">lower than projected</span>'})` : ''}.` : `<b class="down">${esc(teamFull(me))} were left out.</b>${proj ? ` We had you a ${proj} seed.` : ''}`}</p>` : ''}
+      ${REG.map((r, ri) => `<p class="note small" style="margin:8px 0 2px"><b>${r}</b></p><div class="stack">${field.filter(s => Math.floor(s.tId / 8) % 4 === ri).map(s => `<div class="small">${ln(s.topSeed)} ${nm(s.topSeed)} vs ${ln(s.lowerSeed)} ${nm(s.lowerSeed)}</div>`).join('')}</div>`).join('')}</fieldset>`
+    : '<p class="note">The field is set on Selection Sunday, after the conference tournaments.</p>';
+  // The bracket, round by round, with upsets and your path.
+  const names = ROUND_NAMES(Math.max(1, M.rounds.length));
+  const upsets = [];
+  const brTab = M.rounds.length ? M.rounds.map((r, i) => { const gs = M.ncaa(i); if (!gs.length) return '';
+    const rows = gs.map(g => { const won = g.homeScore > g.awayScore ? g.homeTeam : g.awayTeam, lost = won === g.homeTeam ? g.awayTeam : g.homeTeam, up = g.homeScore || g.awayScore ? (ln(won) || 0) - (ln(lost) || 0) : 0;
+      if (up >= 4) upsets.push({ g, won, lost, up, round: names[i] });
+      const mine = me && (g.homeTeam === me.id || g.awayTeam === me.id);
+      return `<div class="small ${mine ? 'gold' : ''}">${up >= 4 ? '⚡ ' : ''}<span class="muted">${ln(g.homeTeam)}</span> ${nm(g.homeTeam)} ${g.homeScore || ''} · <span class="muted">${ln(g.awayTeam)}</span> ${nm(g.awayTeam)} ${g.awayScore || ''}</div>`; }).join('');
+    return `<fieldset class="frame"><legend>${esc(names[i])}</legend><div class="stack">${rows}</div></fieldset>`; }).reverse().join('') : '<p class="note">The bracket fills in as the tournament is played.</p>';
+  // Your run.
+  let myRun = '';
+  if (me && myS) { const mine = M.rounds.flatMap((r, i) => M.ncaa(i).filter(g => g.homeTeam === me.id || g.awayTeam === me.id).map(g => ({ g, i })));
+    const lastG = mine[mine.length - 1];
+    if (lastG && (lastG.g.homeScore || lastG.g.awayScore)) { const won = (lastG.g.homeTeam === me.id ? lastG.g.homeScore > lastG.g.awayScore : lastG.g.awayScore > lastG.g.homeScore);
+      myRun = won && lastG.i === M.rounds.length - 1 ? '🏆 National champions.' : won ? `Alive: through the ${names[lastG.i]}.` : `Out in the ${names[lastG.i]} to ${nm(lastG.g.homeTeam === me.id ? lastG.g.awayTeam : lastG.g.homeTeam)}.`; } }
+  // One Shining Moment: the champion, the final, the Most Outstanding Player (the champion's best tournament line), the Cinderella.
+  const fin = M.rounds.length ? M.ncaa(M.rounds.length - 1)[0] : null;
+  let osm = '';
+  if (fin && (fin.homeScore || fin.awayScore)) {
+    const champ = fin.homeScore > fin.awayScore ? fin.homeTeam : fin.awayTeam, ru = champ === fin.homeTeam ? fin.awayTeam : fin.homeTeam, ct = tm(champ);
+    const mop = (ct?.roster || []).map(p => ({ p, l: seasonLine(p, state.leagueIdx, L.season.currentYear, 'playoffs') })).filter(x => x.l?.gp).sort((a, b) => b.l.gs - a.l.gs)[0];
+    const cind = M.rounds.slice(2).flatMap(r => r.series.flatMap(s => [s.topSeed, s.lowerSeed])).map(id => ({ id, ln: ln(id) })).sort((a, b) => b.ln - a.ln)[0];
+    osm = `<fieldset class="frame oly-final"><legend>✨ One Shining Moment</legend>
+      <p class="note"><b>${esc(teamFull(ct))}</b> are national champions, beating ${esc(teamFull(tm(ru)))} ${Math.max(fin.homeScore, fin.awayScore)}-${Math.min(fin.homeScore, fin.awayScore)}.</p>
+      ${mop ? `<p class="note small">Most Outstanding Player: <b class="tap" data-act="openPlayer" data-id="${mop.p.id}">${esc(playerName(mop.p))}</b> (${mop.l.ppg.toFixed(1)} points, ${mop.l.rpg.toFixed(1)} rebounds a game in the tournament).</p>` : ''}
+      ${cind && cind.ln >= 7 ? `<p class="note small">Cinderella: the ${cind.ln}-seed ${esc(teamFull(tm(cind.id)))} made the Sweet 16.</p>` : ''}
+      ${upsets.length ? `<p class="note small">Biggest upset: ${upsets.sort((a, b) => b.up - a.up)[0].round}, ${ln(upsets[0].won)} ${nm(upsets[0].won)} over ${ln(upsets[0].lost)} ${nm(upsets[0].lost)}.</p>` : ''}
+      ${myRun ? `<p class="note small gold">Your season: ${esc(myRun)}</p>` : ''}</fieldset>`;
+  }
+  const upTab = upsets.length ? `<fieldset class="frame"><legend>⚡ Upsets</legend><div class="stack">${upsets.sort((a, b) => b.up - a.up).map(u => `<div class="small">${esc(u.round)}: ${ln(u.won)} ${nm(u.won)} over ${ln(u.lost)} ${nm(u.lost)}, ${Math.max(u.g.homeScore, u.g.awayScore)}-${Math.min(u.g.homeScore, u.g.awayScore)}</div>`).join('')}</div></fieldset>` : '';
+  layout({ title: 'March Madness', body: `${myRun && !osm ? `<p class="note gold">${esc(myRun)}</p>` : ''}${osm}${uiTabs('madhub', [['bracket', 'Bracket', brTab + upTab], ['selection', 'Selection', selTab], ['conf', 'Conf. Tourneys', confTab]], osm || M.rounds.length ? 'bracket' : 'conf')}` });
+};
+function colMadnessCard() {
+  const L = league(); if (!colPost(L)) return '';
+  const M = colMadness(L), me = L.teams.find(isUserTeam), myS = me && (M.rounds[0]?.series || []).find(s => s.topSeed === me.id || s.lowerSeed === me.id);
+  const fin = M.rounds.length ? M.ncaa(M.rounds.length - 1)[0] : null, done = fin && (fin.homeScore || fin.awayScore);
+  return `<fieldset class="frame"><legend>🏆 March Madness</legend><p class="note small">${done ? `${esc(teamFull(L.teams.find(t => t.id === (fin.homeScore > fin.awayScore ? fin.homeTeam : fin.awayTeam))))} are national champions.` : M.rounds.length ? (myS ? `You're a <b>${M.line(M.seedOf(me))} seed</b>. The bracket is live.` : 'The bracket is set. You were left out.') : 'Conference tournament week: the automatic bids are on the line.'}</p>
+    <button class="btn focus" data-act="nav" data-to="colMadness">🏆 ${done ? 'One Shining Moment' : M.rounds.length ? 'The Bracket' : 'Conference Tournaments'}</button></fieldset>`;
+}
+
+// ---- The schedule maker (a season-start file, before the first game): Opening Night, the Champions Classic and Rivalry
+// Week, then the season laid out around them (the same games, nobody twice a day).
+function colSmPicks(L = league()) {
+  const f = calFlags();
+  if (f.colSm) return f.colSm;
+  const R = colResumes(), str = t => (colRow(t).poll ? 30 - colRow(t).poll : 0) + (R.get(t.id)?.score || 0) * 0.1;
+  const prestige = t => (colRow(t).prestige > 0 ? colRow(t).prestige : 0) + str(t);
+  const top = [...L.teams].sort((a, b) => prestige(b) - prestige(a));
+  const used = new Set(), pair = (a, b) => { used.add(a.id); used.add(b.id); return [a.id, b.id]; };
+  const pickPairs = (list, n) => { const out = []; for (let i = 0; i < list.length && out.length < n; i++) for (let j = i + 1; j < list.length && out.length < n; j++) { const a = list[i], b = list[j]; if (used.has(a.id) || used.has(b.id) || !colHasGame(L, a.id, b.id)) continue; out.push(pair(a, b)); break; } return out; };
+  // The Champions Classic is Duke, Kentucky, Kansas and Michigan State when they play each other; else the next best.
+  const blue = ['Duke Blue Devils', 'Kentucky Wildcats', 'Kansas Jayhawks', 'Michigan State Spartans'].map(n => L.teams.find(t => colIs(t, n))).filter(Boolean);
+  const opening = pickPairs(top, 2), classic = pickPairs(blue, 2);
+  if (classic.length < 2) classic.push(...pickPairs(top, 2 - classic.length));
+  const rivalry = []; const seen = new Set();
+  for (const t of L.teams) for (const r of colRivals(t, L)) { const k = [t.id, r.t.id].sort().join('-'); if (seen.has(k) || !colHasGame(L, t.id, r.t.id)) continue; seen.add(k); rivalry.push([t.id, r.t.id]); }
+  return (f.colSm = { opening, classic, rivalry });
+}
+const colHasGame = (L, a, b) => (L.season.schedule || []).some(d => (d.results || []).some(g => g.gameType === 0 && ((g.homeTeam === a && g.awayTeam === b) || (g.homeTeam === b && g.awayTeam === a))));
+const colSmOn = () => { const L = league(); return isCollege() && L.season.phase === 9 && !(L.season.schedule || []).some(d => (d.results || []).some(g => g.homeScore || g.awayScore)); };
+function colSmBox() {
+  if (!colSmOn()) return '';
+  const L = league(), f = calFlags(), P = colSmPicks(L), tm = id => L.teams.find(t => t.id === id)?.shortName || '?';
+  const days = colRegDays(L), D = colSmDays(days);
+  // Day numbers as the game will show them: a special day (an exhibition) before a night pushes it back one.
+  const sp = (S0 => (S0.schedule || []).map((d, i) => ((d.results || []).some(g => g.gameType !== 0) ? i : -1)).filter(i => i >= 0))(L.season);
+  const dn = d => { let x = d; for (const i of sp) if (i <= x) x++; return x + 1; };
+  const list = (ps, sep = ' vs ') => ps.map(([a, b]) => `${esc(tm(a))}${sep}${esc(tm(b))}`).join(' · ') || '<span class="muted">none on the schedule</span>';
+  return `<fieldset class="frame"><legend>🗓️ Schedule Maker</legend><p class="note small">Before the first game: set the marquee nights and lay the season out around them. The same games, every team's count unchanged.</p>
+    <div class="stack small"><div>${dayIcon('opening')} <b>Opening Night</b> (Day ${dn(D.opening)}): ${list(P.opening)}</div><div>🏆 <b>Champions Classic</b> (Day ${dn(D.classic)}): ${list(P.classic)}</div><div>🔥 <b>Rivalry Week</b> (Days ${dn(D.rivalry)}–${dn(D.rivalry + 2)}): ${list(P.rivalry)}</div></div>
+    <div class="grid2" style="margin-top:8px">${f.colSmUndo ? '<button class="btn off" data-act="colSmUndo">↺ Undo</button>' : '<span></span>'}<button class="btn focus" data-act="colSmBuild">🗓️ ${f.colSmUndo ? 'Rebuild' : 'Build the Season'}</button></div>
+    ${f.colSmUndo ? '<p class="note small up" style="margin-top:6px">✓ Built. Export the file and load it in Hoop Land.</p>' : ''}</fieldset>`;
+}
+const colSmDays = days => ({ opening: 0, classic: Math.max(1, Math.round(days * 0.06)), rivalry: Math.max(3, Math.round(days * 0.78)) });
+actions.colSmBuild = () => {
+  const L = league(), S = L.season, f = calFlags(), P = colSmPicks(L);
+  if (!f.colSmUndo) f.colSmUndo = { sched: cloneData(S.schedule || []), uGID: L.meta?.uGID };
+  S.schedule = cloneData(f.colSmUndo.sched);
+  const D = colSmDays(colRegDays(L));
+  const pins = [...P.opening.map(([h, a]) => ({ day: D.opening, h, a })), ...P.classic.map(([h, a]) => ({ day: D.classic, h, a })), ...P.rivalry.map(([h, a], i) => ({ day: D.rivalry + (i % 3), h, a }))];
+  const r = SM.placeAround(L, pins, (saveSalt() ^ S.currentYear) >>> 0);
+  state.dirty = true;
+  toast('🗓️ Season built', `${r.placed} marquee games set · ${r.days} days`, 3200);
+  render();
+};
+actions.colSmUndo = () => { const L = league(), f = calFlags(); if (!f.colSmUndo) return; L.season.schedule = f.colSmUndo.sched; if (L.meta && f.colSmUndo.uGID != null) L.meta.uGID = f.colSmUndo.uGID; delete f.colSmUndo; state.dirty = true; render(); };
 function calendarCard() {
   const s = league().season;
+  if (isCollege() && s.phase >= 9 && s.phase < 15) return collegeSeasonCard();
   if (phaseRank(s) === 0 && !isCollege()) {
     if (seasonUnplayed()) return setupCard();
     if (CL3.atAllStarBreak(league())) return deadlineCard() + glCard();
@@ -3324,6 +3807,9 @@ function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
   if (isCollege()) {
+    // In season: the whole league is open to look at, the way it is for the pros; college has no trades, deadline, G
+    // League or Cup, and the season check-in is the pros' (all-star break, deadline).
+    if (league().season.phase >= 9 && league().season.phase < 15) return !['liveTrade', 'deadline', 'gleague', 'cup', 'checkin', 'market'].includes(name);
     const cur = currentStep();
     // Recruiting stays open to look back at once the weeks are done.
     if (['recruit', 'recruitee', 'recruitweek'].includes(name) && market()) return true;
@@ -3456,7 +3942,9 @@ const countEvent = name => countHit(name, name, true);
 // The league editor is paused on the public site (league files, the league-file export, and the editing controls in
 // League): EDITOR_OFF. Viewing stays. Local testing keeps everything.
 const EDITOR_OFF = () => !labOn();   // the league editor: the test site (and local) only, for now
-const FRANCHISE_ONLY = () => counting() || (/\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus/i.test(location.pathname));
+// The test site (…/hoop-land-plus-test/) takes every kind of save; the live site Franchise saves only for now.
+const onTestSite = () => /\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus-test\//i.test(location.pathname);
+const FRANCHISE_ONLY = () => counting() || (/\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus\//i.test(location.pathname));
 countHit(runningInstalled() ? '/app' : '/', runningInstalled() ? 'Opened (installed app)' : 'Opened (browser)');
 
 // ---------------------------------------------------------------------------
@@ -3941,9 +4429,10 @@ function nextGameCard() {
     const me = myTeam(), ng = nextGame(me); if (!ng) return '';
     const rec = tm => { const r = muLine(tm); return r?.GP ? `${r.W}-${r.L}` : '0-0'; };
     const keys = muKeys(me, ng.opp).slice(0, 2);
-    return `<fieldset class="frame mu-card"><legend>🏀 Next Game</legend>
+    const kd = gameDayKind(league(), ng.d, ng.g);
+    return `<fieldset class="frame mu-card ${kd ? `day-${kd.k}` : ''}"><legend>${kd ? `${dayIcon(kd.k)} ${esc(kd.label)}` : '🏀 Next Game'}</legend>
       <div class="mu-vs tap" data-act="nav" data-to="matchup"><span class="mu-tm">${logoImg(me, 'logo-sm')}<b>${esc(me.shortName)}</b><small>${rec(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(ng.opp, 'logo-sm')}<b>${esc(ng.opp.shortName)}</b><small>${rec(ng.opp)}</small></span></div>
-      ${keys.map(([i, s]) => `<p class="note small mu-key">${i} ${s}</p>`).join('')}
+      ${isCollege() && colRivalLine(me, ng.opp) ? `<p class="note small gold mu-key">${esc(colRivalLine(me, ng.opp))}</p>` : ''}${keys.map(([i, s]) => `<p class="note small mu-key">${i} ${s}</p>`).join('')}
       <button class="btn focus" data-act="nav" data-to="matchup">📋 Scouting Report</button></fieldset>`;
   } catch { return ''; }
 }
@@ -4131,7 +4620,7 @@ function ptwKeys(p, l, t, pools = {}, shown = new Set()) {
   return out.slice(0, 3);
 }
 function ptwCard(opp) {
-  const healthy = opp.roster.filter(p => (p.status === 3 || p.status === 2) && !((p.season?.injury?.gamesOut || 0) > 0));
+  const healthy = opp.roster.filter(p => (p.status === 3 || p.status === 2 || isCollege()) && !((p.season?.injury?.gamesOut || 0) > 0));   // college rosters carry no contract status
   const yr = lastSeasonYear(), lines = healthy.map(p => [p, seasonLine(p, state.leagueIdx, yr)]).filter(([, l]) => l?.gp >= 3);
   const top = lines.sort((a, b) => b[1].ppg - a[1].ppg)[0];
   if (!top) return '';
@@ -4177,9 +4666,10 @@ screens.matchup = () => {
     return `<div class="mu-tr"><span class="tap ${d >= 4 ? 'up' : ''}" data-act="openPlayer" data-id="${x.id}">${esc(x.ln)}${hotCold(x)} <small>${shownLevel(x)}</small></span><span class="mu-lbl">${LU.SLOTS[s]}</span><span class="tap ${d <= -4 ? 'down' : ''}" data-act="openPlayer" data-id="${y.id}">${esc(y.ln)}${hotCold(y)} <small>${shownLevel(y)}</small></span></div>`; };
   const hurt = tm => { const h = muHurt(tm); return h.length ? h.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln)}</b> <small class="muted">${shownLevel(p)} · ${esc(injShort(p))}</small></span>`).join('') : '<span class="up small">Healthy</span>'; };
   const streak = (tm, hot) => { const l = tm.roster.filter(p => streakOf(p.id) === (hot ? 'hot' : 'cold')).sort((x, y) => shownLevel(y) - shownLevel(x)); return l.length ? l.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(p.ln)}</span>`).join(', ') : '<span class="muted">None</span>'; };
+  const kd = gameDayKind(league(), ng.d, ng.g);
   layout({
     title: 'Scouting Report',
-    body: `<div class="mu-vs big"><span class="mu-tm">${logoImg(me)}<b>${esc(me.shortName)}</b><small>${rec(me)}</small><small class="muted">${l10(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(opp)}<b>${esc(opp.shortName)}</b><small>${rec(opp)}</small><small class="muted">${l10(opp)}</small></span></div>
+    body: `${kd ? `<p class="note xmas-note">${dayIcon(kd.k)} <b>${esc(kd.label)}${kd.k === 'last' || kd.k === 'cup' ? '' : ' game'}</b></p>` : ''}${isCollege() && colRivalLine(me, opp) ? `<p class="note xmas-note gold">${esc(colRivalLine(me, opp))}</p>` : ''}<div class="mu-vs big"><span class="mu-tm">${logoImg(me)}<b>${esc(me.shortName)}</b><small>${rec(me)}</small><small class="muted">${l10(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(opp)}<b>${esc(opp.shortName)}</b><small>${rec(opp)}</small><small class="muted">${l10(opp)}</small></span></div>
       ${ptwCard(opp)}
       <fieldset class="frame"><legend>Keys to the Game</legend>${muKeys(me, opp).map(([i, s]) => `<p class="note small mu-key">${i} ${s}</p>`).join('')}</fieldset>
       <fieldset class="frame"><legend>How They Play</legend>${muStyle(opp).map(s => `<p class="note small mu-key">• ${esc(s)}</p>`).join('')}
@@ -4187,7 +4677,7 @@ screens.matchup = () => {
       <fieldset class="frame mu-frame"><legend>Team Stats</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${MU_STATS.map(statRow).join('')}</fieldset>
       <fieldset class="frame mu-frame mu-mtch"><legend>Matchups</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${[0, 1, 2, 3, 4].map(mRow).join('')}</fieldset>
       <fieldset class="frame"><legend>Injury Report</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b>${hurt(me)}</div><div><b class="small">${esc(opp.shortName)}</b>${hurt(opp)}</div></div></fieldset>
-      <fieldset class="frame"><legend>Hot &amp; Cold</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b><span>🔥 ${streak(me, true)}</span><span>❄️ ${streak(me, false)}</span></div><div><b class="small">${esc(opp.shortName)}</b><span>🔥 ${streak(opp, true)}</span><span>❄️ ${streak(opp, false)}</span></div></div></fieldset>`,
+      ${`<fieldset class="frame"><legend>Hot &amp; Cold</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b><span>🔥 ${streak(me, true)}</span><span>❄️ ${streak(me, false)}</span></div><div><b class="small">${esc(opp.shortName)}</b><span>🔥 ${streak(opp, true)}</span><span>❄️ ${streak(opp, false)}</span></div></div></fieldset>`}`,
   });
 };
 function mediaCard() {
@@ -4545,9 +5035,11 @@ actions.rosterUpdate = async d => {
   let u;
   try { u = await (await fetch(d.f, { cache: 'no-cache' })).json(); } catch (e) { toast('Couldn’t get the roster update', e.message, 3200, true); return; }
   try { localStorage.setItem(RU_KEY(d.id), '1'); } catch { /* ignore */ }
+  // Hide Potential: only level moves (a potential-only change would give it away).
+  if (potHidden()) { u.up = u.up.filter(r => r.lv1 !== r.lv0); u.down = u.down.filter(r => r.lv1 !== r.lv0); }
   const sign = n => `${n > 0 ? '+' : ''}${n}`;
   const row = r => { const dl = r.lv1 - r.lv0, dp = r.p1 - r.p0;
-    return `<li><b>${esc(r.n)}</b> <span class="muted small">${esc(r.t)}</span><br><span class="small">Lv ${r.lv0} → <b class="${dl > 0 ? 'up' : dl < 0 ? 'down' : ''}">${r.lv1}</b>${dl ? ` <span class="${dl > 0 ? 'up' : 'down'}">(${sign(dl)})</span>` : ''}${dp ? ` · <span class="${dp > 0 ? 'up' : 'down'}">Pot ${dp > 0 ? '↑' : '↓'}</span>` : ''}</span></li>`; };
+    return `<li><b>${esc(r.n)}</b> <span class="muted small">${esc(r.t)}</span><br><span class="small">Lv ${r.lv0} → <b class="${dl > 0 ? 'up' : dl < 0 ? 'down' : ''}">${r.lv1}</b>${dl ? ` <span class="${dl > 0 ? 'up' : 'down'}">(${sign(dl)})</span>` : ''}${dp && !potHidden() ? ` · <span class="${dp > 0 ? 'up' : 'down'}">Pot ${dp > 0 ? '↑' : '↓'}</span>` : ''}</span></li>`; };
   // Risers and fallers on tabs over one list that scrolls on its own; the page behind stays put while it's open.
   const tab = k => `<button class="btn small ${k === 'up' ? 'on focus' : 'off'}" data-ru="${k}">${k === 'up' ? `📈 Risers (${u.up.length})` : `📉 Fallers (${u.down.length})`}</button>`;
   const box = overlay(`<h2 class="devlog-h">${esc(u.title || 'Roster Moves: Risers & Fallers')}</h2>
@@ -4761,7 +5253,7 @@ screens.main = () => {
 };
 
 // Career mode is behind the testing switch until it's been through a real career save.
-const careerOn = () => labOn();
+const careerOn = () => labOn() || onTestSite();   // and always on the test site
 // Career saves: a card on the home screen that opens the Career Hub.
 function careerCard() {
   const L = league();
@@ -7606,8 +8098,8 @@ screens.offseason = (args = {}) => {
               <dt>Players improved</dt><dd class="up">${auto.players}</dd>
               <dt>Ratings upgrades</dt><dd class="up">+${auto.points}</dd>
               <dt>Your team</dt><dd class="up">+${auto.mine}</dd>
-              <dt>Potential ↑</dt><dd class="up">${auto.potUps ?? 0}</dd>
-              <dt>Potential ↓</dt><dd class="down">${auto.potDowns ?? 0}</dd>
+              ${potHidden() ? '' : `<dt>Potential ↑</dt><dd class="up">${auto.potUps ?? 0}</dd>
+              <dt>Potential ↓</dt><dd class="down">${auto.potDowns ?? 0}</dd>`}
               <dt>Regression age ↑</dt><dd class="up">${auto.longevity ?? 0}</dd>
               <dt>Regression age ↓</dt><dd class="down">${auto.regDowns ?? 0}</dd>
             </dl>
@@ -9888,7 +10380,10 @@ function regPoints(p) {
 // star (not capped at Lv 100, so a star past 168 still shows his decline).
 const totalOf = (p, f) => SKILL_ATTRS.reduce((a, k) => a + f(k), 0);
 const starsOfTotal = t => 5 - (168 - t) / 28;
-const potStars = p => stars(p.pot,
+// Hide Potential (Settings): potential, its ups and downs and regression age stay out of view (Edit mode still shows them).
+const potHidden = () => state.params.hidePotential === true && !editOn();
+const potTag = v => (potHidden() ? '' : `<span class="stars">${stars(v)}</span>`);
+const potStars = p => potHidden() ? '' : stars(p.pot,
   starsOfTotal(totalOf(p, k => regressed(p, k))),
   starsOfTotal(totalOf(p, k => p.attributes[k][0])));
 const levelStarsOf = lv => Math.max(1, Math.min(10, Math.round((5 - (100 - lv) / 14) * 2)));
@@ -9942,10 +10437,10 @@ screens.report = (args) => {
   const summary = [
     `${improved.length} improved <span class="up">+${total}</span>`,
     (() => { const n = rows.reduce((a, r) => a + Object.entries(r.d.attrs).filter(([k, v]) => v > 0 && r.p.attributes[k][0] >= 10 && r.p.attributes[k][0] - v < 10).length, 0); return n ? `<span class="gold">★ ${n} rating${n > 1 ? 's' : ''} reached 10</span>` : ''; })(),
-    count(r => r.d.potDelta > 0) && `<span class="up">Potential ↑ ${count(r => r.d.potDelta > 0)}</span>`,
-    count(r => r.d.potDelta < 0) && `<span class="down">Potential ↓ ${count(r => r.d.potDelta < 0)}</span>`,
-    count(r => r.d.regDelta > 0) && `<span class="up">Regression age ↑ ${count(r => r.d.regDelta > 0)}</span>`,
-    count(r => r.d.regDelta < 0) && `<span class="down">Regression age ↓ ${count(r => r.d.regDelta < 0)}</span>`,
+    !potHidden() && count(r => r.d.potDelta > 0) && `<span class="up">Potential ↑ ${count(r => r.d.potDelta > 0)}</span>`,
+    !potHidden() && count(r => r.d.potDelta < 0) && `<span class="down">Potential ↓ ${count(r => r.d.potDelta < 0)}</span>`,
+    !potHidden() && count(r => r.d.regDelta > 0) && `<span class="up">Regression age ↑ ${count(r => r.d.regDelta > 0)}</span>`,
+    !potHidden() && count(r => r.d.regDelta < 0) && `<span class="down">Regression age ↓ ${count(r => r.d.regDelta < 0)}</span>`,
   ].filter(Boolean).join(' · ');
   layout({
     title: 'Progression Report',
@@ -10024,8 +10519,9 @@ function longevityBadges(p, d, injury = true) {
   const was = p.regressionAge - d.regDelta;
   const paused = d.regDelta > 0 && p.age > was;
   const why = POT_WHY[state.potWhy?.get(p.id)];
-  return (d.regDelta ? `<span class="badge ${d.regDelta > 0 ? 'lvl' : 'down-b'}">${paused ? 'Regression paused' : `Regression age ${was}→${p.regressionAge}`}</span>` : '') +
-    (d.potDelta > 0 ? '<span class="badge new">POT ▲</span>' : d.potDelta < 0 ? `<span class="badge down-b">POT ▼${why ? ` · ${why}` : ''}</span>` : '') +
+  const hide = potHidden();
+  return (d.regDelta && !hide ? `<span class="badge ${d.regDelta > 0 ? 'lvl' : 'down-b'}">${paused ? 'Regression paused' : `Regression age ${was}→${p.regressionAge}`}</span>` : '') +
+    (hide ? '' : d.potDelta > 0 ? '<span class="badge new">POT ▲</span>' : d.potDelta < 0 ? `<span class="badge down-b">POT ▼${why ? ` · ${why}` : ''}</span>` : '') +
     (injury ? injuryBadge(p) : '') + injCutBadge(p);
 }
 // The injury took him under his own level: what it cost, and where he tops out now.
@@ -11537,7 +12033,22 @@ function risersBox(L = league()) {
 // It lasts until the next file comes in: if the boosted file went out to the game, the next load takes it back off,
 // then the new streaks are read fresh. Behind the testing switch for now.
 const HOT_KEYS = ['LAY', 'INS', 'MID', 'TPT', 'DRB', 'PAS', 'ORE', 'STL'], COLD_KEYS = ['LAY', 'INS', 'MID', 'TPT', 'DRB', 'ORE'];
-const HOT_MIN = 5, COLD_MIN = 3;   // a hot streak needs 5 games in a row; a cold one 3 (the game's slumps run shorter)
+// A hot streak needs 5 games in a row, a cold one 3 (the game's slumps run shorter). College's season is shorter: 4 hot,
+// 3 cold, and 4 games played.
+// How long this league's games really run, from its box scores (a team's minutes a game over five on the floor): college
+// can be set far shorter than 48. For "real minutes" checks that were written for 48.
+function playedGameLen(L = league(), li = state.leagueIdx) {
+  if (!L) return 48;
+  const yr = L.season.currentYear;
+  let best = 0;
+  for (const t of L.teams.slice(0, 12)) {
+    let secs = 0, gp = 0;
+    for (const p of t.roster) { const s = (p.stats || []).find(x => x.league === li && x.yr === yr); for (const r of s?.season || []) { secs += secsOf(r, li); gp = Math.max(gp, r.GP || 0); } }
+    if (gp >= 3) best = Math.max(best, secs / 60 / gp / 5);
+  }
+  return best > 4 ? Math.min(48, best) : 48;
+}
+const STREAK_MIN = () => (isCollege() ? { hot: 4, cold: 3, gp: 4 } : { hot: 5, cold: 3, gp: 5 });
 const streakKey = () => `hlc:streaks:${saveTag()}`;
 function streakStore() { try { return JSON.parse(localStorage.getItem(streakKey())) || { list: {} }; } catch { return { list: {} }; } }
 function streakSave(v) { try { localStorage.setItem(streakKey(), JSON.stringify(v)); } catch { /* ignore */ } }
@@ -11569,15 +12080,16 @@ const streakIcon = p => { const k = streakOf(p.id), f = fxOf(p.id); return (k ==
 // Hot or cold: the game's streak plus production at or above (or below) players his age at his position, 5+ games in.
 function streakKindOf(p, prod, li, yr) {
   const s0 = p.gameStatus?.streak || 0, z = prod.get(p.id), l = seasonLine(p, li, yr);
-  if (z == null || !l || l.gp < 5) return null;
-  return s0 >= HOT_MIN && z >= 0 ? 'hot' : s0 <= -COLD_MIN && z <= 0 ? 'cold' : null;
+  const m = STREAK_MIN();
+  if (z == null || !l || l.gp < m.gp) return null;
+  return s0 >= m.hot && z >= 0 ? 'hot' : s0 <= -m.cold && z <= 0 ? 'cold' : null;
 }
 // The streaks a season file will bring (for the team picker, before the file is loaded): kind and level change.
 function streakPreview(L) {
   const out = new Map();
   if (L.season.phase !== 9) return out;
   const yr = L.season.currentYear, ps = L.teams.flatMap(t => t.roster.filter(q => q.status === 3 || q.status === 2));
-  const prod = productionScores(ps, 0, yr, { ...state.params, trainerMinGames: 5 });
+  const prod = productionScores(ps, 0, yr, { ...state.params, trainerMinGames: 5, trainerMinMpg: (state.params.trainerMinMpg ?? 10) * playedGameLen(L, 0) / 48 });
   for (const q of ps) {
     const kind = streakKindOf(q, prod, 0, yr); if (!kind) continue;
     const d = kind === 'hot' ? 1 : -1, keys = kind === 'hot' ? HOT_KEYS : COLD_KEYS;
@@ -11603,8 +12115,8 @@ function applyStreaks() {
   }
   const fresh = { list: {}, day: L.season.currentDay, yr: L.season.currentYear };
   if (L.season.phase === 9) {
-    const ps = L.teams.flatMap(t => FA.signedRoster(t));
-    const prod = productionScores(ps, state.leagueIdx, L.season.currentYear, { ...state.params, trainerMinGames: 5 });   // a streak needs 5 games, not a full sample
+    const ps = L.teams.flatMap(t => (isCollege() ? t.roster : FA.signedRoster(t)));   // college rosters carry no contract status
+    const prod = productionScores(ps, state.leagueIdx, L.season.currentYear, { ...state.params, trainerMinGames: STREAK_MIN().gp, trainerMinMpg: (state.params.trainerMinMpg ?? 10) * playedGameLen() / 48 });   // a few games, real minutes for this league's game length
     const risen = riseStore()[L.season.currentYear]?.list || {};
     for (const p of ps) {
       if (risen[p.id]) continue;   // a playoff riser's boost and a streak never stack
@@ -13106,7 +13618,7 @@ function profileReport(p, team) {
   const reached = room <= 0, near = room <= 13;
   const lines = reached ? [`He is ${phrase}.`] : near ? ['He is close to his ceiling.', can] : young ? ['He is still developing.', can] : [can];
   if (!(young && !reached && !near)) lines.push(timing);
-  add('dev', ...lines);
+  if (potHidden()) { if (young) add('dev', 'He is still developing.'); } else add('dev', ...lines);
   if (prod) add('prod', prod.trim());
   // What he's paid
   const c = p.contract;
@@ -13768,12 +14280,12 @@ function oldPlayerScreen(args) {
   // Ratings: his potential on top (it caps how far his ratings can go), the ratings, then the ceilings switch.
   const capLeft = potCap(p) - ceilTotal(p);
   const ratings = `<fieldset class="frame"><legend>Ratings</legend>${infoBtn('ratings', RATINGS_HELP)}
-        <div class="pts-row pot-row">
+        ${potHidden() ? '' : `<div class="pts-row pot-row">
           <span class="grow">Potential <span class="stars">${potStars(p)}</span>${declining(p) ? ' <span class="small down">Declining</span>' : ''}<br><span class="muted small">${capLeft > 0 ? `${capLeft} point${capLeft === 1 ? '' : 's'} of room above his ceilings` : capLeft === 0 ? 'His ceilings are at his potential' : `His ceilings are ${-capLeft} over his potential`}</span></span>
           <button class="btn square" data-act="potAdj" data-dir="-1" aria-label="Lower potential">−</button>
           <span class="pts-val ${d.potDelta ? 'gold' : ''}">${p.pot}${d.potDelta ? `<span class="small up"> ${d.potDelta > 0 ? '+' : ''}${d.potDelta}</span>` : ''}</span>
           <button class="btn square" data-act="potAdj" data-dir="1" aria-label="Higher potential">+</button>
-        </div>
+        </div>`}
         <div class="stack">
           ${(st => `${st ? `<p class="note small muted gstat-head">Stats over each rating: ${st.when}, ${st.gp} games, <b>${st.mpg.toFixed(1)} MPG</b>, per game</p>` : ''}${ATTRS.map(k => `${st ? `<div class="gstat">${esc(st.k[k] || '')}</div>` : ''}${attrRow(p, snap, k, ceilMode)}`).join('')}`)(isCollege() ? null : ratingStats(p))}
         </div>
@@ -13785,12 +14297,12 @@ function oldPlayerScreen(args) {
   const trainer = `<fieldset class="frame"><legend>Trainer</legend>
         <div class="stack">
           <p class="note small">Health: ${hurt ? `<span class="down">Out: ${esc(injuryName(hurt))}, ${injLong(p)}</span>` : '<span class="up">Healthy</span>'}${injuryText(p)}</p>
-          <div class="pts-row">
+          ${potHidden() ? '' : `<div class="pts-row">
             <span class="grow">Regression age<br><span class="muted small">${regressionText(p)}</span></span>
             <button class="btn square" data-act="regAge" data-dir="-1" aria-label="Earlier regression">−</button>
             <span class="pts-val ${d.regDelta ? 'gold' : ''}">${p.regressionAge}${d.regDelta ? `<span class="small up"> ${d.regDelta > 0 ? '+' : ''}${d.regDelta}</span>` : ''}</span>
             <button class="btn square" data-act="regAge" data-dir="1" aria-label="Later regression">+</button>
-          </div>
+          </div>`}
           <details class="inj-hist"><summary class="small">Injury history (${hist.length})</summary>
             ${hist.length ? `<div class="stack small">${hist.map(i => `<div class="row"><span class="grow">${i.yr ? `${i.yr - 1}-${String(i.yr).slice(2)}` : 'Now'} · ${esc(injuryName(i))}</span><span class="${i.majorSeverity ? 'down' : 'muted'}">${i.gamesOut} game${i.gamesOut === 1 ? '' : 's'}</span></div>`).join('')}</div>` : '<p class="note muted small">No injuries on record.</p>'}
           </details>
@@ -13866,12 +14378,12 @@ function newPlayerScreen(args) {
   // Ratings: his potential on top (it caps how far his ratings can go), the ratings, then the ceilings switch.
   const capLeft = potCap(p) - ceilTotal(p);
   const ratings = `<fieldset class="frame"><legend>Ratings</legend>${infoBtn('ratings', RATINGS_HELP)}
-        <div class="pts-row pot-row">
+        ${potHidden() ? '' : `<div class="pts-row pot-row">
           <span class="grow">Potential <span class="stars">${potStars(p)}</span>${declining(p) ? ' <span class="small down">Declining</span>' : ''}<br><span class="muted small">${capLeft > 0 ? `${capLeft} point${capLeft === 1 ? '' : 's'} of room above his ceilings` : capLeft === 0 ? 'His ceilings are at his potential' : `His ceilings are ${-capLeft} over his potential`}</span></span>
           <button class="btn square" data-act="potAdj" data-dir="-1" aria-label="Lower potential">−</button>
           <span class="pts-val ${d.potDelta ? 'gold' : ''}">${p.pot}${d.potDelta ? `<span class="small up"> ${d.potDelta > 0 ? '+' : ''}${d.potDelta}</span>` : ''}</span>
           <button class="btn square" data-act="potAdj" data-dir="1" aria-label="Higher potential">+</button>
-        </div>
+        </div>`}
         <div class="stack">
           ${(tmp => {
             if (!tmp) return '';
@@ -13889,12 +14401,12 @@ function newPlayerScreen(args) {
   const trainer = `<fieldset class="frame"><legend>Trainer</legend>
         <div class="stack">
           <p class="note small">Health: ${hurt ? `<span class="down">Out: ${esc(injuryName(hurt))}, ${injLong(p)}</span>` : '<span class="up">Healthy</span>'}${injuryText(p)}</p>
-          <div class="pts-row">
+          ${potHidden() ? '' : `<div class="pts-row">
             <span class="grow">Regression age<br><span class="muted small">${regressionText(p)}</span></span>
             <button class="btn square" data-act="regAge" data-dir="-1" aria-label="Earlier regression">−</button>
             <span class="pts-val ${d.regDelta ? 'gold' : ''}">${p.regressionAge}${d.regDelta ? `<span class="small up"> ${d.regDelta > 0 ? '+' : ''}${d.regDelta}</span>` : ''}</span>
             <button class="btn square" data-act="regAge" data-dir="1" aria-label="Later regression">+</button>
-          </div>
+          </div>`}
           <details class="inj-hist"><summary class="small">Injury history (${hist.length})</summary>
             ${hist.length ? `<div class="stack small">${hist.map(i => `<div class="row"><span class="grow">${i.yr ? `${i.yr - 1}-${String(i.yr).slice(2)}` : 'Now'} · ${esc(injuryName(i))}</span><span class="${i.majorSeverity ? 'down' : 'muted'}">${i.gamesOut} game${i.gamesOut === 1 ? '' : 's'}</span></div>`).join('')}</div>` : '<p class="note muted small">No injuries on record.</p>'}
           </details>
@@ -13920,7 +14432,7 @@ function newPlayerScreen(args) {
   // Ratings in the game's cells, all in view; with Edit on, each value is underlined (tap to type it). Tap a cell to
   // compare him with the league on that rating.
   const ratingsView = `<fieldset class="frame g-frame"><legend>Ratings</legend>${edit ? infoBtn('ratings', RATINGS_HELP) : ''}
-      <div class="g-pot"><span>Potential</span>${ev(p, 'pot', potStars(p))}${declining(p) ? ' <span class="small down">Declining</span>' : ''}${edit ? `<span class="muted small"> ${capLeft > 0 ? `${capLeft} pts of room` : capLeft === 0 ? 'ceilings at potential' : `${-capLeft} pts over`}</span>` : ''}</div>
+      ${potHidden() ? '' : `<div class="g-pot"><span>Potential</span>${ev(p, 'pot', potStars(p))}${declining(p) ? ' <span class="small down">Declining</span>' : ''}${edit ? `<span class="muted small"> ${capLeft > 0 ? `${capLeft} pts of room` : capLeft === 0 ? 'ceilings at potential' : `${-capLeft} pts over`}</span>` : ''}</div>`}
       ${tempLine(p)}
       ${gAllLines(p, snap, false, false, edit && !isCollege() ? ratingStats(p) : null)}
       ${skillsChips(p)}</fieldset>`;
@@ -14371,7 +14883,7 @@ screens.settings = (args) => {
       ${pro && !CAR.isCareer(league()) ? setGroup('Draft Picks', ['<button class="btn" data-act="resetPicks">↩️ Reset All Picks</button>', '<span class="note muted small">Every pick goes back to its own team, every year: trades, protections and swaps undone, missing picks restored. This year\'s draft order (after the lottery) is kept.</span>', '<button class="btn" data-act="applyRealPicks">🏀 Apply Real Picks</button>', '<span class="note muted small">Then, if you like, the real-world holders (2027-2033) on top.</span>']) : ''}
       ${pro && !CAR.isCareer(league()) ? setGroup('Expansion & Fantasy', [`<button class="btn" data-act="nav" data-to="fantasy">🎲 Fantasy Draft${fanStore()?.status === 'draft' ? ' · in progress' : ''}</button>`, '<span class="note muted small">A start-of-season save: every team drafts its roster from the whole league, 12 rounds, snake order.</span>', `<button class="btn" data-act="nav" data-to="expansion">🏟️ Expansion${(() => { const x = expStore(); return x && x.status && !['none', 'done'].includes(x.status) ? ` · ${x.yr}` : ''; })()}</button>`, '<span class="note muted small">Add two teams: protected lists, a coin flip and an expansion draft after the lottery.</span>', options('Realistic draft classes', 'realClasses', [[true, 'On'], [false, 'Off']], `Hand-built classes for the ${RDC.REAL_CLASS_YEARS.join(', ')} drafts replace the game's, varied a little each save. They go in when the save reaches that offseason, before the draft.`), ...(state.params.realClasses === true ? [`<div class="set-row col"><span class="grow">Which classes</span><div class="seg">${RDC.REAL_CLASS_YEARS.map(y => `<button class="btn small ${realClassYears().includes(y) ? 'on focus' : 'off'}" data-act="setRealYear" data-y="${y}">${y}</button>`).join('')}</div></div>`] : [])]) : ''}
       ${pro ? setGroup('Your Job', [options('You can be fired', 'canBeFired', [[true, 'On'], [false, 'Off']], 'On: two owner meetings under 30 trust bring an ultimatum (make the playoffs), and missing it gets you fired; you pick a new team from the offers. Off: no ultimatums or firings (extensions still come). CPU coach firings are under League AI → Coaching changes.')]) : ''}
-      ${setGroup('Look', [options('Button icons', 'pixelIcons', [[true, 'Pixel'], [false, 'Emoji']], 'Pixel: white pixel icons like the game\'s. Emoji: the colored emoji.'), state.data ? `<button class="btn" data-act="nav" data-to="faces">🙂 Player Faces${state.faces?.size ? ` · ${state.faces.size}` : ''}</button><span class="note muted small">Cut players' faces from screenshots of the game's roster screen.</span>` : ''])}`;
+      ${setGroup('Look', [options('Potential', 'hidePotential', [[false, 'Show'], [true, 'Hide']], 'Hide: potential stars, potential up or down and regression age stay out of sight everywhere (scouting reports too), like the game\'s Hide Potential. Edit mode still shows them.'), options('Button icons', 'pixelIcons', [[true, 'Pixel'], [false, 'Emoji']], 'Pixel: white pixel icons like the game\'s. Emoji: the colored emoji.'), state.data ? `<button class="btn" data-act="nav" data-to="faces">🙂 Player Faces${state.faces?.size ? ` · ${state.faces.size}` : ''}</button><span class="note muted small">Cut players' faces from screenshots of the game's roster screen.</span>` : ''])}`;
   } else if (tab === 'ai') {
     body = setGroup('CPU Teams', [
       options('Draft-day trades', 'liveCpuTradeChance', [[0, 'Off'], [5, 'Rare'], [10, 'Normal'], [20, 'Busy']], 'How often CPU teams trade picks around each CPU pick in the live draft.'),
@@ -16019,6 +16531,7 @@ const answerHtml = a => typeof a === 'string' ? esc(a) : `<span class="wk-quote"
 function workoutResult(p) {
   if (!workoutDone(p.id)) return '';
   const before = scoutedPot(p, saveSalt(), scoutFog());
+  if (potHidden()) return 'Our scouts have finished on him.';
   const t = tierFor(p.pot);
   if (before === p.pot) return `Our scouts had him right: ${t} ceiling. Every rating's ceiling is now on his page.`;
   return before < p.pot ? `<span class="up">Better than we thought: ${t} ceiling (we had ${tierFor(before)}).</span>`
@@ -16042,7 +16555,7 @@ actions.revealPot = d => {
   savePre();
   state.compCache = {};
   const p = league().draftClass.find(x => x.id === +d.id);
-  if (p) toast(`${playerName(p)}: ${tierFor(p.pot)} potential confirmed`);
+  if (p) toast(potHidden() ? `${playerName(p)}: scouting done` : `${playerName(p)}: ${tierFor(p.pot)} potential confirmed`);
   render();
 };
 function workoutBox(p) {
@@ -16342,14 +16855,24 @@ function collegeRank(p, c, k) {
   return `<span class="small ${n <= 10 ? 'gold' : n <= 30 ? 'up' : 'muted'}">${ord}</span>`;
 }
 
+const FLAG_CODE = { Spain: 'ES', Serbia: 'RS', France: 'FR', Germany: 'DE', Lithuania: 'LT', Turkey: 'TR', Italy: 'IT', Greece: 'GR', Israel: 'IL', Slovenia: 'SI', Australia: 'AU', 'New Zealand': 'NZ', USA: 'US', Canada: 'CA', Croatia: 'HR' };
+// The school logos bundled with the app (img/logos/college), named by the school.
+// Logos drawn in the school's own main color get a thin white outline so they show on that color.
+const LOGO_HALO = new Set(["Arizona State", "Iowa State", "Ohio State", "TCU", "Providence", "Nebraska", "SMU", "Houston", "Texas Tech", "Purdue", "Syracuse", "USC", "Arkansas", "St. John's", "Illinois", "Maryland", "Wisconsin", "Villanova", "Kansas", "Boise State", "Boston College", "Colorado", "Eastern Michigan", "Furman", "Georgetown", "Georgia Tech", "Kansas State", "Minnesota", "Mississippi State", "Missouri State", "Northwestern", "Ohio", "Oklahoma", "Penn State", "Rutgers", "Santa Clara", "South Florida", "Stanford", "Tulane", "UC Santa Barbara", "UCLA", "Washington", "Washington State", "Western Kentucky", "Wyoming", "Milwaukee", "Saint Joseph's", "San Diego State", "Pepperdine", "Yale"]);
+const schoolSlug = name => String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 function collegeBox(p) {
   const c = collegeLine(p, state.data.seasonLeagues);
   if (!c) return '';
   const f = (v, d = 1) => (v == null ? '—' : v.toFixed(d));
   // His college team's own logo and colors (like the draft's team boxes); the league ball when there's no team.
   const sc = c.li != null && c.tid != null ? { li: c.li, tid: c.tid } : c.school;
-  const team = sc ? state.data.seasonLeagues[sc.li]?.teams?.find(x => x.id === sc.tid) : null, tint = team ? teamTint(team) : '';
-  return `<div class="outlook col-box" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${team ? logoImg(team) : COLLEGE_LOGO}<b>${esc(c.team)}</b><span class="status">${c.made && /^Pro club/.test(c.team) ? 'Overseas' : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div>
+  const real = c.school?.name ? REAL_SCHOOLS[c.school.name] : null;
+  const team = sc && !sc.name ? state.data.seasonLeagues[sc.li]?.teams?.find(x => x.id === sc.tid) : null;
+  const tint = real ? `--tc1:#${real[0]};--tc2:#${real[1]}` : team ? teamTint(team) : '';
+  // Overseas: the club on the left, its country's flag on the right; college: the school's logo, name and colors.
+  const pro = c.made && (c.intl || /^Pro club/.test(c.team)), clubCt = pro ? (c.team.split(' · ')[1] || '') : '';
+  const flag = pro ? OLY.flagHtml(FLAG_CODE[clubCt] || '', 2.4) : '';
+  return `<div class="outlook col-box ${pro ? 'col-pro' : ''}" ${tint ? `style="${tint}"` : ''}><div class="outlook-top ${tint ? 'tc' : ''}">${pro ? '' : real ? `<img class="logo-sm ${LOGO_HALO.has(c.school.name) ? 'logo-halo' : ''}" src="img/logos/college/${schoolSlug(c.school.name)}.png" alt="" width="34" height="34" decoding="async" onerror="this.remove()">` : team ? logoImg(team) : COLLEGE_LOGO}<div class="col-hd"><b>${esc(pro ? c.team.split(' · ')[0] : c.team)}</b><span class="status">${pro ? `${esc(c.lg || 'Overseas')}${clubCt ? ` · ${esc(clubCt)}` : ''}` : `College${c.cl ? ` · ${esc(c.cl)}` : ''}`} · ${c.yr}</span></div>${flag ? `<span class="col-flag">${flag}</span>` : ''}</div>
     <p class="note small muted" style="margin:0">${c.gp} games · ${f(c.mpg)} MPG</p>
     <div class="statline">
       ${[['PTS', f(c.pts)], ['REB', f(c.reb)], ['AST', f(c.ast)], ['STL', f(c.stl)], ['BLK', f(c.blk)],
@@ -16357,7 +16880,7 @@ function collegeBox(p) {
         .map(([k, v], i) => i < 5 && c.li != null
           ? `<button class="stat-cell" data-act="openLeaders" data-m="college" data-k="${RANK_STATS[i][0]}" data-li="${c.li}" data-yr="${c.yr}" aria-label="College ${RANK_STATS[i][1]} leaders"><span class="muted small">${k}</span><b>${v}</b>${collegeRank(p, c, RANK_STATS[i][0])}</button>`
           : `<div><span class="muted small">${k}</span><b>${v}</b>${i < 5 ? collegeRank(p, c, RANK_STATS[i][0]) : ''}</div>`).join('')}
-    </div>${c.li != null && seasonRanks(c.yr, c.li).ranks.get(p.id)?.qualified ? (sr => `<p class="note muted small" style="margin-top:6px">Ranks among ${sr.of} qualified college players.</p>`)(seasonRanks(c.yr, c.li)) : ''}${c.made ? '<p class="note muted small" style="margin-top:6px">Simulated season: this save has no college stats for him.</p>' : ''}</div>`;
+    </div>${c.li != null && seasonRanks(c.yr, c.li).ranks.get(p.id)?.qualified ? (sr => `<p class="note muted small" style="margin-top:6px">Ranks among ${sr.of} qualified college players.</p>`)(seasonRanks(c.yr, c.li)) : ''}</div>`;
 }
 
 // Where the prospect would slot on each of your teams, as a rookie and at
@@ -16394,7 +16917,7 @@ screens.prospect = (args) => {
       <div class="pros-head">
         <button class="mvbtn pros-add ${onBoard(p.id) ? 'on' : ''}" data-act="toggleBoard" data-id="${p.id}" aria-label="${onBoard(p.id) ? 'Remove from' : 'Add to'} your board">${onBoard(p.id) ? '✓' : '+'}</button>
         <h2 class="team-title">${esc(playerName(p))}</h2>
-        <p class="note">${esc((c => !c ? 'Prospect' : c.made ? (/^Pro club/.test(c.team) || c.school ? c.team : 'College') : c.team)(collegeLine(p, state.data.seasonLeagues)))} · ${esc(posName(p))} · ${heightStr(p.ht)} · ${p.wt} lb</p>
+        <p class="note">${esc((c => !c ? 'Prospect' : c.made ? (c.intl || /^Pro club/.test(c.team) || c.school ? c.team : 'College') : c.team)(collegeLine(p, state.data.seasonLeagues)))} · ${esc(posName(p))} · ${heightStr(p.ht)} · ${p.wt} lb</p>
         <p class="note small pros-chips"><span class="age-chip">Age ${p.age} · ${classYear(p)}</span> ${valueChip(p)} ${state.params.readiness === 'age' ? '' : readyChip(p)}</p>
         ${(() => { const z = collegeZ(p), w = productionWord(z), b = bodyZ(p); if (!w && !b) return ''; const fw = b ? (b.frame >= 0.5 ? 'pro-ready frame' : b.frame <= -0.5 ? 'slight frame' : 'average frame') : ''; return `<p class="note small">${w ? `College production vs the ${p.pos <= 2 ? 'guards' : p.pos <= 5 ? 'wings' : 'bigs'} in his class: <b class="${z >= 0.5 ? 'up' : z <= -0.5 ? 'down' : ''}">${w}</b>` : ''}${w && fw ? ' · ' : ''}${fw ? `<span class="${b.frame >= 0.5 ? 'up' : b.frame <= -0.5 ? 'down' : 'muted'}">${fw}</span>` : ''}</p>`; })()}
         ${labStoryLine(p)}
@@ -21631,7 +22154,7 @@ screens.lgHistory = () => {
       <button class="btn left" data-act="openLeaders" data-m="rafters"><span class="ico">🏟️</span> Rafters</button>
       ${(L.hallOfFame || []).length ? '<button class="btn left" data-act="lgHof"><span class="ico">🏛️</span> Hall of Fame</button>' : ''}
       <button class="btn left" data-act="nav" data-to="drafts"><span class="ico">🎓</span> Draft History</button>
-    </div>` });
+    </div>${cupOn() ? cupHistoryBox() : ''}` });
 };
 screens.teamStats = (args) => {
   const L = league();
@@ -21677,7 +22200,7 @@ screens.departures = () => {
   const myRank = bySchool.findIndex(([sc]) => sc === t) + 1;
   const f1 = v => v.toFixed(1);
   const row = x => `<div class="drill-row ${x.school === t ? 'r1' : ''}"><span class="pk" style="min-width:34px">${x.pick ? `#${x.pick.pk}` : 'UDFA'}</span>
-    <span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span><br>
+    <span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}<br>
     <span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${x.cls} · ${esc(x.school?.shortName || '?')}${x.line ? ` · ${f1(x.line.ppg)}/${f1(x.line.rpg)}/${f1(x.line.apg)}` : ''}</span></span>
     <span class="small" style="text-align:right">${x.pro ? `${logoImg(x.pro)}<br>${esc(x.pro.shortName)}` : '<span class="muted">Unsigned</span>'}</span></div>`;
   layout({
@@ -21964,7 +22487,7 @@ screens.recruitee = ({ id }) => {
     body: `<fieldset class="frame"><legend>${x.transfer ? `Transfer · No. ${x.rank}` : `Class of ${league().season.currentYear + 0} · No. ${x.rank}`}</legend>
         <p class="note"><b>${esc(playerName(p))}</b> ${rStars(x.stars, x.lv)}${isAllAmerican(p) ? ' <span class="small gold">⭐ All-American</span>' : ''}</p>
         <p class="note small">${esc(posName(p))} · ${heightStr(p.ht)} · ${p.wt} lbs · ${p.age}y · ${x.transfer ? `${classOf(p.yrs ?? 0)}, ${Math.max(1, 4 - (p.yrs ?? 0))} yr${4 - (p.yrs ?? 0) > 1 ? 's' : ''} left` : `${esc(x.city)}, ${x.st}`} · ${Math.round(RC.miles(p.loc, t.location))} mi from campus</p>
-        <p class="note small">Lv ${x.lv} now · Potential ${scouted ? `<span class="stars">${stars(p.pot)}</span>` : '<span class="muted">? (a visit scouts him)</span>'}</p>
+        <p class="note small">Lv ${x.lv} now${potHidden() ? '' : ` · Potential ${scouted ? potTag(p.pot) : '<span class="muted">? (a visit scouts him)</span>'}`}</p>
         <p class="note small muted">${line}</p></fieldset>
       ${blurbHtml}
       ${com !== undefined ? `<p class="note ${com === t.id ? 'up' : ''}">✍️ ${com === t.id ? 'Committed to you.' : `Committed to ${esc(sch(com)?.city || '?')}.`}${!done && com !== t.id ? ' A big push can still flip him.' : ''}</p>` : ''}
@@ -22068,7 +22591,7 @@ screens.signing = () => {
   const mine = r.byTeam.get(t.id);
   const needs = rosterNeedsCollege(t, 15);
   const gradeCls = g => (g[0] === 'A' ? 'up' : g[0] === 'B' ? 'gold' : g[0] === 'C' ? '' : 'down');
-  const pRow = x => `<div class="drill-row tap" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span>${x.aa ? ' <span class="small gold">⭐ AA</span>' : ''}<br>
+  const pRow = x => `<div class="drill-row tap" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}${x.aa ? ' <span class="small gold">⭐ AA</span>' : ''}<br>
     <span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${x.transfer ? `Transfer · ${4 - (x.p.yrs ?? 0)} yrs left` : 'Freshman'} · $${x.p.contract?.sal || 0}M</span></span></div>`;
   const best = r.list[0];
   const steal = [...r.list].filter(c => c.team && c.players.length).sort((a, b) => (b.score / Math.max(1, b.team.prestigePoints + 20)) - (a.score / Math.max(1, a.team.prestigePoints + 20)))[0];
@@ -22100,7 +22623,7 @@ screens.preseason = () => {
   const r = preseason(state.data, state.leagueIdx, t, shownLevel);
   const f1 = v => v.toFixed(1);
   const tRow = x => `<div class="stand-row ${x.t === t ? 'mine' : ''}"><span class="small muted">${x.rank}</span>${logoImg(x.t)}<span class="grow small"><b>${esc(x.t.city || x.t.shortName)}</b> <span class="muted">${x.W}-${x.L} last year</span></span>${x.lastRank ? `<span class="small ${x.lastRank > x.rank ? 'up' : x.lastRank < x.rank ? 'down' : 'muted'}">${x.lastRank > x.rank ? '▲' : x.lastRank < x.rank ? '▼' : '—'}${x.lastRank !== x.rank ? Math.abs(x.lastRank - x.rank) : ''}</span>` : ''}</div>`;
-  const pRow = (x, right) => `<div class="drill-row ${x.t === t ? 'r1' : ''}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span>${isAllAmerican(x.p) ? ' <span class="small gold">⭐ AA</span>' : ''}<br><span class="small muted">${esc(posName(x.p))} · ${esc(x.t.shortName)}${right ? ` · ${right}` : ''}</span></span></div>`;
+  const pRow = (x, right) => `<div class="drill-row ${x.t === t ? 'r1' : ''}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}${isAllAmerican(x.p) ? ' <span class="small gold">⭐ AA</span>' : ''}<br><span class="small muted">${esc(posName(x.p))} · ${esc(x.t.shortName)}${right ? ` · ${right}` : ''}</span></span></div>`;
   const where = r.mine.rank <= 5 ? 'a title contender' : r.mine.rank <= 25 ? 'a Top 25 team' : r.mine.rank <= 40 ? 'on the tournament bubble' : 'a long shot for the tournament';
   layout({
     title: 'Preseason',
@@ -22124,7 +22647,7 @@ screens.rosterlock = () => {
   if (!t) { layout({ title: 'Roster Lock', body: '<p class="note">Pick your school first.</p>' }); return; }
   const r = rosterLock(t, shownLevel, state.leagueIdx);
   const groups = ['Guards', 'Wings', 'Bigs'];
-  const pRow = x => `<div class="drill-row tap ${x.last ? 'r1' : ''}" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span>${isAllAmerican(x.p) ? ' <span class="small gold">⭐ AA</span>' : ''}<br>
+  const pRow = x => `<div class="drill-row tap ${x.last ? 'r1' : ''}" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}${isAllAmerican(x.p) ? ' <span class="small gold">⭐ AA</span>' : ''}<br>
     <span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${x.cls}${x.last ? ' · <span class="gold">final year</span>' : x.fresh ? ' · <span class="up">new</span>' : ''}</span></span></div>`;
   layout({
     title: 'Roster Lock',
@@ -22144,7 +22667,7 @@ screens.practice = () => {
   const t = L.teams.find(isUserTeam);
   if (!t) { layout({ title: 'Practice Begins', body: '<p class="note">Pick your school first.</p>' }); return; }
   const r = practicePlan(t, shownLevel, p => tr(p, 'lockerRoom'));
-  const pRow = (x, right = '') => `<div class="drill-row tap" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span><br>
+  const pRow = (x, right = '') => `<div class="drill-row tap" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}<br>
     <span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${classOf(x.p.yrs ?? 0)}</span></span>${right ? `<span class="small" style="text-align:right">${right}</span>` : ''}</div>`;
   layout({
     title: 'Practice Begins',
@@ -22175,7 +22698,7 @@ screens.portal = (args = {}) => {
   const row = x => {
     const offs = b.offers.get(x.p.id) || [];
     const mine = offs.find(o => o.tid === t.id);
-    return `<div class="drill-row ${x.fit ? 'r1' : ''}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span><br>
+    return `<div class="drill-row ${x.fit ? 'r1' : ''}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}<br>
       <span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${x.cls} · ${x.left} yr${x.left > 1 ? 's' : ''} left · from ${esc(x.from?.shortName || '?')}</span><br>
       <span class="small">${x.line ? `${f1(x.line.ppg)}/${f1(x.line.rpg)}/${f1(x.line.apg)} in ${x.line.gp} games` : 'No stats'}${x.near <= 8 ? ' · <span class="up">📍 near home</span>' : ''}${x.fit ? ' · <span class="gold">🧩 fits a need</span>' : ''}</span></span>
       <span class="small" style="text-align:right">${x.now ? `✍️ ${esc(x.now.shortName)}` : offs.length ? `${offs.length} offer${offs.length > 1 ? 's' : ''}${mine ? '<br><span class="up">incl. yours</span>' : ''}` : '<span class="muted">No offers</span>'}</span></div>`;
@@ -22223,7 +22746,7 @@ function programCulture(t) {
   const P = prog(), yr = cpYr();
   const lg = CP.legacyOf(league(), t, P);
   const ex = CP.scheduleEffect(P.schedule[yr - 1]).exposure;
-  return lg.culture * (P.madness[yr - 1] ? 1.04 : 1) * (1 + ex * 0.005);
+  return lg.culture * (P.madness[yr - 1] ? 1.04 : 1) * (1 + (ex + colVisitPull(yr)) * 0.005);   // + the official visits from the season just played
 }
 // Every program decision back into the loaded save, plus the redshirt years owed.
 function applyCollegeProgram() {
@@ -22261,7 +22784,7 @@ function swapHeadCoach(from, to) {
   from.frontOffice.staff[0] = b; to.frontOffice.staff[0] = a;
   a.tid = to.id; b.tid = from.id;
 }
-const cpRow = (p, right = '', sub = '') => `<div class="drill-row tap" data-act="openPlayer" data-id="${p.id}"><span class="grow"><b>${esc(playerName(p))}</b> ${lvTag(p)} <span class="stars">${stars(p.pot)}</span><br>
+const cpRow = (p, right = '', sub = '') => `<div class="drill-row tap" data-act="openPlayer" data-id="${p.id}"><span class="grow"><b>${esc(playerName(p))}</b> ${lvTag(p)} ${potTag(p.pot)}<br>
   <span class="small muted">${esc(posName(p))} · ${p.age}y · ${classOf(p.yrs ?? 0)}${sub ? ` · ${sub}` : ''}</span></span>${right ? `<span class="small" style="text-align:right">${right}</span>` : ''}</div>`;
 const cpNoSchool = title => layout({ title, body: '<p class="note">Pick your school first.</p>' });
 const cpDone = key => { calFlags()[key] = true; goHome(); nextUp(); };
@@ -22336,7 +22859,7 @@ screens.waters = () => {
     const d = W[x.declared ? x.hid : x.p.id];
     const odds = Object.fromEntries(CP.WATER_PITCHES.map(w => [w.k, CP.returnOdds(x, w.k, cpTrait, ctx)]));
     return `<fieldset class="frame ${d ? (d.back ? 'r1' : '') : ''}"><legend>${esc(playerName(x.p))} · ${esc(x.label)} (No. ${x.rank})</legend>
-      ${x.declared ? `<div class="drill-row"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span><br><span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · declared</span></span><span class="small down" style="text-align:right">${esc(x.label)}</span></div>` : cpRow(x.p, `Draft No. ${x.rank}`)}
+      ${x.declared ? `<div class="drill-row"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}<br><span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · declared</span></span><span class="small down" style="text-align:right">${esc(x.label)}</span></div>` : cpRow(x.p, `Draft No. ${x.rank}`)}
       <p class="note small">🏁 Combine: ${x.fb.good.length ? `scouts like his ${esc(x.fb.good.join(', '))}` : 'nothing jumped out'}${x.fb.work.length ? `; work on ${esc(x.fb.work.join(', '))}` : ''}. ${esc(x.fb.verdict)}</p>
       ${d ? `<p class="note ${d.back ? 'up' : 'down'}">${d.back ? `✅ He's coming back${x.declared ? ', withdrawn from the draft' : ''} (${esc(CP.WATER_PITCHES.find(w => w.k === d.pitch)?.label || '')}).` : `🎓 He's staying in the draft.`}</p>`
         : `<div class="stack">${CP.WATER_PITCHES.map(w => `<button class="btn small left" data-act="watersPitch" data-id="${x.p.id}" data-k="${w.k}"><span class="grow"><b>${esc(w.label)}</b><br><span class="muted">"${esc(w.says)}"</span></span><span>${pct(odds[w.k])}</span></button>`).join('')}</div>`}
@@ -22429,7 +22952,7 @@ screens.retention = () => {
   const R = (P.retention[yr] ||= {});
   const card = x => {
     const d = R[x.p.id];
-    return `<fieldset class="frame ${d ? (d.stay ? 'r1' : '') : ''}"><legend>${esc(playerName(x.p))} · ${x.portal ? '<span class="down">in the portal</span>' : `${pct(x.risk)} risk`}</legend>${x.portal ? `<div class="drill-row"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span><br><span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${classOf(x.p.yrs ?? 0)} · entered the portal</span></span></div>` : cpRow(x.p)}
+    return `<fieldset class="frame ${d ? (d.stay ? 'r1' : '') : ''}"><legend>${esc(playerName(x.p))} · ${x.portal ? '<span class="down">in the portal</span>' : `${pct(x.risk)} risk`}</legend>${x.portal ? `<div class="drill-row"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}<br><span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${classOf(x.p.yrs ?? 0)} · entered the portal</span></span></div>` : cpRow(x.p)}
       <div class="stack">${x.reasons.map(r => `<p class="note small">• He ${esc(r.text)}.</p>`).join('')}</div>
       ${d ? `<p class="note ${d.stay ? 'up' : 'down'}">${d.stay ? `✅ He's staying${x.portal ? ': out of the portal and back on the roster' : ''} (${esc(CP.RET_PROMISES[d.promise].label)}).` : x.portal ? '🔁 He stays in the portal.' : '🔁 He entered the transfer portal.'}</p>`
         : `<div class="grid2">${Object.entries(CP.RET_PROMISES).map(([k, v]) => `<button class="btn small" data-act="retainTalk" data-id="${x.p.id}" data-k="${k}">${esc(v.label)}<br><span class="muted">${pct(CP.stayOdds(x, k, cpTrait))} stays</span></button>`).join('')}</div>`}
@@ -22660,7 +23183,7 @@ screens.walkons = () => {
       ${sc.scholarships > CP.SCHOLARSHIPS ? `<p class="note small down">⚠️ ${sc.scholarships - CP.SCHOLARSHIPS} over the scholarship limit: cut a scholarship player or make it up with walk-ons who pay their own way.</p>` : ''}
       ${sc.walkons.length ? `<fieldset class="frame"><legend>Your Walk-Ons</legend><div class="stack">${sc.walkons.map(p => cpRow(p, `<button class="btn small" data-act="walkonScholarship" data-id="${p.id}" ${sc.scholarships >= CP.SCHOLARSHIPS ? 'disabled' : ''}>🎓 Scholarship</button>`)).join('')}</div>
         <p class="note muted small">Putting a walk-on on scholarship is a reward the locker room notices.</p></fieldset>` : ''}
-      <fieldset class="frame"><legend>Preferred Walk-Ons</legend><div class="stack">${cands.map(c => `<div class="drill-row"><span class="grow"><b>${esc(playerName(c.p))}</b> ${lvTag(c.p)} <span class="stars">${stars(c.p.pot)}</span><br><span class="small muted">${esc(posName(c.p))} · ${heightStr(c.p.ht)} · ${classOf(c.p.yrs)} · local kid</span></span><button class="btn small" data-act="walkonAdd" data-i="${c.i}" ${t.roster.length >= 15 ? 'disabled' : ''}>Add</button></div>`).join('') || '<p class="note small muted">No more this year.</p>'}</div></fieldset>`,
+      <fieldset class="frame"><legend>Preferred Walk-Ons</legend><div class="stack">${cands.map(c => `<div class="drill-row"><span class="grow"><b>${esc(playerName(c.p))}</b> ${lvTag(c.p)} ${potTag(c.p.pot)}<br><span class="small muted">${esc(posName(c.p))} · ${heightStr(c.p.ht)} · ${classOf(c.p.yrs)} · local kid</span></span><button class="btn small" data-act="walkonAdd" data-i="${c.i}" ${t.roster.length >= 15 ? 'disabled' : ''}>Add</button></div>`).join('') || '<p class="note small muted">No more this year.</p>'}</div></fieldset>`,
     action: isStep('walkons') ? { act: 'walkonsDone', label: 'Wrap Up' } : null,
   });
 };
@@ -23414,7 +23937,10 @@ screens.olympics = (args = {}) => {
     const rows = G.box[s].filter(r => r.min > 0).sort((a, b) => b.min - a.min), tot = k => rows.reduce((a, r) => a + r[k], 0);
     return `<h4 class="ov-h">${flag(c)} ${esc(OLY.nation(c))}${olyGameMark(G, c)}</h4><table class="oly-box"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>${rows.map(r => { const x = t.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === r.k) || { fn: r.k, ln: '' }; return `<tr><td>${who(x)}</td><td>${r.min}</td><td><b>${r.pts}</b></td><td>${r.reb}</td><td>${r.ast}</td></tr>`; }).join('')}<tr class="tot"><td>Team</td><td>${tot('min')}</td><td>${tot('pts')}</td><td>${tot('reb')}</td><td>${tot('ast')}</td></tr></tbody></table>`; }).join('')}<button class="btn small off" data-act="olyGame" data-g="">← All games</button></fieldset>` : '';
   const stages = R ? [...new Set(R.games.map(G => G.stage.startsWith('Group') ? 'Group stage' : G.stage))].reverse() : [];
-  const gamesTab = R ? (boxTab || `<details class="cmb-fold"><summary>🗂️ Group standings</summary>${groupsTab}</details>` + stages.map(st => `<fieldset class="frame"><legend>${st === 'Gold Medal Game' || st === 'Final' ? '🏆 ' : st === 'Bronze Medal Game' ? '🥇 ' : ''}${esc(st)}</legend><div class="stack">${R.games.map((G, i) => [G, i]).filter(([G]) => (G.stage.startsWith('Group') ? 'Group stage' : G.stage) === st).reverse().map(([G, i]) => `<div class="tap" data-act="olyGame" data-g="${i}">${st === 'Group stage' ? `<span class="muted small">${esc(G.stage)}</span>` : ''}${lineScore(G)}</div>`).join('')}</div></fieldset>`).join('')) : '';
+  const gamesTab = R ? (boxTab || `<details class="cmb-fold"><summary>🗂️ Group standings</summary>${groupsTab}</details>` + stages.map(st => `<fieldset class="frame"><legend>${st === 'Gold Medal Game' || st === 'Final' ? '🏆 ' : st === 'Bronze Medal Game' ? '🥇 ' : ''}${esc(st)}</legend><div class="stack">${st === 'Group stage'
+      // The group games by group (A, B, C...), each in the order they were played.
+      ? [...new Set(R.games.filter(G => G.stage.startsWith('Group')).map(G => G.stage))].sort().map(gs => `<h4 class="ov-h">${esc(gs)}</h4>${R.games.map((G, i) => [G, i]).filter(([G]) => G.stage === gs).map(([G, i]) => `<div class="tap" data-act="olyGame" data-g="${i}">${lineScore(G)}</div>`).join('')}`).join('')
+      : R.games.map((G, i) => [G, i]).filter(([G]) => G.stage === st).reverse().map(([G, i]) => `<div class="tap" data-act="olyGame" data-g="${i}">${lineScore(G)}</div>`).join('')}</div></fieldset>`).join('')) : '';
   // ---- Results: the podium, the MVP, the All-Star Five, then what it did to the league (folded).
   const lineOf = k => R.lines[k], per = (L, k) => (L[k] / Math.max(1, L.gp)).toFixed(1);
   const xOf = (k, c) => F.field.find(t => t.c === c)?.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === k) || { fn: String(k), ln: '' };
@@ -23518,8 +24044,8 @@ function olyRun() {
     }
     // Tired legs: anyone who carried a big load deep into the tournament (6+ games at 24+ minutes), for the first two
     // weeks of the season (the 💤 on his ratings).
-    after.tired = Object.values(R.lines).filter(Lr => typeof Lr.k === 'number' && Lr.gp >= 6 && Lr.min / Lr.gp >= 24 && P(Lr.k)).map(Lr => Lr.k);
-    fxOlympic(after.tired, L.season.currentYear);
+    // (On hold while temporary changes stay out of the file: nobody comes back with tired legs for now.)
+    after.tired = [];
     // Chemistry: league teammates who played for the same country.
     for (const t of F.field) {
       const lg = t.roster.filter(x => x.pid != null && P(x.pid));
@@ -23623,12 +24149,31 @@ function cupSide(id) {
   return { c: id, roster, str: W.reduce((a, w, i) => a + w * (lv[i] ?? 60), 0) / W.reduce((a, w) => a + w, 0) + (cupRec(t) - 0.5) * 6 };
 }
 // On load: once every group game is in, the knockout is played (once) and the rewards go out.
+// The Cup season a file belongs to: this season's from Opening Night on, last season's in an offseason file (the
+// offseason file already carries next season's year).
+const cupYear = () => (league().season.phase >= 9 ? league().season.currentYear : league().season.currentYear - 1);
+// Group tables from the season's records, for a file that no longer has the group games in it (a season simmed through
+// with no file in between: the offseason file starts the new schedule). Each group's order by win %, then the seeds.
+function cupSeedsByRecord(c, y) {
+  const pct = id => { const r = (cupTeam(id)?.season || []).find(s => s.yr === y)?.seasonStats; return r?.GP ? r.W / r.GP + (r.PTS - r.OPP) / r.GP / 1000 : 0; };
+  const out = {};
+  for (const conf of [0, 1]) {
+    const gs = c.draw.groups.filter(g => g.conf === conf).map(g => [...g.teams].sort((a, b) => pct(b) - pct(a)));
+    const firsts = gs.map(g => g[0]).sort((a, b) => pct(b) - pct(a)), wild = gs.map(g => g[1]).filter(x => x != null).sort((a, b) => pct(b) - pct(a))[0];
+    out[conf] = [...firsts, wild].filter(x => x != null).slice(0, 4);
+  }
+  return out;
+}
 function cupKnockout() {
-  if (!cupOn() || league().season.phase !== 9) return false;
-  const c = cupGet();
+  if (!cupOn()) return false;
+  const y = cupYear(), c = cupGet(y), L = league();
   if (!c?.games || c.ko) return false;
-  if (!CUP.tables(league(), c).every(g => g.done)) return false;
-  const sd = CUP.seeds(league(), c), ko = CUP.runKnockout(c, sd, cupSide, cupSeed());
+  // This season's file: once every group game is in. A later file (the playoffs, or the offseason) that skipped past it:
+  // straight away, from the group games if they're still in the file, else from the season's records.
+  let sd;
+  if (L.season.phase >= 9) { if (!CUP.tables(L, c).every(g => g.done)) return false; sd = CUP.seeds(L, c); }
+  else { sd = cupSeedsByRecord(c, y); c.byRecord = true; }
+  const ko = CUP.runKnockout(c, sd, cupSide, cupSeed());
   c.seeds = sd; c.ko = ko;
   const P = id => findPlayer(id)?.p;
   // The champions' roster (for their player pages), morale, the MVP's Ego, and prize money for your team.
@@ -23639,7 +24184,8 @@ function cupKnockout() {
   const prize = { [ko.champion]: 60, [ko.runnerUp]: 30, ...Object.fromEntries((ko.semis || []).map(id => [id, 15])) };
   c.prize = {};
   for (const [id, n] of Object.entries(prize)) { const t = cupTeam(+id); if (t && isUserTeam(t) && isComplete() && t.frontOffice) { t.frontOffice.coins = coinsOf(t) + n; c.prize[id] = n; } }
-  cupSet(c);
+  c.yr = y;
+  cupSet(c, y);
   state.dirty = true;
   setTimeout(() => toast('🏆 NBA Cup', `${teamFull(cupTeam(ko.champion))} win the Cup in Las Vegas.`, 5000), 1800);
   return true;
@@ -23669,9 +24215,35 @@ function cupTable(g, compact) {
   const mine = id => isUserTeam(cupTeam(id) || {});
   return `<div class="stack">${g.rows.map((r, i) => `<div class="oly-prow ${mine(r.tid) ? 'gold' : ''}"><span class="grow"><span class="muted small">${i + 1}.</span> ${logoImg(cupTeam(r.tid))} <b>${esc(cupName(r.tid))}</b>${compact ? '' : ` <span class="muted small">${esc(cupTeam(r.tid)?.name || '')}</span>`}</span><span>${r.w}-${r.l} <span class="muted small">${r.pf - r.pa > 0 ? '+' : ''}${r.pf - r.pa}</span></span></div>`).join('')}</div>`;
 }
+// The Cup to show: this season's once it's drawn or under way; in an offseason file before the new draw, last season's.
+const cupShown = () => { const L = league(), cur = cupGet(); if (cur || L.season.phase >= 9) return { c: cur, y: L.season.currentYear }; const prev = cupGet(L.season.currentYear - 1); return prev?.ko ? { c: prev, y: L.season.currentYear - 1 } : { c: null, y: L.season.currentYear }; };
+// Every Cup so far: the real ones before this league's first season, then the ones played here.
+const CUP_REAL = [
+  { yr: 2024, champ: 'LAL', runner: 'IND', score: '123-109', mvp: 'LeBron James' },
+  { yr: 2025, champ: 'MIL', runner: 'OKC', score: '97-81', mvp: 'Giannis Antetokounmpo' },
+  { yr: 2026, champ: 'NYK', runner: 'SAS', score: '124-113', mvp: 'Jalen Brunson' },
+];
+function cupHistory() {
+  const L = league(), real = CUP_REAL.map(r => ({ ...r, real: true }));
+  const here = [];
+  for (let y = 2027; y <= L.season.currentYear; y++) {
+    const c = cupGet(y); if (!c?.ko) continue;
+    const fin = c.ko.games[c.ko.games.length - 1], w = fin.sa > fin.sb ? [fin.sa, fin.sb] : [fin.sb, fin.sa];
+    here.push({ yr: y, champId: c.ko.champion, runnerId: c.ko.runnerUp, score: `${w[0]}-${w[1]}`, mvpId: typeof c.ko.mvp?.k === 'number' ? c.ko.mvp.k : null, byRecord: c.byRecord });
+  }
+  return [...real.filter(r => !here.some(h => h.yr === r.yr)), ...here].sort((a, b) => b.yr - a.yr);
+}
+function cupHistoryBox() {
+  const H = cupHistory(); if (!H.length) return '';
+  const byCode = s => league().teams.find(t => t.shortName === s);
+  const tm = (id, code) => { const t = id != null ? cupTeam(id) : byCode(code); return t ? `${logoImg(t)} <b>${esc(t.name || t.shortName)}</b>` : `<b>${esc(code)}</b>`; };
+  const mvp = h => { if (h.mvpId != null) { const p = findPlayer(h.mvpId)?.p; return p ? `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</span>` : 'Unknown'; } return esc(h.mvp); };
+  return `<fieldset class="frame"><legend>📜 Cup History</legend><div class="stack">${H.map(h => `<div class="drill-row"><span class="pk">${h.yr - 1}</span><span class="grow">🏆 ${tm(h.champId, h.champ)} <span class="muted small">def.</span> ${tm(h.runnerId, h.runner)} <span class="muted small">${h.score}</span><br><span class="small muted">MVP: ${mvp(h)}</span></span></div>`).join('')}</div>
+    <p class="note small muted">Played in December in Las Vegas (the year is when the Cup was won).</p></fieldset>`;
+}
 screens.cup = (args = {}) => {
   if (!cupOn()) { back(); return; }
-  const L = league(), c = cupGet() || { draw: cupDraw() }, played = !!c.games, ko = c.ko;
+  const L = league(), shown = cupShown(), c = shown.c || { draw: cupDraw() }, played = !!c.games, ko = c.ko, cy = shown.y;
   const T = played ? CUP.tables(L, c) : c.draw.groups.map(g => ({ ...g, rows: g.teams.map(tid => ({ tid, w: 0, l: 0, pf: 0, pa: 0 })) }));
   const groupsTab = `<div class="oly-groups">${T.map(g => `<div class="oly-group"><div class="oly-group-h">${esc(g.name)}${g.done ? ' <span class="muted small">· final</span>' : ''}</div>${cupTable(g)}</div>`).join('')}</div>
     <p class="note small muted">Each team plays its four group opponents once on Cup nights in November: real games, and they count in the standings. The six group winners and the best second-place team in each conference go on.</p>`;
@@ -23686,17 +24258,21 @@ screens.cup = (args = {}) => {
     return `<table class="oly-ls"><thead><tr><th></th>${hd.map(h => `<th>${h}</th>`).join('')}<th>T</th></tr></thead><tbody>${rows.join('')}</tbody></table>`; };
   const gi = args.g != null && args.g !== '' ? +args.g : null, G = ko && gi != null ? ko.games[gi] : null;
   const who = k => { const p = typeof k === 'number' ? findPlayer(k)?.p : null; return p ? `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b>` : esc(String(k)); };
-  const boxView = G ? `<fieldset class="frame"><legend>${esc(G.stage)}</legend>${lineScore(G)}${[0, 1].map(s => { const id = s ? G.b : G.a, rows = G.box[s].filter(r => r.min > 0).sort((a, b) => b.min - a.min), tot = k => rows.reduce((a, r) => a + r[k], 0);
-    return `<h4 class="ov-h">${logoImg(cupTeam(id))} ${esc(teamFull(cupTeam(id)))}</h4><table class="oly-box"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>${rows.map(r => `<tr><td>${who(r.k)}</td><td>${r.min}</td><td><b>${r.pts}</b></td><td>${r.reb}</td><td>${r.ast}</td></tr>`).join('')}<tr class="tot"><td>Team</td><td>${tot('min')}</td><td>${tot('pts')}</td><td>${tot('reb')}</td><td>${tot('ast')}</td></tr></tbody></table>`; }).join('')}<button class="btn small off" data-act="cupGame" data-g="">← All games</button></fieldset>` : '';
-  const koTab = ko ? (boxView || `<fieldset class="frame oly-final"><legend>🏆 ${L.season.currentYear} NBA Cup · Las Vegas</legend>
+  // Team stats side by side: the box score's totals, the better side in green.
+  const teamStats = G => { const t = s => { const rows = G.box[s].filter(r => r.min > 0); return k => rows.reduce((a, r) => a + (r[k] || 0), 0); }, A = t(0), B = t(1);
+    return `<div class="mu-two-col"><div class="mu-tr"><span><b>${esc(cupName(G.a))}</b></span><span class="mu-lbl">Team Stats</span><span><b>${esc(cupName(G.b))}</b></span></div>${[['pts', 'Points'], ['reb', 'Rebounds'], ['ast', 'Assists'], ['stl', 'Steals'], ['blk', 'Blocks']].map(([k, l]) => { const a = A(k), b = B(k); return `<div class="mu-tr"><span class="${a > b ? 'up' : ''}">${a}</span><span class="mu-lbl">${l}</span><span class="${b > a ? 'up' : ''}">${b}</span></div>`; }).join('')}</div>`; };
+  const boxView = G ? `<fieldset class="frame"><legend>${esc(G.stage)}</legend>${lineScore(G)}${teamStats(G)}${[0, 1].map(s => { const id = s ? G.b : G.a, rows = G.box[s].filter(r => r.min > 0).sort((a, b) => b.min - a.min), tot = k => rows.reduce((a, r) => a + r[k], 0);
+    return `<h4 class="ov-h">${logoImg(cupTeam(id))} ${esc(teamFull(cupTeam(id)))}</h4><table class="oly-box"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th></tr></thead><tbody>${rows.map(r => `<tr><td>${who(r.k)}</td><td>${r.min}</td><td><b>${r.pts}</b></td><td>${r.reb}</td><td>${r.ast}</td><td>${r.stl || 0}</td><td>${r.blk || 0}</td></tr>`).join('')}<tr class="tot"><td>Team</td><td>${tot('min')}</td><td>${tot('pts')}</td><td>${tot('reb')}</td><td>${tot('ast')}</td><td>${tot('stl')}</td><td>${tot('blk')}</td></tr></tbody></table>`; }).join('')}<button class="btn small off" data-act="cupGame" data-g="">← All games</button></fieldset>` : '';
+  const koTab = ko ? (boxView || `<fieldset class="frame oly-final"><legend>🏆 ${cy - 1} NBA Cup · Las Vegas</legend>
       <p class="note">${logoImg(cupTeam(ko.champion))} <b>${esc(teamFull(cupTeam(ko.champion)))}</b> win the NBA Cup.${ko.mvp ? ` ${who(ko.mvp.k)} is the Cup MVP (${(ko.mvp.pts / Math.max(1, ko.mvp.gp)).toFixed(1)} points a game).` : ''}</p>
+      ${c.byRecord ? '<p class="note small muted">The season was simmed through without a file in between, so the group games weren\'t there to read: each group went by its teams\' season records.</p>' : ''}
       ${Object.keys(c.prize || {}).length ? `<p class="note small up">Prize money: ${Object.entries(c.prize).map(([id, n]) => `${esc(cupName(+id))} +${n} coins`).join(' · ')}</p>` : ''}</fieldset>
     ${['Championship', 'Semifinal', 'Quarterfinal'].map(st => { const gs = ko.games.map((G, i) => [G, i]).filter(([G]) => G.stage.endsWith(st)); return gs.length ? `<fieldset class="frame"><legend>${st === 'Championship' ? '🏆 ' : ''}${st === 'Semifinal' ? 'Conference Finals' : st === 'Quarterfinal' ? 'Quarterfinals' : 'Championship'}</legend><div class="stack">${gs.reverse().map(([G, i]) => `<div class="tap" data-act="cupGame" data-g="${i}">${st !== 'Championship' ? `<span class="muted small">${esc(G.stage)}</span>` : ''}${lineScore(G)}</div>`).join('')}</div></fieldset>` : ''; }).join('')}`)
     : `<p class="note">${played ? 'The quarterfinals, conference finals and the championship in Las Vegas are played once every group game is in.' : 'The knockout comes after the group stage.'}</p>`;
   layout({
     title: 'NBA Cup',
-    body: `<div class="oly-head"><div class="cup-badge">🏆</div><div class="oly-title">${L.season.currentYear} NBA CUP</div><div class="oly-host">${ko ? `Champion: ${esc(teamFull(cupTeam(ko.champion)))}` : played ? 'Group stage · Cup nights in November' : 'The draw'}</div></div>
-      ${uiTabs('cup', ko ? [['ko', 'Knockout', koTab], ['groups', 'Groups', groupsTab], ['nights', 'Cup Nights', nightsTab]] : [['groups', 'Groups', groupsTab], ['nights', 'Cup Nights', played ? nightsTab : ''], ['ko', 'Knockout', koTab]], ko ? 'ko' : 'groups')}`,
+    body: `<div class="oly-head"><div class="cup-badge">🏆</div><div class="oly-title">${cy - 1} NBA CUP</div><div class="oly-host">${ko ? `Champion: ${esc(teamFull(cupTeam(ko.champion)))}` : played ? 'Group stage · Cup nights in November' : 'The draw'}</div></div>
+      ${uiTabs('cup', ko ? [['ko', 'Knockout', koTab], ['groups', 'Groups', groupsTab], ['nights', 'Cup Nights', nightsTab], ['history', 'History', cupHistoryBox()]] : [['groups', 'Groups', groupsTab], ['nights', 'Cup Nights', played ? nightsTab : ''], ['ko', 'Knockout', koTab], ['history', 'History', cupHistoryBox()]], ko ? 'ko' : 'groups')}`,
   });
 };
 actions.cupGame = d => { (state.uiTab ||= {}).cup = 'ko'; replace('cup', { g: d.g === '' ? null : d.g }); };
@@ -23708,7 +24284,7 @@ function cupDrawBox() {
 }
 // Hoop Gram: the champions.
 function cupPosts() {
-  const c = cupOn() && cupGet();
+  const c = cupOn() && cupShown().c;
   if (!c?.ko) return [];
   const t = cupTeam(c.ko.champion), mvp = typeof c.ko.mvp?.k === 'number' ? findPlayer(c.ko.mvp.k)?.p : null;
   return t ? [{ team: t, score: 97, tag: '🏆 NBA Cup', pid: mvp?.id || null, handle: '@HoopGramNBA', likes: 30000 + (t.id * 977) % 9000, text: `The ${teamFull(t)} are NBA Cup champions after beating the ${cupTeam(c.ko.runnerUp)?.name || ''} in Las Vegas.${mvp ? ` ${playerName(mvp)} takes Cup MVP.` : ''}` }] : [];
@@ -24372,7 +24948,7 @@ const DBX_FLAG = 'hlc:dbxbeta';
 // Test-site features: on everywhere but the live site (hooplandplus.com, or the live GitHub Pages path). 'hlc:lab' = '1'
 // turns them on in a browser, '0' turns them off (to check what the live site shows).
 // A build that previews the live site (the test site while a release is being filmed): test features off by default.
-const LIVE_PREVIEW = true;
+const LIVE_PREVIEW = false;
 const liveSite = () => LIVE_PREVIEW || counting() || (/\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus\//i.test(location.pathname));
 function labOn() { try { const v = localStorage.getItem('hlc:lab'); if (v === '0') return false; if (v === '1' || localStorage.getItem('hlc:dbxbeta') === '1') return true; } catch { /* ignore */ } return !liveSite(); }
 // ?lab=off shows a browser exactly what the live site shows (?lab=on turns the test features back on; it sticks).
@@ -24732,6 +25308,8 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 // app has loaded a file (its own fixes and the CPU teams' new honors included), so a start file can carry them.
 if (window.__hlcTool) window.hlcTool = {
   retired: () => league().teams.map(t => ({ tid: t.id, list: (t.retiredNumbers || []).map(r => ({ ...r })) })),
+  // Who comes in hot or cold (the start screen's preview): name, team, kind, level change, the game's streak count, line.
+  streaks: () => { const L = league(), yr = L.season.currentYear; return [...streakPreview(L)].map(([id, s]) => { const f = findPlayer(id), l = seasonLine(f.p, 0, yr); return { name: playerName(f.p), team: f.team?.shortName, kind: s.kind, lv: s.lv, level: levelOf(f.p), streak: f.p.gameStatus?.streak || 0, line: l ? `${l.gp}g ${l.ppg.toFixed(1)}/${l.rpg.toFixed(1)}/${l.apg.toFixed(1)}` : '' }; }); },
   // What the app would still flag on this file: jersey clashes, players whose gear needs matching, suits to redo.
   check: () => { const L = league(), g = GEAR.matchLeague(L, APPEARANCE_POOL.tattoos), s = GEAR.matchSuitsLeague(L); const out = { clashes: jerseyClashes(L).map(c => `${c.team.shortName} ${c.p.ln} #${c.p.num}`), gear: new Set(g.map(x => x.p)).size, suits: new Set(s.map(x => x.m)).size }; GEAR.undoMatch(g); GEAR.undoSuits(s); return out; },
 };
