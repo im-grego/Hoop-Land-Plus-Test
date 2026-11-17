@@ -2613,3 +2613,11 @@ html:has(.ru-box), html:has(.ru-box) body { overflow: hidden; }
 .px-art { height: 1.25em; width: auto; vertical-align: -0.28em; margin-right: 3px; image-rendering: pixelated; image-rendering: crisp-edges; }
 legend .px-art { height: 1.4em; vertical-align: -0.32em; }
 .xmas-note { text-align: center; margin: 0 0 6px; }
+/* Key dates: every icon in the same box, centered, so the names line up; the date on its own line under the name. */
+.sm-date { display: flex; align-items: flex-start; gap: 6px; }
+.sm-ic { flex: none; width: 1.6em; height: 1.6em; display: flex; align-items: center; justify-content: center; }
+.sm-ic .px-art { margin: 0; height: 1.35em; vertical-align: 0; }
+.sm-dates { gap: 6px 8px; }
+.sm-date b { white-space: nowrap; }
+.sm-date > span:last-child { min-width: 0; }
+@media (max-width: 359px) { .sm-date b { white-space: normal; } }
