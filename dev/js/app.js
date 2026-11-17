@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.149';
+const APP_VERSION = '0.365.150';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -15772,7 +15772,7 @@ const prospectRow = (p, extra = '', { mine = false } = {}) => {
   const fit = fills.length ? `<span class="fit-chip" title="Fills ${esc(fills.map(n => n.label).join(', '))}" aria-label="Fills ${esc(fills.map(n => n.label).join(', '))}">🧩</span>` : '';
   return `<button class="prow cprow ${star ? 'sel' : ''} ${gone ? 'gone' : ''}" data-act="openProspect" data-id="${p.id}">${fit}
   <span class="name">${star ? '<span class="gold">★</span> ' : ''}<span class="nm">${esc(playerName(p))}</span>${scouted(p.id) ? ' <span title="Scouted in person">🔎</span>' : ''}${gone ? ` <span class="small muted">#${gone.overall}${gone.team ? ` · ${esc(gone.team.shortName)}` : ''}</span>` : ''}</span>
-  <span class="meta">${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)}${p.wt ? ` · ${p.wt} lb` : ''}${archName(p) ? ` · ${esc(archName(p))}` : ''} ${valueChip(p)}${state.params.readiness !== 'age' && readinessOf(p) !== READINESS.base ? ` ${readyChip(p)}` : ''}</span>
+  <span class="meta">${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)}${p.wt ? ` · ${p.wt} lb` : ''}${archName(p) ? ` · ${esc(archName(p))}` : ''} ${valueChip(p)}</span>
   <span class="chg">${comp('Ceiling', c.ceiling[0])}${comp('Floor', c.floor[0])}${extra}</span>
 </button>`;
 };
@@ -16739,6 +16739,8 @@ actions.workoutAll = () => replace('workouts', { ...(state.stack[state.stack.len
 // College class from years already played (Hoop Land's `yrs`).
 // His class: the one his scouting background names (Freshman…Senior) when it has one, so the chip, the background line
 // and the stats box agree; otherwise from his years in school.
+// A prospect playing for a pro club overseas (his class file's pedigree says International): no college class year.
+const intlProspect = p => /^International \(/.test(labMeta()[p.id]?.ped || '');
 const classYear = p => {
   const named = ['Freshman', 'Sophomore', 'Junior', 'Senior'].findIndex(w => (labMeta()[p.id]?.ped || '').includes(w));
   return ['Fr', 'So', 'Jr', 'Sr'][named >= 0 ? named : Math.max(0, Math.min(3, p.yrs ?? (p.age - 18)))];
@@ -16977,8 +16979,8 @@ screens.prospect = (args) => {
         <button class="mvbtn pros-add ${onBoard(p.id) ? 'on' : ''}" data-act="toggleBoard" data-id="${p.id}" aria-label="${onBoard(p.id) ? 'Remove from' : 'Add to'} your board">${onBoard(p.id) ? '✓' : '+'}</button>
         <h2 class="team-title">${esc(playerName(p))}</h2>
         <p class="note">${esc((c => !c ? 'Prospect' : c.made ? (c.intl || /^Pro club/.test(c.team) || c.school ? c.team : 'College') : c.team)(collegeLine(p, state.data.seasonLeagues)))} · ${esc(posName(p))} · ${heightStr(p.ht)} · ${p.wt} lb</p>
-        <p class="note small pros-chips"><span class="age-chip">Age ${p.age} · ${classYear(p)}</span> ${valueChip(p)} ${state.params.readiness === 'age' ? '' : readyChip(p)}</p>
-        ${(() => { const z = collegeZ(p), w = productionWord(z), b = bodyZ(p); if (!w && !b) return ''; const fw = b ? (b.frame >= 0.5 ? 'pro-ready frame' : b.frame <= -0.5 ? 'slight frame' : 'average frame') : ''; return `<p class="note small">${w ? `College production vs the ${p.pos <= 2 ? 'guards' : p.pos <= 5 ? 'wings' : 'bigs'} in his class: <b class="${z >= 0.5 ? 'up' : z <= -0.5 ? 'down' : ''}">${w}</b>` : ''}${w && fw ? ' · ' : ''}${fw ? `<span class="${b.frame >= 0.5 ? 'up' : b.frame <= -0.5 ? 'down' : 'muted'}">${fw}</span>` : ''}</p>`; })()}
+        <p class="note small pros-chips"><span class="age-chip">Age ${p.age} · ${intlProspect(p) ? 'Pro' : classYear(p)}</span></p>
+        ${(() => { const z = collegeZ(p), w = productionWord(z), b = bodyZ(p); if (!w && !b) return ''; const fw = b ? (b.frame >= 0.5 ? 'pro-ready frame' : b.frame <= -0.5 ? 'slight frame' : 'average frame') : ''; return `<p class="note small">${w ? `${intlProspect(p) ? 'Production' : 'College production'} vs the ${p.pos <= 2 ? 'guards' : p.pos <= 5 ? 'wings' : 'bigs'} in his class: <b class="${z >= 0.5 ? 'up' : z <= -0.5 ? 'down' : ''}">${w}</b>` : ''}${w && fw ? ' · ' : ''}${fw ? `<span class="${b.frame >= 0.5 ? 'up' : b.frame <= -0.5 ? 'down' : 'muted'}">${fw}</span>` : ''}</p>`; })()}
         ${labStoryLine(p)}
       </div>
       ${scoutBtn(p) ? `<div style="margin-bottom:8px">${scoutBtn(p)}</div>` : ''}
