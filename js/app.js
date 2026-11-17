@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.127';
+const APP_VERSION = '0.365.128';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3920,7 +3920,9 @@ const countEvent = name => countHit(name, name, true);
 // The league editor is paused on the public site (league files, the league-file export, and the editing controls in
 // League): EDITOR_OFF. Viewing stays. Local testing keeps everything.
 const EDITOR_OFF = () => !labOn();   // the league editor: the test site (and local) only, for now
-const FRANCHISE_ONLY = () => counting() || (/\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus/i.test(location.pathname));
+// The test site (…/hoop-land-plus-test/) takes every kind of save; the live site Franchise saves only for now.
+const onTestSite = () => /\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus-test\//i.test(location.pathname);
+const FRANCHISE_ONLY = () => counting() || (/\.github\.io$/.test(location.hostname) && /^\/hoop-land-plus\//i.test(location.pathname));
 countHit(runningInstalled() ? '/app' : '/', runningInstalled() ? 'Opened (installed app)' : 'Opened (browser)');
 
 // ---------------------------------------------------------------------------
@@ -5002,7 +5004,7 @@ screens.main = () => {
 };
 
 // Career mode is behind the testing switch until it's been through a real career save.
-const careerOn = () => labOn();
+const careerOn = () => labOn() || onTestSite();   // and always on the test site
 // Career saves: a card on the home screen that opens the Career Hub.
 function careerCard() {
   const L = league();
