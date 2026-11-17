@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.115';
+const APP_VERSION = '0.365.116';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2697,7 +2697,7 @@ const STATE_OF = { ATL: 'GA', BOS: 'MA', BKN: 'NY', CHA: 'NC', CHO: 'NC', CHI: '
 // The city a team plays in, where its name is a state or region (Golden State, Indiana, Minnesota, Utah) or a borough.
 const CITY_OF = { GSW: 'San Francisco', IND: 'Indianapolis', MIN: 'Minneapolis', UTA: 'Salt Lake City', BKN: 'Brooklyn', LAC: 'Los Angeles', LAL: 'Los Angeles', NYK: 'New York', WAS: 'Washington', NOP: 'New Orleans', OKC: 'Oklahoma City', SAS: 'San Antonio' };
 const hostPlace = t => { const city = CITY_OF[t.shortName] || t.city || t.name, st = STATE_OF[t.shortName]; return st ? `${city}, ${st}` : city; };
-// ---- The schedule maker: key dates, the marquee games for Opening Night (two) and Christmas (five), then the whole
+// ---- The schedule maker: key dates, the marquee games for Opening Night (three), Christmas and MLK Day (four each), then the whole
 // season built around them with the NBA's formula. Only before any game is played; Undo puts the game's own back.
 const smOn = () => labOn() && !isCollege() && league().leagueType === 0 && !(league().season.schedule || []).some(d => (d.results || []).some(g => g.homeScore || g.awayScore));
 function smChamp(L) {
@@ -2719,7 +2719,7 @@ function smCands(L) {
 }
 function smPicks(L) {
   const f = calFlags();
-  if (!f.smPicks || !f.smPicks.mlk) { const d = SM.defaultSlate(smCands(L), smChamp(L)); f.smPicks = { opening: d.opening.map(x => [x.h, x.aw]), mlk: d.mlk.map(x => [x.h, x.aw]), christmas: d.christmas.map(x => [x.h, x.aw]) }; }
+  if (!f.smPicks || !f.smPicks.mlk || f.smPicks.opening.length !== 3 || f.smPicks.christmas.length !== 4) { const d = SM.defaultSlate(smCands(L), smChamp(L)); f.smPicks = { opening: d.opening.map(x => [x.h, x.aw]), mlk: d.mlk.map(x => [x.h, x.aw]), christmas: d.christmas.map(x => [x.h, x.aw]) }; }
   return f.smPicks;
 }
 function scheduleMakerBox() {

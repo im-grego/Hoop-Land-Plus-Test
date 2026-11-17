@@ -72,11 +72,11 @@ function slateFor(cands, key, n, seen, first = null) {
   for (const c of pick) seen.add(pairOf(c));
   return pick;
 }
-// The default slate: Opening Night two games (the champion's first), MLK Day four, Christmas five; no matchup twice.
+// The default slate: Opening Night three games (the champion's first), Christmas four, MLK Day four; no matchup twice.
 export function defaultSlate(cands, champ = null) {
   const seen = new Set();
-  const opening = slateFor(cands, 'opening', 2, seen, champ);
-  const christmas = slateFor(cands, 'xmas', 5, seen);
+  const opening = slateFor(cands, 'opening', 3, seen, champ);
+  const christmas = slateFor(cands, 'xmas', 4, seen);
   const mlk = slateFor(cands, 'mlk', 4, seen);
   return { opening, christmas, mlk };
 }
