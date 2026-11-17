@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.367.49';
+const APP_VERSION = '0.367.50';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.1';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -90,7 +90,7 @@ const DEVLOG = [
       'Files come ready to play: real jersey numbers, retired numbers in order on the rafters, gear and suits matched, lineups optimized',
       'A player may wear a number retired for his family (Tim Hardaway Jr. in his dad\'s #10)',
       'Nov 17 tells the real story: Dejounte Murray has asked out of New Orleans (Phoenix, Miami and Dallas are calling) and Hoop Gram\'s rumor mill has the names in the news. Nobody else starts on the trade block',
-      'Sim the Trade Block: one tap runs the deals for the players on the block (Murray\'s suitors each make an offer, and the odds decide where he lands)',
+      'Sim the Trade Block (on the home screen and in Hoop Gram): every player on the block shows the teams interested in him (up to three for a star, fewer for a role player), and a deal goes through when the offer is there. Some days nobody bites and he stays on the block. Murray\'s suitors each make an offer, and the odds decide where he lands',
       'Every NBA team starts with its three real rivals and the history behind them',
       'The real All-Star hosts: Phoenix in 2027, Miami in 2028',
       'The team picker shows who\'s out (and how long) on the right of a top player\'s row',
@@ -111,6 +111,7 @@ const DEVLOG = [
       'Class Lab: Match My League and Generate Names ask before restyling or renaming the whole class',
       'Back and Home take you to the top of the screen',
       'Roadmap: coming soon is the draft class overhaul, scouting, the Olympics, the in-season tournament and Career mode',
+      'Career mode steps back into testing while it gets finished: Career saves come back with it (see the Roadmap)',
       'Privacy policy at hooplandplus.com/privacy.html: your saves stay on your device',
     ]],
     ['Bug Fixes', [
@@ -128,6 +129,8 @@ const DEVLOG = [
       'Camp signings explain the 18-player offseason limit and dim the buttons when the roster is full',
       'Your team\'s account no longer calls an opening-night win "another" one',
       'Glasses (accessory 10) are no longer flagged as a gear mismatch',
+      'Roster Moves: the list scrolls on its own, and the page behind it stays put',
+      'The score ticker along the bottom keeps scrolling when you tap a button or change screens, instead of starting over',
     ]],
   ] },
   { v: 'Beta 0.2.0', sections: [
