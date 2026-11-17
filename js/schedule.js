@@ -18,7 +18,11 @@ export function needsSchedule(L) {
   if (!reg.length || reg.some(g => g.homeScore || g.awayScore)) return false;   // already under way: leave it alone
   // Only a team with no games at all (a team the game never scheduled); stray placeholder games are left as they are.
   const seen = new Set(reg.flatMap(g => [g.homeTeam, g.awayTeam]));
-  return L.teams.some(t => !seen.has(t.id));
+  if (L.teams.some(t => !seen.has(t.id))) return true;
+  // Or a league that grew: the game schedules 32 teams off its 3/4/2 settings and lands on 88 games, not 82.
+  const n = new Map();
+  for (const g of reg) if (g.homeTeam && g.awayTeam) for (const id of [g.homeTeam, g.awayTeam]) n.set(id, (n.get(id) || 0) + 1);
+  return L.teams.length > 30 && L.teams.some(t => (n.get(t.id) || 0) !== GAMES);
 }
 
 // How many times each pair meets: { 'a-b': n } with a < b.
@@ -116,8 +120,11 @@ export function buildSchedule(L, seed = 1) {
   const confOf = t => (t.division < half ? 0 : 1);
   const teams = L.teams.filter(t => t.id != null);
   const old = (S.schedule || []).flatMap(d => d.results || []);
-  const tpl = old.find(g => g.gameType === 0) || { league: 0, gameType: 0, tId: 0, tRound: 0, homeScore: 0, awayScore: 0, winner: 0, potg: 0, periods: 0, totalPeriods: 0, homeRecord: [0, 0], awayRecord: [0, 0], forced: -1 };
+  const tpl = old.find(g => g.gameType === 0 && g.homeTeam && g.awayTeam) || { league: 0, gameType: 0, tId: 0, tRound: 0, homeScore: 0, awayScore: 0, winner: 0, potg: 0, periods: 0, totalPeriods: 0, homeRecord: [0, 0], awayRecord: [0, 0], forced: -1 };
   const special = old.filter(g => g.gameType !== 0);
+  // The game's non-game markers (games against team 0) stay on the same share of the season, as writeSchedule keeps them.
+  const oldDays = S.schedule || [];
+  const markers = oldDays.flatMap((d, i) => (d.results || []).filter(g => g.gameType === 0 && (!g.homeTeam || !g.awayTeam)).map(g => ({ g, at: i / Math.max(1, oldDays.length - 1) })));
   const num = (v, d) => (Number.isFinite(+v) && +v > 0 ? +v : d);
   const per = { div: num(S.divisionGames, 3), conf: num(S.conferenceGames, 4), other: num(S.nonConferenceGames, 2) };
   const days = toDays(homeAway(teams, matchups(teams, confOf, rnd, per), rnd), teams, rnd);
@@ -128,6 +135,7 @@ export function buildSchedule(L, seed = 1) {
   const sched = days.map(d => ({ results: d.map(mk) }));
   const star = special.map(g => ({ ...g, gId: gid++, homeScore: 0, awayScore: 0, winner: 0, potg: 0 }));
   if (star.length) { sched.splice(at, 0, { results: star }); S.allStarWeekend = at; S.tradeDeadline = Math.min(sched.length - 1, at + 2); }
+  for (const m of markers) sched[Math.min(sched.length - 1, Math.round(m.at * (sched.length - 1)))].results.push(m.g);
   S.schedule = sched;
   // The game hands out new game ids from its counter: it starts after the last one here.
   if (L.meta) L.meta.uGID = gid - 1;
