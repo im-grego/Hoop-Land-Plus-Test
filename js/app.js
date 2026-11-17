@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.131';
+const APP_VERSION = '0.365.132';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -4800,49 +4800,94 @@ function storyPosts(L) {
   });
   return out;
 }
-// The requested trade: the first file at least `afterDays` in, one of the named teams (not yours) gets him, with a
-// package the deadline market would accept (salary that works, youth and picks, never its top three).
+// A deal for a player on the block: the best package a team can offer near `share` of his value (never its top three,
+// salary that works), or null. Contenders pay in youth and picks.
+function blockOffer(L, p, from, u, share = 1, lo = 0.85, hi = 1.15, maxN = 3) {
+  const vy = dlValueYear(), val = x => playerValue(x, state.leagueIdx, vy), want = val(p) * share;
+  const core = new Set([...u.roster].sort((a, b) => val(b) - val(a)).slice(0, 3));
+  const assets = [
+    ...FA.signedRoster(u).filter(x => !core.has(x) && !tradeLock(x) && !justMoved(x) && !untouchableFiller(L, x, u)).map(x => ({ player: x, value: val(x), young: x.age <= 25 })),
+    ...u.draftPicks.filter(pk => pk.yr > draftYear(L) && !FA.pickFrozen(L, u, pk)).map(pk => ({ pick: pk, value: futureValue(pk), young: true })),
+  ];
+  let best = null;
+  // Every package of up to `maxN` pieces (players and future picks).
+  const packs = [];
+  const walk = (start, pack) => { if (pack.length) packs.push(pack); if (pack.length >= maxN) return; for (let i = start; i < assets.length; i++) walk(i + 1, [...pack, assets[i]]); };
+  walk(0, []);
+  for (const pack of packs) {
+    const v = pack.reduce((a, x) => a + x.value, 0);
+    if (v < want * lo || v > want * hi) continue;
+    const A = { team: from, players: [p], picks: [] }, B = { team: u, players: pack.filter(x => x.player).map(x => x.player), picks: pack.filter(x => x.pick).map(x => x.pick) };
+    if (tradeRulesErr(L, A, B) || ntcRefusal(L, A, B)) continue;
+    const score = Math.abs(v - want) + pack.length * want * 0.02 - pack.filter(x => x.young).length * want * 0.04;
+    if (!best || score < best.score) best = { A, B, score, u, v };
+  }
+  return best;
+}
+const offerLine = o => [...o.B.players.map(x => playerName(x)), ...o.B.picks.map(pk => pickLabel(pk))].join(', ');
+function doBlockDeal(L, p, from, o) {
+  const rec = executeTrade(o.A, o.B, L.season.currentYear);
+  for (const m of rec.moved) tradeMorale(L, m.p, m.to, m.from);
+  markAway(rec.moved); resetRotation(from); resetRotation(o.u);
+  p.tradeRequested = false; if (p.season) p.season.onTradeBlock = typeof p.season.onTradeBlock === 'boolean' ? false : 0;
+}
+// A requested trade (the start date's story): an offer from each named team at the share of his value he's lost the
+// leverage to ask for (80% for Murray; a team whose salary only works with more comes as close as it can, like a
+// Jalen Green swap), then the odds pick where he goes (the next team if that one has no deal).
+// Returns the lines for the recap, or null when nothing works yet.
+function storyDeal(L, st, r) {
+  const from = L.teams.find(t => t.roster.some(p => p.id === r.pid)), p = from?.roster.find(x => x.id === r.pid);
+  if (!p) { r.done = `${r.name} has moved on.`; return null; }
+  if (isUserTeam(from)) return null;   // he's yours now: your call
+  const share = r.value ?? 1, offers = (r.to || []).map((code, i) => { const u = L.teams.find(t => t.shortName === code); return u && u !== from && !isUserTeam(u) ? { code, w: r.odds?.[i] ?? 1, o: blockOffer(L, p, from, u, share, 0.7, Infinity, 4) } : null; }).filter(x => x?.o);
+  if (!offers.length) return null;
+  let roll = Math.random() * offers.reduce((a, x) => a + x.w, 0), pick = offers[0];
+  for (const x of offers) { if ((roll -= x.w) <= 0) { pick = x; break; } }
+  doBlockDeal(L, p, from, pick.o);
+  r.done = `the ${teamFull(pick.o.u)} are trading for ${playerName(p)}, sending ${offerLine(pick.o)} to ${from.city || from.name}.`;
+  r.offers = offers.filter(x => x !== pick).map(x => `${x.code}: ${offerLine(x.o)}`);
+  return [`🚨 ${pick.code} land ${playerName(p)} (Lv ${shownLevel(p)}) from ${from.shortName} for ${offerLine(pick.o)}`, ...r.offers.map(x => `   the other offer · ${x}`)];
+}
+// On load: a requested trade goes through once the file is `afterDays` past the start.
 function storyTrades() {
   const L = league(), st = storyGet();
   if (!st || isCollege() || L.season.phase !== 9 || L.season.currentYear !== st.yr) return false;
   let did = false;
   for (const r of st.requests || []) {
     if (r.done || (L.season.currentDay || 0) < (st.day || 0) + (r.afterDays ?? 3)) continue;
-    const from = L.teams.find(t => t.roster.some(p => p.id === r.pid)), p = from?.roster.find(x => x.id === r.pid);
-    if (!p) { r.done = `${r.name} has moved on.`; continue; }
-    if (isUserTeam(from)) continue;   // he's yours now: your call
-    const yr = L.season.currentYear, vy = dlValueYear(), val = x => playerValue(x, state.leagueIdx, vy), want = val(p);
-    let best = null;
-    for (const code of r.to || []) {
-      const u = L.teams.find(t => t.shortName === code); if (!u || u === from || isUserTeam(u)) continue;
-      const core = new Set([...u.roster].sort((a, b) => val(b) - val(a)).slice(0, 3));
-      const assets = [
-        ...FA.signedRoster(u).filter(x => !core.has(x) && !tradeLock(x) && !justMoved(x) && !untouchableFiller(L, x, u)).map(x => ({ player: x, value: val(x), young: x.age <= 25 })),
-        ...u.draftPicks.filter(pk => pk.yr > draftYear(L) && !FA.pickFrozen(L, u, pk)).map(pk => ({ pick: pk, value: futureValue(pk), young: true })),
-      ];
-      for (let i = 0; i < assets.length; i++) for (let j = i; j < assets.length; j++) for (let k = j; k < assets.length; k++) {
-        const pack = [...new Set([assets[i], assets[j], assets[k]])];
-        const v = pack.reduce((a, x) => a + x.value, 0);
-        if (v < want * 0.8 || v > want * 1.25) continue;
-        const A = { team: from, players: [p], picks: [] }, B = { team: u, players: pack.filter(x => x.player).map(x => x.player), picks: pack.filter(x => x.pick).map(x => x.pick) };
-        if (tradeRulesErr(L, A, B) || ntcRefusal(L, A, B)) continue;
-        const score = Math.abs(v - want) + pack.length * want * 0.02 - pack.filter(x => x.young).length * want * 0.04 + (r.to.indexOf(code)) * want * 0.01;
-        if (!best || score < best.score) best = { A, B, score, u };
-      }
-    }
-    if (!best) continue;   // nothing works yet: the next file tries again
-    const rec = executeTrade(best.A, best.B, yr);
-    for (const m of rec.moved) tradeMorale(L, m.p, m.to, m.from);
-    markAway(rec.moved); resetRotation(from); resetRotation(best.u);
-    p.tradeRequested = false; if (p.season) p.season.onTradeBlock = typeof p.season.onTradeBlock === 'boolean' ? false : 0;
-    const back = [...best.B.players.map(x => playerName(x)), ...best.B.picks.map(pk => pickLabel(pk))].join(', ');
-    r.done = `the ${teamFull(best.u)} are trading for ${playerName(p)}, sending ${back} to ${from.city || from.name}.`;
-    did = true;
-    setTimeout(() => toast('🚨 Trade', `${best.u.shortName} get ${playerName(p)} from ${from.shortName}`, 5000), 1500);
+    const lines = storyDeal(L, st, r);
+    if (lines) { did = true; setTimeout(() => toast('🚨 Trade', lines[0].replace(/^🚨 /, ''), 5000), 1500); }
   }
   storySave(st);
   if (did) state.dirty = true;
   return did;
+}
+// The button: sim the trade block now. The requested trades first (the story's odds), then every CPU player on the
+// block who draws an offer near his value from a team that isn't his (one deal per buyer).
+const blockList = L => L.teams.filter(t => !isUserTeam(t)).flatMap(t => FA.signedRoster(t).filter(p => p.season?.onTradeBlock && !justMoved(p)).map(p => ({ p, t })));
+actions.simTradeBlock = async () => {
+  const L = league();
+  if (isCollege() || L.season.phase !== 9) return;
+  const st = storyGet(), lines = [], used = new Set();
+  if (st && L.season.currentYear === st.yr) for (const r of st.requests || []) if (!r.done) { const out = storyDeal(L, st, r); if (out) lines.push(...out); }
+  if (st) storySave(st);
+  for (const { p, t } of blockList(L)) {
+    let best = null;
+    for (const u of L.teams.filter(x => x !== t && !isUserTeam(x) && !used.has(x.id)).sort(() => Math.random() - 0.5).slice(0, 10)) { const o = blockOffer(L, p, t, u); if (o && (!best || o.score < best.score)) best = o; }
+    if (!best || Math.random() > 0.7) { lines.push(`… ${playerName(p)} (${t.shortName}) stays on the block: no deal yet`); continue; }
+    doBlockDeal(L, p, t, best); used.add(best.u.id);
+    lines.push(`🔁 ${best.u.shortName} land ${playerName(p)} (Lv ${shownLevel(p)}) from ${t.shortName} for ${offerLine(best)}`);
+  }
+  state.dirty = true;
+  const o = overlay(`<p class="note"><b>🔁 The Trade Block</b></p><div class="stack" style="text-align:left">${lines.map(x => `<p class="note small" style="margin:0">${esc(x)}</p>`).join('') || '<p class="note small muted">Nobody is on the block.</p>'}</div><button class="btn focus" data-close>OK</button>`);
+  o.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === o) { o.remove(); render(); } });
+};
+function tradeBlockCard() {
+  const L = league();
+  if (isCollege() || L.season.phase !== 9 || CAR.isCareer(L)) return '';
+  const st = storyGet(), req = st && L.season.currentYear === st.yr ? (st.requests || []).filter(r => !r.done) : [], n = blockList(L).length;
+  if (!req.length && !n) return '';
+  return `<fieldset class="frame"><legend>🔁 Trade Block</legend><p class="note small">${req.length ? `<b>${esc(req.map(r => r.name).join(', '))}</b> wants out. ` : ''}${n} player${n === 1 ? '' : 's'} on the block around the league.</p><button class="btn ${req.length ? 'focus' : ''}" data-act="simTradeBlock">🔁 Sim the Trade Block</button></fieldset>`;
 }
 
 async function seasonIndex() {
@@ -5079,6 +5124,7 @@ screens.main = () => {
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
       ${nbaSetupCard()}
       ${nextGameCard()}
+      ${tradeBlockCard()}
       ${sCard}
       ${calendarCard()}
       ${mediaCard()}
@@ -13216,6 +13262,7 @@ screens.rumors = () => {
   layout({
     title: 'Hoop Gram',
     body: `${newsTabs('rumors')}${(() => { const cpu = Object.entries(shiftStore()).filter(([, r]) => r.cpu).map(([pid, r]) => ({ pid: +pid, ...r })); return cpu.length ? `<fieldset class="frame"><legend>🏀 From Camp</legend><div class="stack">${cpu.map(shiftRumor).join('')}</div></fieldset>` : ''; })()}<p class="note small muted">Where there's smoke, there's fire.</p>
+      ${tradeBlockCard()}
       <div class="stack hg-list">${posts.map(x => x.html).join('') || '<p class="note small muted">Quiet around the league.</p>'}</div>${leagueGramCard()}${hotSeatBox(L)}`,
   });
 };

@@ -103,7 +103,13 @@
                   "DAL"
                 ],
                 "afterDays": 3,
-                "text": "Dejounte Murray has requested a trade from New Orleans. Phoenix, Miami and Dallas are the teams to watch.",
+                "text": "Dejounte Murray has requested a trade from New Orleans. Phoenix is the frontrunner, with Miami and Dallas also in the mix.",
+                "odds": [
+                  0.6,
+                  0.3,
+                  0.1
+                ],
+                "value": 0.8,
                 "pid": 2,
                 "from": "NOP"
               }
