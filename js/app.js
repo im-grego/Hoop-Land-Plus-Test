@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.107';
+const APP_VERSION = '0.365.108';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2689,6 +2689,8 @@ function xmasDay(L = league()) {
 }
 // The holiday ball (Christmas games), in the game's pixel style.
 const xmasIcon = (cls = '') => `<img class="px-art ${cls}" src="img/holiday/xmas-ball.png" alt="🎄">`;
+// Holiday art for the key dates: the tree (Christmas Day) and the raised fist (MLK Day).
+const dayIcon = k => `<img class="px-art" src="img/holiday/${k === 'mlk' ? 'mlk-fist' : 'xmas-tree'}.png" alt="${k === 'mlk' ? '✊' : '🎄'}">`;
 // ---- The schedule maker: key dates, the marquee games for Opening Night (two) and Christmas (five), then the whole
 // season built around them with the NBA's formula. Only before any game is played; Undo puts the game's own back.
 const smOn = () => labOn() && !isCollege() && league().leagueType === 0 && !(league().season.schedule || []).some(d => (d.results || []).some(g => g.homeScore || g.awayScore));
@@ -2712,7 +2714,7 @@ function scheduleMakerBox() {
   const days = Math.max(60, (S.schedule || []).length - ((S.schedule || []).some(d => (d.results || []).some(g => g.gameType !== 0)) ? 1 : 0));
   const picks = smPicks(L), cands = smCands(L).slice(0, 60), tm = id => evTeam(id);
   const host = L.teams.find(t => t.id === S.allStarHostId);
-  const key = [['🏀 Opening Night', SM.realDate(yr, 0, days)], [`${xmasIcon()} Christmas Day`, SM.realDate(yr, SM.dayFor('christmas', days), days)], ['✊ MLK Day', SM.realDate(yr, SM.dayFor('mlk', days), days)],
+  const key = [['🏀 Opening Night', SM.realDate(yr, 0, days)], [`${dayIcon('xmas')} Christmas Day`, SM.realDate(yr, SM.dayFor('christmas', days), days)], [`${dayIcon('mlk')} MLK Day`, SM.realDate(yr, SM.dayFor('mlk', days), days)],
     ['🔁 Trade Deadline', SM.realDate(yr, SM.dayFor('deadline', days), days)], ['⭐ All-Star Weekend', `${SM.realDate(yr, SM.dayFor('allStar', days), days)}${host ? ` · ${esc(teamFull(host))}` : ''}`], ['🏁 Last Day', SM.realDate(yr, days - 1, days)]];
   const opt = (h, a) => cands.map(c => `<option value="${c.h}-${c.aw}" ${(c.h === h && c.aw === a) || (c.h === a && c.aw === h) ? 'selected' : ''}>${esc(tm(c.aw)?.shortName || '?')} @ ${esc(tm(c.h)?.shortName || '?')}${c.r >= 3 ? ' 🔥' : ''}</option>`).join('');
   const slot = (night, i, [h, a]) => `<div class="sm-slot"><span class="sm-n">${i + 1}</span><span class="sm-game">${logoImg(tm(a))} <b>${esc(tm(a)?.shortName || '?')}</b> @ ${logoImg(tm(h))} <b>${esc(tm(h)?.shortName || '?')}</b></span>
