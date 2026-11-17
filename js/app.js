@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.133';
+const APP_VERSION = '0.365.134';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -4842,14 +4842,21 @@ function storyDeal(L, st, r) {
   const from = L.teams.find(t => t.roster.some(p => p.id === r.pid)), p = from?.roster.find(x => x.id === r.pid);
   if (!p) { r.done = `${r.name} has moved on.`; return null; }
   if (isUserTeam(from)) return null;   // he's yours now: your call
-  const share = r.value ?? 1, offers = (r.to || []).map((code, i) => { const u = L.teams.find(t => t.shortName === code); return u && u !== from && !isUserTeam(u) ? { code, w: r.odds?.[i] ?? 1, o: blockOffer(L, p, from, u, share, 0.7, Infinity, 4) } : null; }).filter(x => x?.o);
+  // A set package for a team (story.json `packages`: who they send, who goes with him), when it still works; else the search.
+  const fixed = (code, u) => { const pk = r.packages?.[code]; if (!pk) return null;
+    const get = (pk.get || []).map(n => u.roster.find(x => playerName(x) === n)), add = (pk.add || []).map(n => from.roster.find(x => playerName(x) === n));
+    if (get.some(x => !x) || add.some(x => !x)) return null;
+    const A = { team: from, players: [p, ...add], picks: [] }, B = { team: u, players: get, picks: [] };
+    return tradeRulesErr(L, A, B) || ntcRefusal(L, A, B) ? null : { A, B, u, score: 0 }; };
+  const share = r.value ?? 1, offers = (r.to || []).map((code, i) => { const u = L.teams.find(t => t.shortName === code); return u && u !== from && !isUserTeam(u) ? { code, w: r.odds?.[i] ?? 1, o: fixed(code, u) || blockOffer(L, p, from, u, share, 0.7, Infinity, 4) } : null; }).filter(x => x?.o);
   if (!offers.length) return null;
   let roll = Math.random() * offers.reduce((a, x) => a + x.w, 0), pick = offers[0];
   for (const x of offers) { if ((roll -= x.w) <= 0) { pick = x; break; } }
   doBlockDeal(L, p, from, pick.o);
-  r.done = `the ${teamFull(pick.o.u)} are trading for ${playerName(p)}, sending ${offerLine(pick.o)} to ${from.city || from.name}.`;
-  r.offers = offers.filter(x => x !== pick).map(x => `${x.code}: ${offerLine(x.o)}`);
-  return [`🚨 ${pick.code} land ${playerName(p)} (Lv ${shownLevel(p)}) from ${from.shortName} for ${offerLine(pick.o)}`, ...r.offers.map(x => `   the other offer · ${x}`)];
+  const withHim = pick.o.A.players.filter(x => x !== p).map(x => playerName(x));
+  r.done = `the ${teamFull(pick.o.u)} are trading for ${playerName(p)}${withHim.length ? ` and ${withHim.join(', ')}` : ''}, sending ${offerLine(pick.o)} to ${from.city || from.name}.`;
+  r.offers = offers.filter(x => x !== pick).map(x => { const w = x.o.A.players.filter(y => y !== p).map(y => playerName(y)); return `${x.code}: ${offerLine(x.o)}${w.length ? ` (with ${w.join(', ')})` : ''}`; });
+  return [`🚨 ${pick.code} land ${playerName(p)} (Lv ${shownLevel(p)})${withHim.length ? ` and ${withHim.join(', ')}` : ''} from ${from.shortName} for ${offerLine(pick.o)}`, ...r.offers.map(x => `   the other offer · ${x}`)];
 }
 // On load: a requested trade goes through once the file is `afterDays` past the start.
 function storyTrades() {
