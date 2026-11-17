@@ -92,6 +92,33 @@
               "team": "LAL",
               "ppg": 39
             }
+          },
+          "story": {
+            "requests": [
+              {
+                "name": "Dejounte Murray",
+                "to": [
+                  "PHX",
+                  "MIA",
+                  "DAL"
+                ],
+                "afterDays": 3,
+                "text": "Dejounte Murray has requested a trade from New Orleans. Phoenix, Miami and Dallas are the teams to watch.",
+                "pid": 2,
+                "from": "NOP"
+              }
+            ],
+            "rumors": [
+              "Trey Murphy III",
+              "Pascal Siakam",
+              "Naz Reid",
+              "Norman Powell",
+              "Zion Williamson",
+              "Michael Porter Jr.",
+              "Myles Turner",
+              "Anthony Davis"
+            ],
+            "rumorDays": 21
           }
         }
       ],
