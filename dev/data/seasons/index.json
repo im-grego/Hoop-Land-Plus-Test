@@ -1,0 +1,147 @@
+{
+  "seasons": [
+    {
+      "id": "2026-27",
+      "label": "2026-27 NBA",
+      "starts": [
+        {
+          "date": "2026-10-20",
+          "file": "data/seasons/2026-27/2026-10-20.txt.gz",
+          "through": null,
+          "opening": true,
+          "injuries": true,
+          "days": 99,
+          "snap": null
+        },
+        {
+          "date": "2026-11-11",
+          "file": "data/seasons/2026-27/2026-11-11.txt.gz",
+          "through": "2026-11-10",
+          "opening": false,
+          "injuries": true,
+          "days": 99,
+          "snap": {
+            "east": {
+              "team": "BOS",
+              "name": "Boston Celtics",
+              "w": 9,
+              "l": 2
+            },
+            "west": {
+              "team": "LAL",
+              "name": "Los Angeles Lakers",
+              "w": 10,
+              "l": 2
+            },
+            "ppg": {
+              "name": "Luka Doncic",
+              "team": "LAL",
+              "ppg": 39.3
+            }
+          }
+        },
+        {
+          "date": "2026-11-14",
+          "file": "data/seasons/2026-27/2026-11-14.txt.gz",
+          "through": "2026-11-13",
+          "opening": false,
+          "injuries": true,
+          "days": 99,
+          "snap": {
+            "east": {
+              "team": "BOS",
+              "name": "Boston Celtics",
+              "w": 10,
+              "l": 2
+            },
+            "west": {
+              "team": "LAL",
+              "name": "Los Angeles Lakers",
+              "w": 11,
+              "l": 2
+            },
+            "ppg": {
+              "name": "Luka Doncic",
+              "team": "LAL",
+              "ppg": 38.6
+            }
+          }
+        },
+        {
+          "date": "2026-11-17",
+          "file": "data/seasons/2026-27/2026-11-17.txt.gz",
+          "through": "2026-11-16",
+          "opening": false,
+          "injuries": true,
+          "days": 99,
+          "snap": {
+            "east": {
+              "team": "PHI",
+              "name": "Philadelphia 76ers",
+              "w": 12,
+              "l": 3
+            },
+            "west": {
+              "team": "LAL",
+              "name": "Los Angeles Lakers",
+              "w": 12,
+              "l": 2
+            },
+            "ppg": {
+              "name": "Luka Doncic",
+              "team": "LAL",
+              "ppg": 39
+            }
+          },
+          "story": {
+            "requests": [
+              {
+                "name": "Dejounte Murray",
+                "to": [
+                  "PHX",
+                  "MIA",
+                  "DAL"
+                ],
+                "afterDays": 3,
+                "text": "Dejounte Murray has requested a trade from New Orleans. Phoenix is the frontrunner, with Miami and Dallas also in the mix.",
+                "odds": [
+                  0.6,
+                  0.3,
+                  0.1
+                ],
+                "value": 0.8,
+                "packages": {
+                  "PHX": {
+                    "get": [
+                      "Jalen Green"
+                    ],
+                    "add": [
+                      "Yves Missi"
+                    ]
+                  }
+                },
+                "pid": 2,
+                "from": "NOP"
+              }
+            ],
+            "rumors": [
+              "Trey Murphy III",
+              "Pascal Siakam",
+              "Naz Reid",
+              "Norman Powell",
+              "Zion Williamson",
+              "Michael Porter Jr.",
+              "Myles Turner",
+              "Anthony Davis"
+            ],
+            "rumorDays": 21
+          }
+        }
+      ],
+      "rosterUpdate": {
+        "id": "2026-11-16",
+        "file": "data/seasons/2026-27/roster-update.json"
+      }
+    }
+  ]
+}

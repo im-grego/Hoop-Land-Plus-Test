@@ -399,11 +399,7 @@ export function runGames(F, seed) {
   const all = [...lines.values()].filter(L => L.gp >= 3);
   const weight = L => val(L) * (L.c === medals.gold ? 1.25 : L.c === medals.silver ? 1.1 : L.c === medals.bronze ? 1.05 : 0.9);
   const ranked = all.sort((a, b) => weight(b) - weight(a));
-  // The MVP is the champions' best player (a lone star on a thinner team piles up bigger numbers than a deep champion's);
-  // only a silver-team player who doubled his line takes it.
-  const bestGold = ranked.filter(L => L.c === medals.gold).sort((a, b) => val(b) - val(a))[0];
-  const bestSilver = ranked.filter(L => L.c === medals.silver).sort((a, b) => val(b) - val(a))[0];
-  const mvp = bestGold && !(bestSilver && val(bestSilver) > val(bestGold) * 2) ? bestGold : bestSilver || ranked[0];
+  const mvp = ranked.find(L => [medals.gold, medals.silver].includes(L.c)) || ranked[0];
   // Where everyone finished: the medals and fourth, the quarterfinal losers, then the rest by their group record.
   const qfOut = qf.map(lose).sort((a, b) => seeds.indexOf(a) - seeds.indexOf(b));
   const finish = [medals.gold, medals.silver, medals.bronze, medals.fourth, ...qfOut, ...standings.flat().map(x => x.c).filter(c => !seeds.slice(0, 8).includes(c))
