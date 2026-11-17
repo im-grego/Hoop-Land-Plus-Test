@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.367.51';
+const APP_VERSION = '0.367.52';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.1';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -91,7 +91,8 @@ const DEVLOG = [
       'A player may wear a number retired for his family (Tim Hardaway Jr. in his dad\'s #10)',
       'Nov 17 tells the real story: Dejounte Murray has asked out of New Orleans (Phoenix, Miami and Dallas are calling) and Hoop Gram\'s rumor mill has the names in the news. Nobody else starts on the trade block',
       'Sim the Trade Block (on the home screen and in Hoop Gram): every player on the block shows the teams interested in him (up to three for a star, fewer for a role player), and a deal goes through when the offer is there. Some days nobody bites and he stays on the block. Murray\'s suitors each make an offer, and the odds decide where he lands',
-      'Your players on the block (Murray if you take over the Pelicans): Your Offers lists each interested team\'s package with its trade value against his. Accept one, or keep him. A deal around the league just names the other teams that showed interest',
+      'The lineup\'s bench starts sorted by level (By Minutes and By Position still re-sort it)',
+      'Your players on the block (Murray if you take over the Pelicans): the home screen\'s Your Offers card lists each interested team\'s package with its trade value against his. Accept one, or keep him. Sim the Trade Block is its own card. A deal around the league just names the other teams that showed interest',
       'Every NBA team starts with its three real rivals and the history behind them',
       'The real All-Star hosts: Phoenix in 2027, Miami in 2028',
       'The team picker shows who\'s out (and how long) on the right of a top player\'s row',
@@ -4338,6 +4339,7 @@ function blockOffer(L, p, from, u, share = 1, lo = 0.85, hi = 1.15, maxN = 3) {
 }
 const offerLine = o => [...o.B.players.map(x => playerName(x)), ...o.B.picks.map(pk => pickLabel(pk))].join(', ');
 function doBlockDeal(L, p, from, o) {
+  blockOfferCache.clear();
   const rec = executeTrade(o.A, o.B, L.season.currentYear);
   for (const m of rec.moved) tradeMorale(L, m.p, m.to, m.from);
   markAway(rec.moved); resetRotation(from); resetRotation(o.u);
@@ -4383,7 +4385,15 @@ function storyTrades() {
 }
 // The offers a player on the block draws: a requested trade's suitors (with their set packages, at the share he's
 // lost the leverage to ask for), else the teams interested in him (up to three for a star). [{ u, o, v }], best first.
+const blockOfferCache = new Map();
 function blockOffersFor(L, p, from) {
+  const ck = `${saveTag()}:${L.season.currentYear}:${L.season.currentDay}:${p.id}:${from.id}:${L.teams.map(x => x.roster.length).join('')}`;
+  if (blockOfferCache.has(ck)) return blockOfferCache.get(ck);
+  const out = blockOffersFor0(L, p, from);
+  blockOfferCache.set(ck, out);
+  return out;
+}
+function blockOffersFor0(L, p, from) {
   const st = storyGet(), r = st && L.season.currentYear === st.yr ? (st.requests || []).find(x => x.pid === p.id && !x.done) : null;
   const vy = dlValueYear(), pv = x => playerValue(x, state.leagueIdx, vy);
   const worth = o => o.B.players.reduce((a, x) => a + pv(x), 0) + o.B.picks.reduce((a, pk) => a + futureValue(pk), 0) - o.A.players.filter(x => x !== p).reduce((a, x) => a + pv(x), 0);
@@ -4436,7 +4446,7 @@ actions.acceptBlockOffer = async d => {
   if (!x) { toast('That offer is gone', '', 2500, true); render(); return; }
   const extra = x.o.A.players.filter(y => y !== mine.p).map(y => playerName(y));
   if (!(await confirmBox(`Trade ${playerName(mine.p)}${extra.length ? ` and ${extra.join(', ')}` : ''} to the ${teamFull(x.u)} for ${offerLine(x.o)}?`, 'Accept'))) return;
-  doBlockDeal(L, mine.p, mine.t, x.o);
+  doBlockDeal(L, mine.p, mine.t, x.o); blockOfferCache.clear();
   const st = storyGet(), r = st ? (st.requests || []).find(y => y.pid === mine.p.id && !y.done) : null;
   if (r) { r.done = `the ${teamFull(x.u)} are trading for ${playerName(mine.p)}, sending ${offerLine(x.o)} to ${mine.t.city || mine.t.name}.`; storySave(st); }
   state.dirty = true;
@@ -4479,10 +4489,21 @@ function tradeBlockCard() {
   if (isCollege() || L.season.phase !== 9 || CAR.isCareer(L)) return '';
   const st = storyGet(), req = st && L.season.currentYear === st.yr ? (st.requests || []).filter(r => !r.done) : [];
   const mine = myBlock(L), others = blockList(L).length;
-  if (!req.length && !mine.length && !others) return '';
   const mineIds = new Set(mine.map(x => x.p.id)), cpuReq = req.filter(r => !mineIds.has(r.pid));
-  return `<fieldset class="frame"><legend>🔁 Trade Block</legend><p class="note small">${mine.length ? `<b>${esc(mine.map(x => playerName(x.p)).join(', '))}</b> ${mine.some(x => x.p.tradeRequested) ? 'wants out' : 'is on your block'}: see the offers. ` : ''}${cpuReq.length ? `<b>${esc(cpuReq.map(r => r.name).join(', '))}</b> wants out. ` : ''}${others ? `${others} player${others === 1 ? '' : 's'} on the block around the league.` : ''}</p>
-    <div class="grid2">${mine.length ? '<button class="btn focus" data-act="nav" data-to="blockOffers">📞 Your Offers</button>' : ''}<button class="btn ${mine.length || !cpuReq.length ? '' : 'focus'}" data-act="simTradeBlock">🔁 Sim the Trade Block</button></div></fieldset>`;
+  const vy = dlValueYear();
+  // 1. Your players on the block: the offers they've drawn, each with its value against his.
+  const offersCard = mine.length ? `<fieldset class="frame"><legend>📞 Your Offers</legend>${mine.map(({ p, t: tm }) => {
+    const offers = blockOffersFor(L, p, tm), his = playerValue(p, state.leagueIdx, vy);
+    const rows = offers.map((x, i) => {
+      const pct = Math.round(x.v / Math.max(1, his) * 100), w = x.o.A.players.filter(y => y !== p);
+      return `<div class="drill-row wrap"><span class="grow">${logoImg(x.u)} <b>${esc(x.u.shortName)}</b> · <b class="${pct >= 100 ? 'up' : pct < 85 ? 'down' : ''}">${pct}%</b> <span class="small muted">(${x.v.toFixed(1)} for his ${his.toFixed(1)})</span><br><span class="small">${esc(offerLine(x.o))}${w.length ? ` <span class="muted">· you add ${esc(w.map(y => playerName(y)).join(', '))}</span>` : ''}</span></span><button class="btn small ${i === 0 ? 'focus' : ''}" data-act="acceptBlockOffer" data-pid="${p.id}" data-tid="${x.u.id}">Accept</button></div>`;
+    }).join('');
+    return `<p class="note small"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b> ${lvTag(p)}${p.tradeRequested ? ' · <span class="down">asked for a trade</span>' : ' · on your block'}</p>${rows ? `<div class="stack">${rows}</div>` : '<p class="note small muted">No offers yet. Check back in a few days.</p>'}`;
+  }).join('')}<button class="btn small" data-act="nav" data-to="blockOffers">The full offers</button></fieldset>` : '';
+  // 2. The block around the league: sim it.
+  const blockCard = cpuReq.length || others || mine.length ? `<fieldset class="frame"><legend>🔁 Trade Block</legend><p class="note small">${cpuReq.length ? `<b>${esc(cpuReq.map(r => r.name).join(', '))}</b> wants out. ` : ''}${others ? `${others} player${others === 1 ? '' : 's'} on the block around the league.` : mine.length ? 'Nobody else is on the block yet. Sim it to see who moves around the league.' : ''}</p>
+    <button class="btn ${cpuReq.length ? 'focus' : ''}" data-act="simTradeBlock">🔁 Sim the Trade Block</button></fieldset>` : '';
+  return offersCard + blockCard;
 }
 
 async function seasonIndex() {
@@ -10202,7 +10223,7 @@ screens.lineup = (args = {}) => {
 const luArgs = () => state.stack[state.stack.length - 1].args || {};
 // The order the bench and the inactive players are shown in, per team: the plan's order the first time, then yours.
 function luOrderOf(t, plan) {
-  const all = plan.rows.filter(r => r.linePos >= 5).map(r => r.p.id), o = ((state.luOrder ||= {})[t.id] ||= [...all]);
+  const all = plan.rows.filter(r => r.linePos >= 5).sort((x, y) => shownLevel(y.p) - shownLevel(x.p) || y.minutes[0] - x.minutes[0]).map(r => r.p.id), o = ((state.luOrder ||= {})[t.id] ||= [...all]);
   const have = new Set(all);
   for (let i = o.length - 1; i >= 0; i--) if (!have.has(o[i])) o.splice(i, 1);   // gone (traded, a new starter)
   for (const id of all) if (!o.includes(id)) o.push(id);                         // new (a starter sent to the bench)
