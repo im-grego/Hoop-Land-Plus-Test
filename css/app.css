@@ -61,23 +61,24 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: flex;
   align-items: center;
 }
+/* The title comes in from the right, crosses all the way out the left, then comes in again: one at a time. `left`
+   moves it across the box, the transform takes its own width off at the end, so it starts and ends fully hidden. */
 .marquee-track {
-  display: flex;
+  position: absolute; top: 0; bottom: 0; left: 100%;
+  display: flex; align-items: center;
   white-space: nowrap;
-  animation: scroll 8s linear infinite;
+  animation: scroll var(--md, 8s) linear infinite;
 }
 .marquee-track span {
   font-family: var(--pixel);
   font-size: 26px;
   letter-spacing: 4px;
-  padding-right: 80px;
   text-transform: uppercase;
 }
-@keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes scroll { from { left: 100%; transform: translateX(0); } to { left: 0; transform: translateX(-100%); } }
 @media (prefers-reduced-motion: reduce) {
-  .marquee-track { animation: none; }
+  .marquee-track { animation: none; position: static; }
   .marquee { justify-content: center; }
-  .marquee-track span:nth-child(2) { display: none; }
 }
 
 .nav-btn {

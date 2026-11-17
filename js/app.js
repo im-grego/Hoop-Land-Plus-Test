@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.105';
+const APP_VERSION = '0.365.106';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -86,6 +86,7 @@ const DEVLOG = [
     ['Features', [
       'Resume: the save you\'re working on is kept on your device, so closing the app doesn\'t lose it. Pick up where you left off from the start screen',
       'The Expansion Draft step can be skipped',
+      'Screen titles scroll like a scoreboard: in from the right, all the way out the left, one at a time',
       'Christmas games get the holiday ball: on the Next Game card, the Scouting Report, Schedule Release and the schedule maker',
       'Settings → Look: Hide Potential keeps potential stars, potential up or down and regression age out of sight (Edit mode still shows them)',
       'Hot and cold streaks (and other temporary changes) show in the app, but the file you export keeps everyone\'s real ratings',
@@ -846,7 +847,7 @@ function layout({ title, left = '', right = '', body, action = null, actionLeft 
       ${state.stack.length === 2 && !(state.stack[1].name === 'lineup' && state.stack[1].args?.edit != null) ? `<button class="btn back home-btn" data-act="back" aria-label="Main menu">${HOME_ICON}</button>` : state.stack.length >= 2 ? `<button class="btn back" data-act="back" aria-label="Back">${BACK_ARROW}</button>` : state.data ? `<button class="btn back home-btn" data-act="toTitle" aria-label="Title screen">${HOME_ICON}</button>` : ''}
       ${left}
       <div class="marquee" role="heading" aria-level="1" aria-label="${t}">
-        <div class="marquee-track" aria-hidden="true"><span>${t}</span><span>${t}</span></div>
+        <div class="marquee-track" aria-hidden="true" style="--md:${(4 + title.length * 0.32).toFixed(1)}s"><span>${t}</span></div>
       </div>
       ${right}
       ${gramBox()}
