@@ -14,7 +14,7 @@ import { tr, traitsSet } from './traits.js';
 import { facilityFx } from './facilities.js';
 import { jerseyNumber, playerName, draftYear, cloneData } from './savefile.js';
 import { seasonLine } from './storylines.js';
-import { playerValue, fairSalary } from './trades.js';
+import { playerValue, fairSalary, salaryScale } from './trades.js';
 import { shownLevel as levelOf } from './regression.js';
 import { teamRecord, teamStatus } from './draft.js';
 import { destinationValue, taxKeep } from './destination.js';
@@ -96,7 +96,8 @@ export function capLinesFor(year) {
   const keys = Object.keys(CAP_SCHEDULE).map(Number);
   const lo = Math.min(...keys), hi = Math.max(...keys);
   const base = CAP_SCHEDULE[Math.max(lo, Math.min(hi, year))];
-  const f = year > hi ? 1.05 ** (year - hi) : year < lo ? 0.95 ** (lo - year) : 1;
+  // Past the published years: about 5% a year for five seasons, then 3% (a 2050 cap near $400M, not $550M).
+  const ahead = year - hi, f = year > hi ? 1.05 ** Math.min(5, ahead) * 1.03 ** Math.max(0, ahead - 5) : year < lo ? 0.95 ** (lo - year) : 1;
   const [cap, tax, apron1, apron2] = base.map(v => r5(v * f));
   return { cap, tax, apron1, apron2 };
 }
@@ -324,6 +325,7 @@ export function baseAsk(league, p, o = FA_DEFAULTS) {
   const tier = allLeagueTier(league, p, lastYear(league));
   if (tier != null) ask *= 1 + ALL_LEAGUE_BUMP[tier];   // All-NBA last season: 1st team +12%, 2nd +7%, 3rd +3%
   if (COMPLETE) ask *= egoAsk(p) * AGENTS[agentOf(p)].ask;   // an Alpha thinks he's worth more, a Humble player asks less; his agent leans it
+  ask *= salaryScale();   // asks grow with the cap: a $300M cap has stars asking $90M
   return Math.max(o.minSalary, Math.min(maxSalary(league, p), Math.round(ask)));
 }
 

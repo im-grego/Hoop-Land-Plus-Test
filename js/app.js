@@ -19,7 +19,7 @@ import {
 import { mentorPairs, runMentorship } from './mentorship.js';
 import { buildStorylines, seasonLine } from './storylines.js';
 import { applyDraft, recordDraftPick, newLiveDraft, clockIndex, makeSelection, takenIds, tradeableProspects, livePicks, slotPick, tradeUpOffers, rightsTradeOffer, consolidationOffer } from './livedraft.js';
-import { movePlayer, freshStint, setScarcity, setTradeHook, isCornerstone, slotValue, playerValue, cpuAccepts, executeTrade, undoTrade, contractValue, fairSalary, tagGap, CONTRACT_WEIGHT, nowValue } from './trades.js';
+import { movePlayer, freshStint, setScarcity, setTradeHook, isCornerstone, slotValue, playerValue, cpuAccepts, executeTrade, undoTrade, contractValue, fairSalary, setSalaryScale, tagGap, CONTRACT_WEIGHT, nowValue } from './trades.js';
 import * as FA from './freeagency.js';
 import { destinationParts, destinationGrade } from './destination.js';
 import * as TR from './traderules.js';
@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.143';
+const APP_VERSION = '0.365.144';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -934,7 +934,7 @@ function render() {
   resumeSoon();
   loadFaces();
   document.documentElement.dataset.px = state.params.pixelIcons === false ? 'off' : 'on';
-  if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) { fitClassIncoming(); realClassCheck(); } }
+  if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); setSalaryScale(FA.capSystemOn() ? Math.max(0.6, FA.capLines(league()).cap / 165) : 1); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) { fitClassIncoming(); realClassCheck(); } }
   if (state.data && isCollege() && state.cal) { try { localStorage.setItem(collegeCalKey(), JSON.stringify(state.cal)); } catch { /* ignore */ } }
   if (state.data && !isCollege()) { seasonDrift(); cpuComebacks(); cpuNumbers(); cpuJerseys(); realAllStarHost(); if (state.retFixed !== saveTag()) { state.retFixed = saveTag(); fixRetiredNumbers(); } glSettle(); taxSettle(); cpuShifts(); }   // once an offseason each (the G League once a season)
   if (state.data && !isCollege()) { careerSync(); syncScarcity(); poSettle(); campAuto(); }
@@ -18841,7 +18841,7 @@ function capNote(L) {
   return `<details class="frame"><summary class="note small"><b>Salary cap $${C.cap}M</b> <span class="muted">· projections</span></summary>
     <p class="note small" style="margin-top:6px">What each salary level allows ${infoBtn('cap-levels', capGuide(null, null))}</p>
     <div class="stack" style="margin-top:6px">${[0, 1, 2, 3, 4].map(row).join('')}</div>
-    <p class="note small muted" style="margin-top:6px">Tax line, then the 1st apron (can't use the room exception or take back salary in trades) and the 2nd apron (no combining salaries, no trading frozen picks). Past 2030 the cap keeps growing about 5% a year.</p>${isComplete() ? '<p class="note small muted" style="margin-top:6px">Cap holds: each of your own free agents holds his asking price against your cap space until he re-signs or you renounce him (you lose his Bird rights).</p>' : ''}</details>`;
+    <p class="note small muted" style="margin-top:6px">Tax line, then the 1st apron (can't use the room exception or take back salary in trades) and the 2nd apron (no combining salaries, no trading frozen picks). Past 2030 the cap grows about 5% a year for five seasons, then about 3%. Asking prices and the minimums grow with it.</p>${isComplete() ? '<p class="note small muted" style="margin-top:6px">Cap holds: each of your own free agents holds his asking price against your cap space until he re-signs or you renounce him (you lose his Bird rights).</p>' : ''}</details>`;
 }
 screens.fa = (args = {}) => {
   const L = league();

@@ -15,14 +15,19 @@ export const slotValue = overall => 3 + 130 * Math.exp(-0.075 * (overall - 1));
 // in the high 50s and low 60s, a 90 is around $46M, an 80 about $25M, and
 // the scale flattens into the single digits for rotation players.
 const FAIR = [[100, 62], [97, 58], [94, 54], [92, 50], [90, 46], [88, 42], [86, 38], [84, 34], [82, 29], [80, 25], [78, 20], [76, 15], [74, 12], [72, 10], [70, 8], [68, 6.5], [66, 5], [64, 4], [62, 3.5], [60, 3], [56, 2]];
-export const fairSalary = level => {
+// Salaries grow with the cap: the table is the 2026-27 market ($165M cap); a bigger cap scales it (setSalaryScale).
+let SAL_SCALE = 1;
+export const setSalaryScale = s => { SAL_SCALE = s > 0 ? s : 1; };
+export const salaryScale = () => SAL_SCALE;
+const fairBase = level => {
   if (level >= FAIR[0][0]) return FAIR[0][1] + Math.round((level - FAIR[0][0]) * 0.8);
   for (let i = 1; i < FAIR.length; i++) {
     const [lv, sal] = FAIR[i], [hv, hs] = FAIR[i - 1];
-    if (level >= lv) return Math.round(sal + (hs - sal) * (level - lv) / (hv - lv));
+    if (level >= lv) return sal + (hs - sal) * (level - lv) / (hv - lv);
   }
   return 2;
 };
+export const fairSalary = level => Math.max(2, Math.round(fairBase(level) * SAL_SCALE));
 // How far over (or under) fair a deal must be to carry a tag: about 17% of
 // the fair figure, never under $4M, so a star's tag isn't a rounding error
 // and a rotation player's isn't a quarter of the deal.
