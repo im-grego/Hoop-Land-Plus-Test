@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.117';
+const APP_VERSION = '0.365.118';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -21440,7 +21440,7 @@ screens.lgHistory = () => {
       <button class="btn left" data-act="openLeaders" data-m="rafters"><span class="ico">🏟️</span> Rafters</button>
       ${(L.hallOfFame || []).length ? '<button class="btn left" data-act="lgHof"><span class="ico">🏛️</span> Hall of Fame</button>' : ''}
       <button class="btn left" data-act="nav" data-to="drafts"><span class="ico">🎓</span> Draft History</button>
-    </div>` });
+    </div>${cupOn() ? cupHistoryBox() : ''}` });
 };
 screens.teamStats = (args) => {
   const L = league();
@@ -23330,8 +23330,8 @@ function olyRun() {
     }
     // Tired legs: anyone who carried a big load deep into the tournament (6+ games at 24+ minutes), for the first two
     // weeks of the season (the 💤 on his ratings).
-    after.tired = Object.values(R.lines).filter(Lr => typeof Lr.k === 'number' && Lr.gp >= 6 && Lr.min / Lr.gp >= 24 && P(Lr.k)).map(Lr => Lr.k);
-    fxOlympic(after.tired, L.season.currentYear);
+    // (On hold while temporary changes stay out of the file: nobody comes back with tired legs for now.)
+    after.tired = [];
     // Chemistry: league teammates who played for the same country.
     for (const t of F.field) {
       const lg = t.roster.filter(x => x.pid != null && P(x.pid));
@@ -23435,12 +23435,31 @@ function cupSide(id) {
   return { c: id, roster, str: W.reduce((a, w, i) => a + w * (lv[i] ?? 60), 0) / W.reduce((a, w) => a + w, 0) + (cupRec(t) - 0.5) * 6 };
 }
 // On load: once every group game is in, the knockout is played (once) and the rewards go out.
+// The Cup season a file belongs to: this season's from Opening Night on, last season's in an offseason file (the
+// offseason file already carries next season's year).
+const cupYear = () => (league().season.phase >= 9 ? league().season.currentYear : league().season.currentYear - 1);
+// Group tables from the season's records, for a file that no longer has the group games in it (a season simmed through
+// with no file in between: the offseason file starts the new schedule). Each group's order by win %, then the seeds.
+function cupSeedsByRecord(c, y) {
+  const pct = id => { const r = (cupTeam(id)?.season || []).find(s => s.yr === y)?.seasonStats; return r?.GP ? r.W / r.GP + (r.PTS - r.OPP) / r.GP / 1000 : 0; };
+  const out = {};
+  for (const conf of [0, 1]) {
+    const gs = c.draw.groups.filter(g => g.conf === conf).map(g => [...g.teams].sort((a, b) => pct(b) - pct(a)));
+    const firsts = gs.map(g => g[0]).sort((a, b) => pct(b) - pct(a)), wild = gs.map(g => g[1]).filter(x => x != null).sort((a, b) => pct(b) - pct(a))[0];
+    out[conf] = [...firsts, wild].filter(x => x != null).slice(0, 4);
+  }
+  return out;
+}
 function cupKnockout() {
-  if (!cupOn() || league().season.phase !== 9) return false;
-  const c = cupGet();
+  if (!cupOn()) return false;
+  const y = cupYear(), c = cupGet(y), L = league();
   if (!c?.games || c.ko) return false;
-  if (!CUP.tables(league(), c).every(g => g.done)) return false;
-  const sd = CUP.seeds(league(), c), ko = CUP.runKnockout(c, sd, cupSide, cupSeed());
+  // This season's file: once every group game is in. A later file (the playoffs, or the offseason) that skipped past it:
+  // straight away, from the group games if they're still in the file, else from the season's records.
+  let sd;
+  if (L.season.phase >= 9) { if (!CUP.tables(L, c).every(g => g.done)) return false; sd = CUP.seeds(L, c); }
+  else { sd = cupSeedsByRecord(c, y); c.byRecord = true; }
+  const ko = CUP.runKnockout(c, sd, cupSide, cupSeed());
   c.seeds = sd; c.ko = ko;
   const P = id => findPlayer(id)?.p;
   // The champions' roster (for their player pages), morale, the MVP's Ego, and prize money for your team.
@@ -23451,7 +23470,8 @@ function cupKnockout() {
   const prize = { [ko.champion]: 60, [ko.runnerUp]: 30, ...Object.fromEntries((ko.semis || []).map(id => [id, 15])) };
   c.prize = {};
   for (const [id, n] of Object.entries(prize)) { const t = cupTeam(+id); if (t && isUserTeam(t) && isComplete() && t.frontOffice) { t.frontOffice.coins = coinsOf(t) + n; c.prize[id] = n; } }
-  cupSet(c);
+  c.yr = y;
+  cupSet(c, y);
   state.dirty = true;
   setTimeout(() => toast('🏆 NBA Cup', `${teamFull(cupTeam(ko.champion))} win the Cup in Las Vegas.`, 5000), 1800);
   return true;
@@ -23481,9 +23501,35 @@ function cupTable(g, compact) {
   const mine = id => isUserTeam(cupTeam(id) || {});
   return `<div class="stack">${g.rows.map((r, i) => `<div class="oly-prow ${mine(r.tid) ? 'gold' : ''}"><span class="grow"><span class="muted small">${i + 1}.</span> ${logoImg(cupTeam(r.tid))} <b>${esc(cupName(r.tid))}</b>${compact ? '' : ` <span class="muted small">${esc(cupTeam(r.tid)?.name || '')}</span>`}</span><span>${r.w}-${r.l} <span class="muted small">${r.pf - r.pa > 0 ? '+' : ''}${r.pf - r.pa}</span></span></div>`).join('')}</div>`;
 }
+// The Cup to show: this season's once it's drawn or under way; in an offseason file before the new draw, last season's.
+const cupShown = () => { const L = league(), cur = cupGet(); if (cur || L.season.phase >= 9) return { c: cur, y: L.season.currentYear }; const prev = cupGet(L.season.currentYear - 1); return prev?.ko ? { c: prev, y: L.season.currentYear - 1 } : { c: null, y: L.season.currentYear }; };
+// Every Cup so far: the real ones before this league's first season, then the ones played here.
+const CUP_REAL = [
+  { yr: 2024, champ: 'LAL', runner: 'IND', score: '123-109', mvp: 'LeBron James' },
+  { yr: 2025, champ: 'MIL', runner: 'OKC', score: '97-81', mvp: 'Giannis Antetokounmpo' },
+  { yr: 2026, champ: 'NYK', runner: 'SAS', score: '124-113', mvp: 'Jalen Brunson' },
+];
+function cupHistory() {
+  const L = league(), real = CUP_REAL.map(r => ({ ...r, real: true }));
+  const here = [];
+  for (let y = 2027; y <= L.season.currentYear; y++) {
+    const c = cupGet(y); if (!c?.ko) continue;
+    const fin = c.ko.games[c.ko.games.length - 1], w = fin.sa > fin.sb ? [fin.sa, fin.sb] : [fin.sb, fin.sa];
+    here.push({ yr: y, champId: c.ko.champion, runnerId: c.ko.runnerUp, score: `${w[0]}-${w[1]}`, mvpId: typeof c.ko.mvp?.k === 'number' ? c.ko.mvp.k : null, byRecord: c.byRecord });
+  }
+  return [...real.filter(r => !here.some(h => h.yr === r.yr)), ...here].sort((a, b) => b.yr - a.yr);
+}
+function cupHistoryBox() {
+  const H = cupHistory(); if (!H.length) return '';
+  const byCode = s => league().teams.find(t => t.shortName === s);
+  const tm = (id, code) => { const t = id != null ? cupTeam(id) : byCode(code); return t ? `${logoImg(t)} <b>${esc(t.name || t.shortName)}</b>` : `<b>${esc(code)}</b>`; };
+  const mvp = h => { if (h.mvpId != null) { const p = findPlayer(h.mvpId)?.p; return p ? `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</span>` : 'Unknown'; } return esc(h.mvp); };
+  return `<fieldset class="frame"><legend>📜 Cup History</legend><div class="stack">${H.map(h => `<div class="drill-row"><span class="pk">${h.yr - 1}</span><span class="grow">🏆 ${tm(h.champId, h.champ)} <span class="muted small">def.</span> ${tm(h.runnerId, h.runner)} <span class="muted small">${h.score}</span><br><span class="small muted">MVP: ${mvp(h)}</span></span></div>`).join('')}</div>
+    <p class="note small muted">Played in December in Las Vegas (the year is when the Cup was won).</p></fieldset>`;
+}
 screens.cup = (args = {}) => {
   if (!cupOn()) { back(); return; }
-  const L = league(), c = cupGet() || { draw: cupDraw() }, played = !!c.games, ko = c.ko;
+  const L = league(), shown = cupShown(), c = shown.c || { draw: cupDraw() }, played = !!c.games, ko = c.ko, cy = shown.y;
   const T = played ? CUP.tables(L, c) : c.draw.groups.map(g => ({ ...g, rows: g.teams.map(tid => ({ tid, w: 0, l: 0, pf: 0, pa: 0 })) }));
   const groupsTab = `<div class="oly-groups">${T.map(g => `<div class="oly-group"><div class="oly-group-h">${esc(g.name)}${g.done ? ' <span class="muted small">· final</span>' : ''}</div>${cupTable(g)}</div>`).join('')}</div>
     <p class="note small muted">Each team plays its four group opponents once on Cup nights in November: real games, and they count in the standings. The six group winners and the best second-place team in each conference go on.</p>`;
@@ -23498,17 +23544,21 @@ screens.cup = (args = {}) => {
     return `<table class="oly-ls"><thead><tr><th></th>${hd.map(h => `<th>${h}</th>`).join('')}<th>T</th></tr></thead><tbody>${rows.join('')}</tbody></table>`; };
   const gi = args.g != null && args.g !== '' ? +args.g : null, G = ko && gi != null ? ko.games[gi] : null;
   const who = k => { const p = typeof k === 'number' ? findPlayer(k)?.p : null; return p ? `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b>` : esc(String(k)); };
-  const boxView = G ? `<fieldset class="frame"><legend>${esc(G.stage)}</legend>${lineScore(G)}${[0, 1].map(s => { const id = s ? G.b : G.a, rows = G.box[s].filter(r => r.min > 0).sort((a, b) => b.min - a.min), tot = k => rows.reduce((a, r) => a + r[k], 0);
-    return `<h4 class="ov-h">${logoImg(cupTeam(id))} ${esc(teamFull(cupTeam(id)))}</h4><table class="oly-box"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>${rows.map(r => `<tr><td>${who(r.k)}</td><td>${r.min}</td><td><b>${r.pts}</b></td><td>${r.reb}</td><td>${r.ast}</td></tr>`).join('')}<tr class="tot"><td>Team</td><td>${tot('min')}</td><td>${tot('pts')}</td><td>${tot('reb')}</td><td>${tot('ast')}</td></tr></tbody></table>`; }).join('')}<button class="btn small off" data-act="cupGame" data-g="">← All games</button></fieldset>` : '';
-  const koTab = ko ? (boxView || `<fieldset class="frame oly-final"><legend>🏆 ${L.season.currentYear} NBA Cup · Las Vegas</legend>
+  // Team stats side by side: the box score's totals, the better side in green.
+  const teamStats = G => { const t = s => { const rows = G.box[s].filter(r => r.min > 0); return k => rows.reduce((a, r) => a + (r[k] || 0), 0); }, A = t(0), B = t(1);
+    return `<div class="mu-two-col"><div class="mu-tr"><span><b>${esc(cupName(G.a))}</b></span><span class="mu-lbl">Team Stats</span><span><b>${esc(cupName(G.b))}</b></span></div>${[['pts', 'Points'], ['reb', 'Rebounds'], ['ast', 'Assists'], ['stl', 'Steals'], ['blk', 'Blocks']].map(([k, l]) => { const a = A(k), b = B(k); return `<div class="mu-tr"><span class="${a > b ? 'up' : ''}">${a}</span><span class="mu-lbl">${l}</span><span class="${b > a ? 'up' : ''}">${b}</span></div>`; }).join('')}</div>`; };
+  const boxView = G ? `<fieldset class="frame"><legend>${esc(G.stage)}</legend>${lineScore(G)}${teamStats(G)}${[0, 1].map(s => { const id = s ? G.b : G.a, rows = G.box[s].filter(r => r.min > 0).sort((a, b) => b.min - a.min), tot = k => rows.reduce((a, r) => a + r[k], 0);
+    return `<h4 class="ov-h">${logoImg(cupTeam(id))} ${esc(teamFull(cupTeam(id)))}</h4><table class="oly-box"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th></tr></thead><tbody>${rows.map(r => `<tr><td>${who(r.k)}</td><td>${r.min}</td><td><b>${r.pts}</b></td><td>${r.reb}</td><td>${r.ast}</td><td>${r.stl || 0}</td><td>${r.blk || 0}</td></tr>`).join('')}<tr class="tot"><td>Team</td><td>${tot('min')}</td><td>${tot('pts')}</td><td>${tot('reb')}</td><td>${tot('ast')}</td><td>${tot('stl')}</td><td>${tot('blk')}</td></tr></tbody></table>`; }).join('')}<button class="btn small off" data-act="cupGame" data-g="">← All games</button></fieldset>` : '';
+  const koTab = ko ? (boxView || `<fieldset class="frame oly-final"><legend>🏆 ${cy - 1} NBA Cup · Las Vegas</legend>
       <p class="note">${logoImg(cupTeam(ko.champion))} <b>${esc(teamFull(cupTeam(ko.champion)))}</b> win the NBA Cup.${ko.mvp ? ` ${who(ko.mvp.k)} is the Cup MVP (${(ko.mvp.pts / Math.max(1, ko.mvp.gp)).toFixed(1)} points a game).` : ''}</p>
+      ${c.byRecord ? '<p class="note small muted">The season was simmed through without a file in between, so the group games weren\'t there to read: each group went by its teams\' season records.</p>' : ''}
       ${Object.keys(c.prize || {}).length ? `<p class="note small up">Prize money: ${Object.entries(c.prize).map(([id, n]) => `${esc(cupName(+id))} +${n} coins`).join(' · ')}</p>` : ''}</fieldset>
     ${['Championship', 'Semifinal', 'Quarterfinal'].map(st => { const gs = ko.games.map((G, i) => [G, i]).filter(([G]) => G.stage.endsWith(st)); return gs.length ? `<fieldset class="frame"><legend>${st === 'Championship' ? '🏆 ' : ''}${st === 'Semifinal' ? 'Conference Finals' : st === 'Quarterfinal' ? 'Quarterfinals' : 'Championship'}</legend><div class="stack">${gs.reverse().map(([G, i]) => `<div class="tap" data-act="cupGame" data-g="${i}">${st !== 'Championship' ? `<span class="muted small">${esc(G.stage)}</span>` : ''}${lineScore(G)}</div>`).join('')}</div></fieldset>` : ''; }).join('')}`)
     : `<p class="note">${played ? 'The quarterfinals, conference finals and the championship in Las Vegas are played once every group game is in.' : 'The knockout comes after the group stage.'}</p>`;
   layout({
     title: 'NBA Cup',
-    body: `<div class="oly-head"><div class="cup-badge">🏆</div><div class="oly-title">${L.season.currentYear} NBA CUP</div><div class="oly-host">${ko ? `Champion: ${esc(teamFull(cupTeam(ko.champion)))}` : played ? 'Group stage · Cup nights in November' : 'The draw'}</div></div>
-      ${uiTabs('cup', ko ? [['ko', 'Knockout', koTab], ['groups', 'Groups', groupsTab], ['nights', 'Cup Nights', nightsTab]] : [['groups', 'Groups', groupsTab], ['nights', 'Cup Nights', played ? nightsTab : ''], ['ko', 'Knockout', koTab]], ko ? 'ko' : 'groups')}`,
+    body: `<div class="oly-head"><div class="cup-badge">🏆</div><div class="oly-title">${cy - 1} NBA CUP</div><div class="oly-host">${ko ? `Champion: ${esc(teamFull(cupTeam(ko.champion)))}` : played ? 'Group stage · Cup nights in November' : 'The draw'}</div></div>
+      ${uiTabs('cup', ko ? [['ko', 'Knockout', koTab], ['groups', 'Groups', groupsTab], ['nights', 'Cup Nights', nightsTab], ['history', 'History', cupHistoryBox()]] : [['groups', 'Groups', groupsTab], ['nights', 'Cup Nights', played ? nightsTab : ''], ['ko', 'Knockout', koTab], ['history', 'History', cupHistoryBox()]], ko ? 'ko' : 'groups')}`,
   });
 };
 actions.cupGame = d => { (state.uiTab ||= {}).cup = 'ko'; replace('cup', { g: d.g === '' ? null : d.g }); };
@@ -23520,7 +23570,7 @@ function cupDrawBox() {
 }
 // Hoop Gram: the champions.
 function cupPosts() {
-  const c = cupOn() && cupGet();
+  const c = cupOn() && cupShown().c;
   if (!c?.ko) return [];
   const t = cupTeam(c.ko.champion), mvp = typeof c.ko.mvp?.k === 'number' ? findPlayer(c.ko.mvp.k)?.p : null;
   return t ? [{ team: t, score: 97, tag: '🏆 NBA Cup', pid: mvp?.id || null, handle: '@HoopGramNBA', likes: 30000 + (t.id * 977) % 9000, text: `The ${teamFull(t)} are NBA Cup champions after beating the ${cupTeam(c.ko.runnerUp)?.name || ''} in Las Vegas.${mvp ? ` ${playerName(mvp)} takes Cup MVP.` : ''}` }] : [];
