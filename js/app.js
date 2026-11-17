@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.124';
+const APP_VERSION = '0.365.125';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -1338,6 +1338,7 @@ async function loadFile(file) {
     if (!isCollege() && settleRetirees(league())) state.dirty = true;
     if (!isCollege() && playoffRotations()) state.dirty = true;
     if (applyStreaks()) state.dirty = true;   // hot and cold streaks (college too, on its shorter season)
+    if (isCollege()) pollSnapshot();
     if (!isCollege() && applyFatigue()) state.dirty = true;
     if (!isCollege()) cupKnockout();
     if (!isCollege()) glCatchUp();
@@ -3292,16 +3293,129 @@ function collegeSeasonCard() {
   const rank = poll(me);
   const started = played.length > 0;
   return `<fieldset class="frame"><legend>🏀 ${dispYr(yr)} Season</legend>
-    <div class="bio-grid"><div class="bio-box"><span class="glbl">Record</span><b>${st(me).W || 0}-${st(me).L || 0}</b></div><div class="bio-box"><span class="glbl">Conference</span><b>${wl(st(me).CONF)}</b></div><div class="bio-box"><span class="glbl">AP Poll</span><b>${rank ? `#${rank}` : 'NR'}</b></div></div>
+    <div class="bio-grid"><div class="bio-box"><span class="glbl">Record</span><b>${st(me).W || 0}-${st(me).L || 0}</b></div><div class="bio-box"><span class="glbl">Conference</span><b>${wl(st(me).CONF)}</b></div><div class="bio-box"><span class="glbl">AP Poll</span><b>${rank ? `#${rank}` : 'NR'} ${(p => (p ? moveTag(rank, p.poll?.[me.id] ?? null) : ''))(pollPrev())}</b></div></div>
+    ${(() => { const B = bracketology(), x = B.field.find(f => f.t.id === me.id), bub = B.lastIn.some(r => r.t.id === me.id) ? ' · last four in' : B.firstOut.some(r => r.t.id === me.id) ? ' · first four out' : ''; return started ? `<p class="note small" style="margin:6px 0 0">📋 Bracketology: ${x ? `<b>${x.seed} seed</b> in the ${x.region}` : '<b class="down">out</b>'}${bub}</p>` : ''; })()}
     ${!started ? '<p class="note small">Tip-off: the season starts with your first game in Hoop Land.</p>' : ''}
     ${last.length ? `<p class="note small" style="margin:8px 0 2px"><b>Last ${last.length}</b></p><div class="stack">${last.reverse().map(x => `<div class="small"><span class="${x.won ? 'up' : 'down'}"><b>${x.won ? 'W' : 'L'}</b> ${x.mine}-${x.theirs}</span> ${x.g.home ? 'vs' : '@'} ${tName(opp(x.g.opp))}${poll(opp(x.g.opp)) ? ` <span class="muted">#${poll(opp(x.g.opp))}</span>` : ''}</div>`).join('')}</div>` : ''}
     ${next.length ? `<p class="note small" style="margin:8px 0 2px"><b>Up next</b></p><div class="stack">${next.map(g => `<div class="small">${g.home ? 'vs' : '@'} ${tName(opp(g.opp))}${poll(opp(g.opp)) ? ` <span class="muted">#${poll(opp(g.opp))}</span>` : ''} <span class="muted">· ${st(opp(g.opp)).W || 0}-${st(opp(g.opp)).L || 0}</span></div>`).join('')}</div>` : ''}
     ${leaders.length ? `<p class="note small" style="margin:8px 0 2px"><b>Your leaders</b></p><div class="stack">${leaders.map(({ p, l }) => `<div class="small"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b> <span class="muted">${l.ppg.toFixed(1)} pts · ${l.rpg.toFixed(1)} reb · ${l.apg.toFixed(1)} ast</span></div>`).join('')}</div>` : ''}
     ${(() => { const k = kind => me.roster.filter(p => streakOf(p.id) === kind).map(p => `<b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(shortName(p))}</b>`); const h = k('hot'), c = k('cold'); return h.length || c.length ? `<p class="note small" style="margin:8px 0 0">${h.length ? `🔥 ${h.join(', ')}` : ''}${h.length && c.length ? ' · ' : ''}${c.length ? `❄️ ${c.join(', ')}` : ''}</p>` : ''; })()}
-    ${top25.length ? `<details class="cmb-fold"><summary>🏆 Top 25</summary><div class="stack">${top25.map(t => `<div class="small"><span class="muted">${poll(t)}.</span> ${tName(t)} <span class="muted">${st(t).W || 0}-${st(t).L || 0}</span></div>`).join('')}</div></details>` : ''}
-    <div class="grid2" style="margin-top:8px"><button class="btn small" data-act="nav" data-to="standings">📊 Standings</button><button class="btn small" data-act="nav" data-to="injuries">🩹 Injuries</button></div>
+    <div class="grid2" style="margin-top:8px"><button class="btn small" data-act="nav" data-to="colPoll">🗳️ Top 25</button><button class="btn small" data-act="nav" data-to="colPoll" data-arg="bracket">📋 Bracketology</button><button class="btn small" data-act="nav" data-to="standings">📊 Standings</button><button class="btn small" data-act="nav" data-to="injuries">🩹 Injuries</button></div>
     <p class="note small muted" style="margin-top:6px">The offseason opens when the season's over: load your Season Complete file.</p></fieldset>`;
 }
+// ---- College: the weekly poll and bracketology. The game keeps this week's AP poll on each team; the app keeps a
+// snapshot every time a college file comes in mid-season, so the next one shows the movement. Bracketology projects
+// the tournament field from the résumés: conference leaders take the automatic bids (Independents have none), the rest
+// go in on résumé, seeded on the S-curve over four regions.
+const pollKey = (yr = league().season.currentYear) => `hlc:poll:${saveTag()}:${yr}`;
+function pollLog() { try { return JSON.parse(localStorage.getItem(pollKey())) || []; } catch { return []; } }
+const colYr = () => league().season.currentYear;
+const colRow = t => (t.season || []).find(x => x.yr === colYr()) || {};
+const colPoll = t => { const v = colRow(t).poll; return v >= 1 && v <= 25 ? v : null; };
+const colWeek = (day, L = league()) => 1 + Math.floor((day || 0) / Math.max(1, Math.round((L.season.schedule?.length || 35) / 18)));
+// The snapshot on load (one a day): the poll and the projected seeds.
+function pollSnapshot() {
+  const L = league(), s = L.season;
+  if (!isCollege() || s.phase < 9 || s.phase >= 15) return;
+  const log = pollLog(), day = s.currentDay || 0;
+  if (log.some(x => x.day === day)) return;
+  const poll = Object.fromEntries(L.teams.map(t => [t.id, colPoll(t)]).filter(([, v]) => v));
+  const seeds = Object.fromEntries(bracketology().field.map(x => [x.t.id, x.seed]));
+  log.push({ day, poll, seeds });
+  log.sort((a, b) => a.day - b.day);
+  try { localStorage.setItem(pollKey(), JSON.stringify(log.slice(-30))); } catch { /* ignore */ }
+}
+// Last week: the latest snapshot from before today.
+const pollPrev = () => { const day = league().season.currentDay || 0; return pollLog().filter(x => x.day < day).pop() || null; };
+// The résumés, from the season's results: win %, margin, strength of schedule, wins over the Top 25, bad losses.
+function colResumes() {
+  const L = league(), S = L.season, rec = new Map(L.teams.map(t => [t.id, { t, w: 0, l: 0, pf: 0, pa: 0, opps: [], top: 0, bad: 0 }]));
+  const played = (S.schedule || []).flatMap(d => (d.results || []).filter(g => g.gameType === 0 && g.homeTeam && g.awayTeam && (g.homeScore || g.awayScore)));
+  for (const g of played) for (const [me, op, mine, theirs] of [[g.homeTeam, g.awayTeam, g.homeScore, g.awayScore], [g.awayTeam, g.homeTeam, g.awayScore, g.homeScore]]) {
+    const r = rec.get(me); if (!r) continue;
+    r.pf += mine; r.pa += theirs; r.opps.push(op); if (mine > theirs) r.w++; else r.l++;
+  }
+  const pct = id => { const r = rec.get(id); return r && r.w + r.l ? r.w / (r.w + r.l) : 0.5; };
+  for (const g of played) for (const [me, op, mine, theirs] of [[g.homeTeam, g.awayTeam, g.homeScore, g.awayScore], [g.awayTeam, g.homeTeam, g.awayScore, g.homeScore]]) {
+    const r = rec.get(me), o = L.teams.find(x => x.id === op); if (!r || !o) continue;
+    if (mine > theirs && colPoll(o)) r.top++;
+    if (mine < theirs && pct(op) < 0.35) r.bad++;
+  }
+  for (const r of rec.values()) {
+    const gp = r.w + r.l || 1;
+    r.pct = (r.w + r.l) ? r.w / gp : 0;
+    r.margin = (r.pf - r.pa) / gp;
+    r.sos = r.opps.length ? r.opps.reduce((a, id) => a + pct(id), 0) / r.opps.length : 0.5;
+    r.score = 30 * r.pct + 0.9 * r.margin + 25 * (r.sos - 0.5) + 2 * r.top - 2 * r.bad + (colPoll(r.t) ? (26 - colPoll(r.t)) * 0.25 : 0);
+  }
+  return rec;
+}
+const confName = t => (league().divisions || [])[t.division] || '';
+// The projected field: { field: [{ t, seed, region, auto }], lastIn, firstOut, nextOut }.
+function bracketology() {
+  const L = league(), R = colResumes(), size = Math.min(L.season.playoffTeams || 64, L.teams.length);
+  const all = [...R.values()].sort((a, b) => b.score - a.score);
+  // Automatic bids: each conference's leader by conference record (then résumé). No bid for Independents.
+  const confs = new Map();
+  for (const r of all) { const c = confName(r.t); if (!c || /independent/i.test(c)) continue; (confs.get(c) || confs.set(c, []).get(c)).push(r); }
+  const confPct = r => { const c = colRow(r.t).seasonStats?.CONF; return Array.isArray(c) && c[0] + c[1] ? c[0] / (c[0] + c[1]) : r.pct; };
+  const auto = new Set([...confs.values()].map(rs => [...rs].sort((a, b) => confPct(b) - confPct(a) || b.score - a.score)[0].t.id));
+  const atLarge = all.filter(r => !auto.has(r.t.id));
+  const nAt = Math.max(0, size - auto.size);
+  const inAt = atLarge.slice(0, nAt), out = atLarge.slice(nAt);
+  const field = [...all.filter(r => auto.has(r.t.id)), ...inAt].sort((a, b) => b.score - a.score);
+  const REG = ['East', 'West', 'South', 'Midwest'];
+  const per = Math.max(1, Math.ceil(field.length / 4));
+  const rows = field.map((r, i) => { const line = Math.floor(i / 4), k = i % 4; return { r, t: r.t, seed: Math.min(16, line + 1), region: REG[line % 2 ? 3 - k : k], auto: auto.has(r.t.id) }; });
+  const everyone = size >= L.teams.length;   // a league no bigger than the field: no bubble
+  return { field: rows, lastIn: everyone ? [] : inAt.slice(-4), firstOut: out.slice(0, 4), nextOut: out.slice(4, 8), size, per };
+}
+const moveTag = (now, was) => (was == null ? (now ? '<span class="up small">NEW</span>' : '') : now == null ? '' : now < was ? `<span class="up small">▲${was - now}</span>` : now > was ? `<span class="down small">▼${now - was}</span>` : '<span class="muted small">–</span>');
+screens.colPoll = (args = {}) => {
+  const L = league();
+  if (!isCollege()) { goHome(); return; }
+  if (args.arg) (state.uiTab ||= {}).colpoll = args.arg;   // a button that opens a tab
+  const prev = pollPrev(), me = L.teams.find(isUserTeam), R = colResumes();
+  const tName = t => `${t.logoURL ? `${logoImg(t)} ` : ''}<b class="${isUserTeam(t) ? 'gold' : ''} tap" data-act="nav" data-to="roster" data-arg="${t.id}">${esc(t.shortName)}</b>`;
+  const rec = t => `${R.get(t.id)?.w || 0}-${R.get(t.id)?.l || 0}`;
+  // ---- The poll.
+  const top = L.teams.filter(colPoll).sort((a, b) => colPoll(a) - colPoll(b));
+  const was = t => (prev?.poll?.[t.id] ?? null);
+  const moves = top.filter(t => was(t) != null).map(t => ({ t, d: was(t) - colPoll(t) }));
+  const risers = moves.filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 3), fallers = moves.filter(x => x.d < 0).sort((a, b) => a.d - b.d).slice(0, 3);
+  const newIn = prev ? top.filter(t => was(t) == null) : [], droppedOut = prev ? Object.keys(prev.poll).map(Number).filter(id => !top.some(t => t.id === id)).map(id => L.teams.find(t => t.id === id)).filter(Boolean) : [];
+  const wk = colWeek(L.season.currentDay);
+  const pollTab = `<fieldset class="frame"><legend>🗳️ AP Top 25 · Week ${wk}</legend>
+      ${prev ? `<p class="note small muted">Movement since your last file (week ${colWeek(prev.day)}).</p>` : '<p class="note small muted">The arrows start with your next file: the app keeps this week\'s poll to compare.</p>'}
+      ${me ? `<p class="note">${tName(me)}: ${colPoll(me) ? `<b>#${colPoll(me)}</b> ${prev ? moveTag(colPoll(me), was(me)) : ''}` : `<b>unranked</b>${prev && was(me) ? ` <span class="down small">(was #${was(me)})</span>` : ''}`}</p>` : ''}
+      <div class="stack">${top.map(t => `<div class="drill-row"><span class="pk">${colPoll(t)}</span><span class="grow">${tName(t)} <span class="muted small">${rec(t)} · ${esc(confName(t))}</span></span>${prev ? moveTag(colPoll(t), was(t)) : ''}</div>`).join('')}</div>
+      ${risers.length || fallers.length || newIn.length || droppedOut.length ? `<div class="stack" style="margin-top:8px">
+        ${risers.length ? `<p class="note small"><b class="up">Biggest risers:</b> ${risers.map(x => `${esc(x.t.shortName)} ▲${x.d}`).join(' · ')}</p>` : ''}
+        ${fallers.length ? `<p class="note small"><b class="down">Biggest fallers:</b> ${fallers.map(x => `${esc(x.t.shortName)} ▼${-x.d}`).join(' · ')}</p>` : ''}
+        ${newIn.length ? `<p class="note small"><b>New:</b> ${newIn.map(t => esc(t.shortName)).join(', ')}</p>` : ''}
+        ${droppedOut.length ? `<p class="note small"><b>Dropped out:</b> ${droppedOut.map(t => esc(t.shortName)).join(', ')}</p>` : ''}</div>` : ''}
+    </fieldset>`;
+  // ---- Bracketology.
+  const B = bracketology(), mine = me && B.field.find(x => x.t.id === me.id), prevSeed = me && prev?.seeds?.[me.id];
+  const bubble = me && [...B.lastIn].some(r => r.t.id === me.id) ? 'last four in' : me && B.firstOut.some(r => r.t.id === me.id) ? 'first four out' : me && B.nextOut.some(r => r.t.id === me.id) ? 'next four out' : null;
+  const meLine = me ? (mine ? `<b>${mine.seed} seed</b> in the ${mine.region}${mine.auto ? ` (automatic bid: leads the ${esc(confName(me))})` : ''}${bubble ? ` · <span class="gold">${bubble}</span>` : ''}${prevSeed ? (prevSeed > mine.seed ? ` <span class="up small">▲ from a ${prevSeed}</span>` : prevSeed < mine.seed ? ` <span class="down small">▼ from a ${prevSeed}</span>` : '') : ''}` : `<b class="down">Out</b>${bubble ? ` · ${bubble}` : ''}${prevSeed ? ` <span class="down small">(was a ${prevSeed} seed)</span>` : ''}`) : '';
+  const r0 = me && R.get(me.id);
+  const lines = Array.from({ length: 16 }, (_, i) => B.field.filter(x => x.seed === i + 1)).filter(l => l.length);
+  // Names only in the lists (logos come in every size).
+  const tPlain = t => `<b class="${isUserTeam(t) ? 'gold' : ''} tap" data-act="nav" data-to="roster" data-arg="${t.id}">${esc(t.shortName)}</b>`;
+  const brTab = `<fieldset class="frame"><legend>📋 Bracketology · Week ${wk}</legend>
+      ${me ? `<p class="note">${tName(me)}: ${meLine}</p>${r0 ? `<p class="note small muted">Résumé: ${r0.w}-${r0.l} · margin ${r0.margin >= 0 ? '+' : ''}${r0.margin.toFixed(1)} · schedule ${Math.round(r0.sos * 100)}% opp. wins · ${r0.top} win${r0.top === 1 ? '' : 's'} over the Top 25 · ${r0.bad} bad loss${r0.bad === 1 ? '' : 'es'}</p>` : ''}` : ''}
+      ${B.size >= L.teams.length ? `<p class="note small">With ${L.teams.length} teams and a ${B.size}-team tournament, everyone's in: it's all about the seed.</p>` : ''}
+      ${B.size >= L.teams.length ? '' : `<details class="cmb-fold" open><summary>🫧 The bubble</summary>
+        <p class="note small"><b>Last four in:</b> ${B.lastIn.map(r => `${tPlain(r.t)} <span class="muted small">${rec(r.t)}</span>`).join(' · ') || 'none'}</p>
+        <p class="note small"><b>First four out:</b> ${B.firstOut.map(r => `${tPlain(r.t)} <span class="muted small">${rec(r.t)}</span>`).join(' · ') || 'none'}</p>
+        <p class="note small"><b>Next four out:</b> ${B.nextOut.map(r => `${tPlain(r.t)} <span class="muted small">${rec(r.t)}</span>`).join(' · ') || 'none'}</p></details>`}
+      <details class="cmb-fold"><summary>🗂️ The seed list (${B.field.length} teams)</summary><div class="stack">${lines.map((l, i) => `<div class="drill-row"><span class="pk">${i + 1}</span><span class="grow small">${l.map(x => `${tPlain(x.t)}${x.auto ? '<span class="muted">*</span>' : ''} <span class="muted">${x.region[0]}</span>`).join(' · ')}</span></div>`).join('')}</div>
+        <p class="note small muted">* automatic bid (leads its conference). E/W/S/M: the region. Seeded on the S-curve.</p></details>
+      <p class="note small muted">The projection: win %, scoring margin, strength of schedule, wins over the Top 25 and bad losses, as if the season ended today. It updates with every file.</p>
+    </fieldset>`;
+  layout({ title: 'Poll & Bracketology', body: uiTabs('colpoll', [['poll', 'Top 25', pollTab], ['bracket', 'Bracketology', brTab]], args.tab || args.arg || 'poll') });
+};
 function calendarCard() {
   const s = league().season;
   if (isCollege() && s.phase >= 9 && s.phase < 15) return collegeSeasonCard();
