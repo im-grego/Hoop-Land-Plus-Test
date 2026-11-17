@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.103';
+const APP_VERSION = '0.365.104';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -86,6 +86,7 @@ const DEVLOG = [
     ['Features', [
       'Resume: the save you\'re working on is kept on your device, so closing the app doesn\'t lose it. Pick up where you left off from the start screen',
       'The Expansion Draft step can be skipped',
+      'Settings → Look: Hide Potential keeps potential stars, potential up or down and regression age out of sight (Edit mode still shows them)',
       'Hot and cold streaks (and other temporary changes) show in the app, but the file you export keeps everyone\'s real ratings',
       'Scouting Report: Player to Watch, the opponent\'s top scorer on a card (his face in his team\'s colors, his league ranks and line), with three keys to stopping him',
       'Team stats show shot volume next to efficiency: shots, threes taken, the share of shots from three and free throws a game (Scouting Report and League → Teams)',
@@ -4304,9 +4305,11 @@ actions.rosterUpdate = async d => {
   let u;
   try { u = await (await fetch(d.f, { cache: 'no-cache' })).json(); } catch (e) { toast('Couldn’t get the roster update', e.message, 3200, true); return; }
   try { localStorage.setItem(RU_KEY(d.id), '1'); } catch { /* ignore */ }
+  // Hide Potential: only level moves (a potential-only change would give it away).
+  if (potHidden()) { u.up = u.up.filter(r => r.lv1 !== r.lv0); u.down = u.down.filter(r => r.lv1 !== r.lv0); }
   const sign = n => `${n > 0 ? '+' : ''}${n}`;
   const row = r => { const dl = r.lv1 - r.lv0, dp = r.p1 - r.p0;
-    return `<li><b>${esc(r.n)}</b> <span class="muted small">${esc(r.t)}</span><br><span class="small">Lv ${r.lv0} → <b class="${dl > 0 ? 'up' : dl < 0 ? 'down' : ''}">${r.lv1}</b>${dl ? ` <span class="${dl > 0 ? 'up' : 'down'}">(${sign(dl)})</span>` : ''}${dp ? ` · <span class="${dp > 0 ? 'up' : 'down'}">Pot ${dp > 0 ? '↑' : '↓'}</span>` : ''}</span></li>`; };
+    return `<li><b>${esc(r.n)}</b> <span class="muted small">${esc(r.t)}</span><br><span class="small">Lv ${r.lv0} → <b class="${dl > 0 ? 'up' : dl < 0 ? 'down' : ''}">${r.lv1}</b>${dl ? ` <span class="${dl > 0 ? 'up' : 'down'}">(${sign(dl)})</span>` : ''}${dp && !potHidden() ? ` · <span class="${dp > 0 ? 'up' : 'down'}">Pot ${dp > 0 ? '↑' : '↓'}</span>` : ''}</span></li>`; };
   // Risers and fallers on tabs over one list that scrolls on its own; the page behind stays put while it's open.
   const tab = k => `<button class="btn small ${k === 'up' ? 'on focus' : 'off'}" data-ru="${k}">${k === 'up' ? `📈 Risers (${u.up.length})` : `📉 Fallers (${u.down.length})`}</button>`;
   const box = overlay(`<h2 class="devlog-h">${esc(u.title || 'Roster Moves: Risers & Fallers')}</h2>
@@ -7355,8 +7358,8 @@ screens.offseason = (args = {}) => {
               <dt>Players improved</dt><dd class="up">${auto.players}</dd>
               <dt>Ratings upgrades</dt><dd class="up">+${auto.points}</dd>
               <dt>Your team</dt><dd class="up">+${auto.mine}</dd>
-              <dt>Potential ↑</dt><dd class="up">${auto.potUps ?? 0}</dd>
-              <dt>Potential ↓</dt><dd class="down">${auto.potDowns ?? 0}</dd>
+              ${potHidden() ? '' : `<dt>Potential ↑</dt><dd class="up">${auto.potUps ?? 0}</dd>
+              <dt>Potential ↓</dt><dd class="down">${auto.potDowns ?? 0}</dd>`}
               <dt>Regression age ↑</dt><dd class="up">${auto.longevity ?? 0}</dd>
               <dt>Regression age ↓</dt><dd class="down">${auto.regDowns ?? 0}</dd>
             </dl>
@@ -9637,7 +9640,10 @@ function regPoints(p) {
 // star (not capped at Lv 100, so a star past 168 still shows his decline).
 const totalOf = (p, f) => SKILL_ATTRS.reduce((a, k) => a + f(k), 0);
 const starsOfTotal = t => 5 - (168 - t) / 28;
-const potStars = p => stars(p.pot,
+// Hide Potential (Settings): potential, its ups and downs and regression age stay out of view (Edit mode still shows them).
+const potHidden = () => state.params.hidePotential === true && !editOn();
+const potTag = v => (potHidden() ? '' : `<span class="stars">${stars(v)}</span>`);
+const potStars = p => potHidden() ? '' : stars(p.pot,
   starsOfTotal(totalOf(p, k => regressed(p, k))),
   starsOfTotal(totalOf(p, k => p.attributes[k][0])));
 const levelStarsOf = lv => Math.max(1, Math.min(10, Math.round((5 - (100 - lv) / 14) * 2)));
@@ -9691,10 +9697,10 @@ screens.report = (args) => {
   const summary = [
     `${improved.length} improved <span class="up">+${total}</span>`,
     (() => { const n = rows.reduce((a, r) => a + Object.entries(r.d.attrs).filter(([k, v]) => v > 0 && r.p.attributes[k][0] >= 10 && r.p.attributes[k][0] - v < 10).length, 0); return n ? `<span class="gold">★ ${n} rating${n > 1 ? 's' : ''} reached 10</span>` : ''; })(),
-    count(r => r.d.potDelta > 0) && `<span class="up">Potential ↑ ${count(r => r.d.potDelta > 0)}</span>`,
-    count(r => r.d.potDelta < 0) && `<span class="down">Potential ↓ ${count(r => r.d.potDelta < 0)}</span>`,
-    count(r => r.d.regDelta > 0) && `<span class="up">Regression age ↑ ${count(r => r.d.regDelta > 0)}</span>`,
-    count(r => r.d.regDelta < 0) && `<span class="down">Regression age ↓ ${count(r => r.d.regDelta < 0)}</span>`,
+    !potHidden() && count(r => r.d.potDelta > 0) && `<span class="up">Potential ↑ ${count(r => r.d.potDelta > 0)}</span>`,
+    !potHidden() && count(r => r.d.potDelta < 0) && `<span class="down">Potential ↓ ${count(r => r.d.potDelta < 0)}</span>`,
+    !potHidden() && count(r => r.d.regDelta > 0) && `<span class="up">Regression age ↑ ${count(r => r.d.regDelta > 0)}</span>`,
+    !potHidden() && count(r => r.d.regDelta < 0) && `<span class="down">Regression age ↓ ${count(r => r.d.regDelta < 0)}</span>`,
   ].filter(Boolean).join(' · ');
   layout({
     title: 'Progression Report',
@@ -9773,8 +9779,9 @@ function longevityBadges(p, d, injury = true) {
   const was = p.regressionAge - d.regDelta;
   const paused = d.regDelta > 0 && p.age > was;
   const why = POT_WHY[state.potWhy?.get(p.id)];
-  return (d.regDelta ? `<span class="badge ${d.regDelta > 0 ? 'lvl' : 'down-b'}">${paused ? 'Regression paused' : `Regression age ${was}→${p.regressionAge}`}</span>` : '') +
-    (d.potDelta > 0 ? '<span class="badge new">POT ▲</span>' : d.potDelta < 0 ? `<span class="badge down-b">POT ▼${why ? ` · ${why}` : ''}</span>` : '') +
+  const hide = potHidden();
+  return (d.regDelta && !hide ? `<span class="badge ${d.regDelta > 0 ? 'lvl' : 'down-b'}">${paused ? 'Regression paused' : `Regression age ${was}→${p.regressionAge}`}</span>` : '') +
+    (hide ? '' : d.potDelta > 0 ? '<span class="badge new">POT ▲</span>' : d.potDelta < 0 ? `<span class="badge down-b">POT ▼${why ? ` · ${why}` : ''}</span>` : '') +
     (injury ? injuryBadge(p) : '') + injCutBadge(p);
 }
 // The injury took him under his own level: what it cost, and where he tops out now.
@@ -12853,7 +12860,7 @@ function profileReport(p, team) {
   const reached = room <= 0, near = room <= 13;
   const lines = reached ? [`He is ${phrase}.`] : near ? ['He is close to his ceiling.', can] : young ? ['He is still developing.', can] : [can];
   if (!(young && !reached && !near)) lines.push(timing);
-  add('dev', ...lines);
+  if (potHidden()) { if (young) add('dev', 'He is still developing.'); } else add('dev', ...lines);
   if (prod) add('prod', prod.trim());
   // What he's paid
   const c = p.contract;
@@ -13515,12 +13522,12 @@ function oldPlayerScreen(args) {
   // Ratings: his potential on top (it caps how far his ratings can go), the ratings, then the ceilings switch.
   const capLeft = potCap(p) - ceilTotal(p);
   const ratings = `<fieldset class="frame"><legend>Ratings</legend>${infoBtn('ratings', RATINGS_HELP)}
-        <div class="pts-row pot-row">
+        ${potHidden() ? '' : `<div class="pts-row pot-row">
           <span class="grow">Potential <span class="stars">${potStars(p)}</span>${declining(p) ? ' <span class="small down">Declining</span>' : ''}<br><span class="muted small">${capLeft > 0 ? `${capLeft} point${capLeft === 1 ? '' : 's'} of room above his ceilings` : capLeft === 0 ? 'His ceilings are at his potential' : `His ceilings are ${-capLeft} over his potential`}</span></span>
           <button class="btn square" data-act="potAdj" data-dir="-1" aria-label="Lower potential">−</button>
           <span class="pts-val ${d.potDelta ? 'gold' : ''}">${p.pot}${d.potDelta ? `<span class="small up"> ${d.potDelta > 0 ? '+' : ''}${d.potDelta}</span>` : ''}</span>
           <button class="btn square" data-act="potAdj" data-dir="1" aria-label="Higher potential">+</button>
-        </div>
+        </div>`}
         <div class="stack">
           ${(st => `${st ? `<p class="note small muted gstat-head">Stats over each rating: ${st.when}, ${st.gp} games, <b>${st.mpg.toFixed(1)} MPG</b>, per game</p>` : ''}${ATTRS.map(k => `${st ? `<div class="gstat">${esc(st.k[k] || '')}</div>` : ''}${attrRow(p, snap, k, ceilMode)}`).join('')}`)(isCollege() ? null : ratingStats(p))}
         </div>
@@ -13532,12 +13539,12 @@ function oldPlayerScreen(args) {
   const trainer = `<fieldset class="frame"><legend>Trainer</legend>
         <div class="stack">
           <p class="note small">Health: ${hurt ? `<span class="down">Out: ${esc(injuryName(hurt))}, ${injLong(p)}</span>` : '<span class="up">Healthy</span>'}${injuryText(p)}</p>
-          <div class="pts-row">
+          ${potHidden() ? '' : `<div class="pts-row">
             <span class="grow">Regression age<br><span class="muted small">${regressionText(p)}</span></span>
             <button class="btn square" data-act="regAge" data-dir="-1" aria-label="Earlier regression">−</button>
             <span class="pts-val ${d.regDelta ? 'gold' : ''}">${p.regressionAge}${d.regDelta ? `<span class="small up"> ${d.regDelta > 0 ? '+' : ''}${d.regDelta}</span>` : ''}</span>
             <button class="btn square" data-act="regAge" data-dir="1" aria-label="Later regression">+</button>
-          </div>
+          </div>`}
           <details class="inj-hist"><summary class="small">Injury history (${hist.length})</summary>
             ${hist.length ? `<div class="stack small">${hist.map(i => `<div class="row"><span class="grow">${i.yr ? `${i.yr - 1}-${String(i.yr).slice(2)}` : 'Now'} · ${esc(injuryName(i))}</span><span class="${i.majorSeverity ? 'down' : 'muted'}">${i.gamesOut} game${i.gamesOut === 1 ? '' : 's'}</span></div>`).join('')}</div>` : '<p class="note muted small">No injuries on record.</p>'}
           </details>
@@ -13613,12 +13620,12 @@ function newPlayerScreen(args) {
   // Ratings: his potential on top (it caps how far his ratings can go), the ratings, then the ceilings switch.
   const capLeft = potCap(p) - ceilTotal(p);
   const ratings = `<fieldset class="frame"><legend>Ratings</legend>${infoBtn('ratings', RATINGS_HELP)}
-        <div class="pts-row pot-row">
+        ${potHidden() ? '' : `<div class="pts-row pot-row">
           <span class="grow">Potential <span class="stars">${potStars(p)}</span>${declining(p) ? ' <span class="small down">Declining</span>' : ''}<br><span class="muted small">${capLeft > 0 ? `${capLeft} point${capLeft === 1 ? '' : 's'} of room above his ceilings` : capLeft === 0 ? 'His ceilings are at his potential' : `His ceilings are ${-capLeft} over his potential`}</span></span>
           <button class="btn square" data-act="potAdj" data-dir="-1" aria-label="Lower potential">−</button>
           <span class="pts-val ${d.potDelta ? 'gold' : ''}">${p.pot}${d.potDelta ? `<span class="small up"> ${d.potDelta > 0 ? '+' : ''}${d.potDelta}</span>` : ''}</span>
           <button class="btn square" data-act="potAdj" data-dir="1" aria-label="Higher potential">+</button>
-        </div>
+        </div>`}
         <div class="stack">
           ${(tmp => {
             if (!tmp) return '';
@@ -13636,12 +13643,12 @@ function newPlayerScreen(args) {
   const trainer = `<fieldset class="frame"><legend>Trainer</legend>
         <div class="stack">
           <p class="note small">Health: ${hurt ? `<span class="down">Out: ${esc(injuryName(hurt))}, ${injLong(p)}</span>` : '<span class="up">Healthy</span>'}${injuryText(p)}</p>
-          <div class="pts-row">
+          ${potHidden() ? '' : `<div class="pts-row">
             <span class="grow">Regression age<br><span class="muted small">${regressionText(p)}</span></span>
             <button class="btn square" data-act="regAge" data-dir="-1" aria-label="Earlier regression">−</button>
             <span class="pts-val ${d.regDelta ? 'gold' : ''}">${p.regressionAge}${d.regDelta ? `<span class="small up"> ${d.regDelta > 0 ? '+' : ''}${d.regDelta}</span>` : ''}</span>
             <button class="btn square" data-act="regAge" data-dir="1" aria-label="Later regression">+</button>
-          </div>
+          </div>`}
           <details class="inj-hist"><summary class="small">Injury history (${hist.length})</summary>
             ${hist.length ? `<div class="stack small">${hist.map(i => `<div class="row"><span class="grow">${i.yr ? `${i.yr - 1}-${String(i.yr).slice(2)}` : 'Now'} · ${esc(injuryName(i))}</span><span class="${i.majorSeverity ? 'down' : 'muted'}">${i.gamesOut} game${i.gamesOut === 1 ? '' : 's'}</span></div>`).join('')}</div>` : '<p class="note muted small">No injuries on record.</p>'}
           </details>
@@ -13667,7 +13674,7 @@ function newPlayerScreen(args) {
   // Ratings in the game's cells, all in view; with Edit on, each value is underlined (tap to type it). Tap a cell to
   // compare him with the league on that rating.
   const ratingsView = `<fieldset class="frame g-frame"><legend>Ratings</legend>${edit ? infoBtn('ratings', RATINGS_HELP) : ''}
-      <div class="g-pot"><span>Potential</span>${ev(p, 'pot', potStars(p))}${declining(p) ? ' <span class="small down">Declining</span>' : ''}${edit ? `<span class="muted small"> ${capLeft > 0 ? `${capLeft} pts of room` : capLeft === 0 ? 'ceilings at potential' : `${-capLeft} pts over`}</span>` : ''}</div>
+      ${potHidden() ? '' : `<div class="g-pot"><span>Potential</span>${ev(p, 'pot', potStars(p))}${declining(p) ? ' <span class="small down">Declining</span>' : ''}${edit ? `<span class="muted small"> ${capLeft > 0 ? `${capLeft} pts of room` : capLeft === 0 ? 'ceilings at potential' : `${-capLeft} pts over`}</span>` : ''}</div>`}
       ${tempLine(p)}
       ${gAllLines(p, snap, false, false, edit && !isCollege() ? ratingStats(p) : null)}
       ${skillsChips(p)}</fieldset>`;
@@ -14118,7 +14125,7 @@ screens.settings = (args) => {
       ${pro && !CAR.isCareer(league()) ? setGroup('Draft Picks', ['<button class="btn" data-act="resetPicks">↩️ Reset All Picks</button>', '<span class="note muted small">Every pick goes back to its own team, every year: trades, protections and swaps undone, missing picks restored. This year\'s draft order (after the lottery) is kept.</span>', '<button class="btn" data-act="applyRealPicks">🏀 Apply Real Picks</button>', '<span class="note muted small">Then, if you like, the real-world holders (2027-2033) on top.</span>']) : ''}
       ${pro && !CAR.isCareer(league()) ? setGroup('Expansion & Fantasy', [`<button class="btn" data-act="nav" data-to="fantasy">🎲 Fantasy Draft${fanStore()?.status === 'draft' ? ' · in progress' : ''}</button>`, '<span class="note muted small">A start-of-season save: every team drafts its roster from the whole league, 12 rounds, snake order.</span>', `<button class="btn" data-act="nav" data-to="expansion">🏟️ Expansion${(() => { const x = expStore(); return x && x.status && !['none', 'done'].includes(x.status) ? ` · ${x.yr}` : ''; })()}</button>`, '<span class="note muted small">Add two teams: protected lists, a coin flip and an expansion draft after the lottery.</span>', options('Realistic draft classes', 'realClasses', [[true, 'On'], [false, 'Off']], `Hand-built classes for the ${RDC.REAL_CLASS_YEARS.join(', ')} drafts replace the game's, varied a little each save. They go in when the save reaches that offseason, before the draft.`), ...(state.params.realClasses === true ? [`<div class="set-row col"><span class="grow">Which classes</span><div class="seg">${RDC.REAL_CLASS_YEARS.map(y => `<button class="btn small ${realClassYears().includes(y) ? 'on focus' : 'off'}" data-act="setRealYear" data-y="${y}">${y}</button>`).join('')}</div></div>`] : [])]) : ''}
       ${pro ? setGroup('Your Job', [options('You can be fired', 'canBeFired', [[true, 'On'], [false, 'Off']], 'On: two owner meetings under 30 trust bring an ultimatum (make the playoffs), and missing it gets you fired; you pick a new team from the offers. Off: no ultimatums or firings (extensions still come). CPU coach firings are under League AI → Coaching changes.')]) : ''}
-      ${setGroup('Look', [options('Button icons', 'pixelIcons', [[true, 'Pixel'], [false, 'Emoji']], 'Pixel: white pixel icons like the game\'s. Emoji: the colored emoji.'), state.data ? `<button class="btn" data-act="nav" data-to="faces">🙂 Player Faces${state.faces?.size ? ` · ${state.faces.size}` : ''}</button><span class="note muted small">Cut players' faces from screenshots of the game's roster screen.</span>` : ''])}`;
+      ${setGroup('Look', [options('Potential', 'hidePotential', [[false, 'Show'], [true, 'Hide']], 'Hide: potential stars, potential up or down and regression age stay out of sight everywhere (scouting reports too), like the game\'s Hide Potential. Edit mode still shows them.'), options('Button icons', 'pixelIcons', [[true, 'Pixel'], [false, 'Emoji']], 'Pixel: white pixel icons like the game\'s. Emoji: the colored emoji.'), state.data ? `<button class="btn" data-act="nav" data-to="faces">🙂 Player Faces${state.faces?.size ? ` · ${state.faces.size}` : ''}</button><span class="note muted small">Cut players' faces from screenshots of the game's roster screen.</span>` : ''])}`;
   } else if (tab === 'ai') {
     body = setGroup('CPU Teams', [
       options('Draft-day trades', 'liveCpuTradeChance', [[0, 'Off'], [5, 'Rare'], [10, 'Normal'], [20, 'Busy']], 'How often CPU teams trade picks around each CPU pick in the live draft.'),
@@ -15766,6 +15773,7 @@ const answerHtml = a => typeof a === 'string' ? esc(a) : `<span class="wk-quote"
 function workoutResult(p) {
   if (!workoutDone(p.id)) return '';
   const before = scoutedPot(p, saveSalt(), scoutFog());
+  if (potHidden()) return 'Our scouts have finished on him.';
   const t = tierFor(p.pot);
   if (before === p.pot) return `Our scouts had him right: ${t} ceiling. Every rating's ceiling is now on his page.`;
   return before < p.pot ? `<span class="up">Better than we thought: ${t} ceiling (we had ${tierFor(before)}).</span>`
@@ -15789,7 +15797,7 @@ actions.revealPot = d => {
   savePre();
   state.compCache = {};
   const p = league().draftClass.find(x => x.id === +d.id);
-  if (p) toast(`${playerName(p)}: ${tierFor(p.pot)} potential confirmed`);
+  if (p) toast(potHidden() ? `${playerName(p)}: scouting done` : `${playerName(p)}: ${tierFor(p.pot)} potential confirmed`);
   render();
 };
 function workoutBox(p) {
@@ -21434,7 +21442,7 @@ screens.departures = () => {
   const myRank = bySchool.findIndex(([sc]) => sc === t) + 1;
   const f1 = v => v.toFixed(1);
   const row = x => `<div class="drill-row ${x.school === t ? 'r1' : ''}"><span class="pk" style="min-width:34px">${x.pick ? `#${x.pick.pk}` : 'UDFA'}</span>
-    <span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span><br>
+    <span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}<br>
     <span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${x.cls} · ${esc(x.school?.shortName || '?')}${x.line ? ` · ${f1(x.line.ppg)}/${f1(x.line.rpg)}/${f1(x.line.apg)}` : ''}</span></span>
     <span class="small" style="text-align:right">${x.pro ? `${logoImg(x.pro)}<br>${esc(x.pro.shortName)}` : '<span class="muted">Unsigned</span>'}</span></div>`;
   layout({
@@ -21721,7 +21729,7 @@ screens.recruitee = ({ id }) => {
     body: `<fieldset class="frame"><legend>${x.transfer ? `Transfer · No. ${x.rank}` : `Class of ${league().season.currentYear + 0} · No. ${x.rank}`}</legend>
         <p class="note"><b>${esc(playerName(p))}</b> ${rStars(x.stars, x.lv)}${isAllAmerican(p) ? ' <span class="small gold">⭐ All-American</span>' : ''}</p>
         <p class="note small">${esc(posName(p))} · ${heightStr(p.ht)} · ${p.wt} lbs · ${p.age}y · ${x.transfer ? `${classOf(p.yrs ?? 0)}, ${Math.max(1, 4 - (p.yrs ?? 0))} yr${4 - (p.yrs ?? 0) > 1 ? 's' : ''} left` : `${esc(x.city)}, ${x.st}`} · ${Math.round(RC.miles(p.loc, t.location))} mi from campus</p>
-        <p class="note small">Lv ${x.lv} now · Potential ${scouted ? `<span class="stars">${stars(p.pot)}</span>` : '<span class="muted">? (a visit scouts him)</span>'}</p>
+        <p class="note small">Lv ${x.lv} now${potHidden() ? '' : ` · Potential ${scouted ? potTag(p.pot) : '<span class="muted">? (a visit scouts him)</span>'}`}</p>
         <p class="note small muted">${line}</p></fieldset>
       ${blurbHtml}
       ${com !== undefined ? `<p class="note ${com === t.id ? 'up' : ''}">✍️ ${com === t.id ? 'Committed to you.' : `Committed to ${esc(sch(com)?.city || '?')}.`}${!done && com !== t.id ? ' A big push can still flip him.' : ''}</p>` : ''}
@@ -21825,7 +21833,7 @@ screens.signing = () => {
   const mine = r.byTeam.get(t.id);
   const needs = rosterNeedsCollege(t, 15);
   const gradeCls = g => (g[0] === 'A' ? 'up' : g[0] === 'B' ? 'gold' : g[0] === 'C' ? '' : 'down');
-  const pRow = x => `<div class="drill-row tap" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span>${x.aa ? ' <span class="small gold">⭐ AA</span>' : ''}<br>
+  const pRow = x => `<div class="drill-row tap" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}${x.aa ? ' <span class="small gold">⭐ AA</span>' : ''}<br>
     <span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${x.transfer ? `Transfer · ${4 - (x.p.yrs ?? 0)} yrs left` : 'Freshman'} · $${x.p.contract?.sal || 0}M</span></span></div>`;
   const best = r.list[0];
   const steal = [...r.list].filter(c => c.team && c.players.length).sort((a, b) => (b.score / Math.max(1, b.team.prestigePoints + 20)) - (a.score / Math.max(1, a.team.prestigePoints + 20)))[0];
@@ -21857,7 +21865,7 @@ screens.preseason = () => {
   const r = preseason(state.data, state.leagueIdx, t, shownLevel);
   const f1 = v => v.toFixed(1);
   const tRow = x => `<div class="stand-row ${x.t === t ? 'mine' : ''}"><span class="small muted">${x.rank}</span>${logoImg(x.t)}<span class="grow small"><b>${esc(x.t.city || x.t.shortName)}</b> <span class="muted">${x.W}-${x.L} last year</span></span>${x.lastRank ? `<span class="small ${x.lastRank > x.rank ? 'up' : x.lastRank < x.rank ? 'down' : 'muted'}">${x.lastRank > x.rank ? '▲' : x.lastRank < x.rank ? '▼' : '—'}${x.lastRank !== x.rank ? Math.abs(x.lastRank - x.rank) : ''}</span>` : ''}</div>`;
-  const pRow = (x, right) => `<div class="drill-row ${x.t === t ? 'r1' : ''}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span>${isAllAmerican(x.p) ? ' <span class="small gold">⭐ AA</span>' : ''}<br><span class="small muted">${esc(posName(x.p))} · ${esc(x.t.shortName)}${right ? ` · ${right}` : ''}</span></span></div>`;
+  const pRow = (x, right) => `<div class="drill-row ${x.t === t ? 'r1' : ''}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}${isAllAmerican(x.p) ? ' <span class="small gold">⭐ AA</span>' : ''}<br><span class="small muted">${esc(posName(x.p))} · ${esc(x.t.shortName)}${right ? ` · ${right}` : ''}</span></span></div>`;
   const where = r.mine.rank <= 5 ? 'a title contender' : r.mine.rank <= 25 ? 'a Top 25 team' : r.mine.rank <= 40 ? 'on the tournament bubble' : 'a long shot for the tournament';
   layout({
     title: 'Preseason',
@@ -21881,7 +21889,7 @@ screens.rosterlock = () => {
   if (!t) { layout({ title: 'Roster Lock', body: '<p class="note">Pick your school first.</p>' }); return; }
   const r = rosterLock(t, shownLevel, state.leagueIdx);
   const groups = ['Guards', 'Wings', 'Bigs'];
-  const pRow = x => `<div class="drill-row tap ${x.last ? 'r1' : ''}" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span>${isAllAmerican(x.p) ? ' <span class="small gold">⭐ AA</span>' : ''}<br>
+  const pRow = x => `<div class="drill-row tap ${x.last ? 'r1' : ''}" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}${isAllAmerican(x.p) ? ' <span class="small gold">⭐ AA</span>' : ''}<br>
     <span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${x.cls}${x.last ? ' · <span class="gold">final year</span>' : x.fresh ? ' · <span class="up">new</span>' : ''}</span></span></div>`;
   layout({
     title: 'Roster Lock',
@@ -21901,7 +21909,7 @@ screens.practice = () => {
   const t = L.teams.find(isUserTeam);
   if (!t) { layout({ title: 'Practice Begins', body: '<p class="note">Pick your school first.</p>' }); return; }
   const r = practicePlan(t, shownLevel, p => tr(p, 'lockerRoom'));
-  const pRow = (x, right = '') => `<div class="drill-row tap" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span><br>
+  const pRow = (x, right = '') => `<div class="drill-row tap" data-act="openPlayer" data-id="${x.p.id}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}<br>
     <span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${classOf(x.p.yrs ?? 0)}</span></span>${right ? `<span class="small" style="text-align:right">${right}</span>` : ''}</div>`;
   layout({
     title: 'Practice Begins',
@@ -21932,7 +21940,7 @@ screens.portal = (args = {}) => {
   const row = x => {
     const offs = b.offers.get(x.p.id) || [];
     const mine = offs.find(o => o.tid === t.id);
-    return `<div class="drill-row ${x.fit ? 'r1' : ''}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span><br>
+    return `<div class="drill-row ${x.fit ? 'r1' : ''}"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}<br>
       <span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${x.cls} · ${x.left} yr${x.left > 1 ? 's' : ''} left · from ${esc(x.from?.shortName || '?')}</span><br>
       <span class="small">${x.line ? `${f1(x.line.ppg)}/${f1(x.line.rpg)}/${f1(x.line.apg)} in ${x.line.gp} games` : 'No stats'}${x.near <= 8 ? ' · <span class="up">📍 near home</span>' : ''}${x.fit ? ' · <span class="gold">🧩 fits a need</span>' : ''}</span></span>
       <span class="small" style="text-align:right">${x.now ? `✍️ ${esc(x.now.shortName)}` : offs.length ? `${offs.length} offer${offs.length > 1 ? 's' : ''}${mine ? '<br><span class="up">incl. yours</span>' : ''}` : '<span class="muted">No offers</span>'}</span></div>`;
@@ -22018,7 +22026,7 @@ function swapHeadCoach(from, to) {
   from.frontOffice.staff[0] = b; to.frontOffice.staff[0] = a;
   a.tid = to.id; b.tid = from.id;
 }
-const cpRow = (p, right = '', sub = '') => `<div class="drill-row tap" data-act="openPlayer" data-id="${p.id}"><span class="grow"><b>${esc(playerName(p))}</b> ${lvTag(p)} <span class="stars">${stars(p.pot)}</span><br>
+const cpRow = (p, right = '', sub = '') => `<div class="drill-row tap" data-act="openPlayer" data-id="${p.id}"><span class="grow"><b>${esc(playerName(p))}</b> ${lvTag(p)} ${potTag(p.pot)}<br>
   <span class="small muted">${esc(posName(p))} · ${p.age}y · ${classOf(p.yrs ?? 0)}${sub ? ` · ${sub}` : ''}</span></span>${right ? `<span class="small" style="text-align:right">${right}</span>` : ''}</div>`;
 const cpNoSchool = title => layout({ title, body: '<p class="note">Pick your school first.</p>' });
 const cpDone = key => { calFlags()[key] = true; goHome(); nextUp(); };
@@ -22093,7 +22101,7 @@ screens.waters = () => {
     const d = W[x.declared ? x.hid : x.p.id];
     const odds = Object.fromEntries(CP.WATER_PITCHES.map(w => [w.k, CP.returnOdds(x, w.k, cpTrait, ctx)]));
     return `<fieldset class="frame ${d ? (d.back ? 'r1' : '') : ''}"><legend>${esc(playerName(x.p))} · ${esc(x.label)} (No. ${x.rank})</legend>
-      ${x.declared ? `<div class="drill-row"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span><br><span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · declared</span></span><span class="small down" style="text-align:right">${esc(x.label)}</span></div>` : cpRow(x.p, `Draft No. ${x.rank}`)}
+      ${x.declared ? `<div class="drill-row"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}<br><span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · declared</span></span><span class="small down" style="text-align:right">${esc(x.label)}</span></div>` : cpRow(x.p, `Draft No. ${x.rank}`)}
       <p class="note small">🏁 Combine: ${x.fb.good.length ? `scouts like his ${esc(x.fb.good.join(', '))}` : 'nothing jumped out'}${x.fb.work.length ? `; work on ${esc(x.fb.work.join(', '))}` : ''}. ${esc(x.fb.verdict)}</p>
       ${d ? `<p class="note ${d.back ? 'up' : 'down'}">${d.back ? `✅ He's coming back${x.declared ? ', withdrawn from the draft' : ''} (${esc(CP.WATER_PITCHES.find(w => w.k === d.pitch)?.label || '')}).` : `🎓 He's staying in the draft.`}</p>`
         : `<div class="stack">${CP.WATER_PITCHES.map(w => `<button class="btn small left" data-act="watersPitch" data-id="${x.p.id}" data-k="${w.k}"><span class="grow"><b>${esc(w.label)}</b><br><span class="muted">"${esc(w.says)}"</span></span><span>${pct(odds[w.k])}</span></button>`).join('')}</div>`}
@@ -22186,7 +22194,7 @@ screens.retention = () => {
   const R = (P.retention[yr] ||= {});
   const card = x => {
     const d = R[x.p.id];
-    return `<fieldset class="frame ${d ? (d.stay ? 'r1' : '') : ''}"><legend>${esc(playerName(x.p))} · ${x.portal ? '<span class="down">in the portal</span>' : `${pct(x.risk)} risk`}</legend>${x.portal ? `<div class="drill-row"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} <span class="stars">${stars(x.p.pot)}</span><br><span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${classOf(x.p.yrs ?? 0)} · entered the portal</span></span></div>` : cpRow(x.p)}
+    return `<fieldset class="frame ${d ? (d.stay ? 'r1' : '') : ''}"><legend>${esc(playerName(x.p))} · ${x.portal ? '<span class="down">in the portal</span>' : `${pct(x.risk)} risk`}</legend>${x.portal ? `<div class="drill-row"><span class="grow"><b>${esc(playerName(x.p))}</b> ${lvTag(x.p)} ${potTag(x.p.pot)}<br><span class="small muted">${esc(posName(x.p))} · ${x.p.age}y · ${classOf(x.p.yrs ?? 0)} · entered the portal</span></span></div>` : cpRow(x.p)}
       <div class="stack">${x.reasons.map(r => `<p class="note small">• He ${esc(r.text)}.</p>`).join('')}</div>
       ${d ? `<p class="note ${d.stay ? 'up' : 'down'}">${d.stay ? `✅ He's staying${x.portal ? ': out of the portal and back on the roster' : ''} (${esc(CP.RET_PROMISES[d.promise].label)}).` : x.portal ? '🔁 He stays in the portal.' : '🔁 He entered the transfer portal.'}</p>`
         : `<div class="grid2">${Object.entries(CP.RET_PROMISES).map(([k, v]) => `<button class="btn small" data-act="retainTalk" data-id="${x.p.id}" data-k="${k}">${esc(v.label)}<br><span class="muted">${pct(CP.stayOdds(x, k, cpTrait))} stays</span></button>`).join('')}</div>`}
@@ -22417,7 +22425,7 @@ screens.walkons = () => {
       ${sc.scholarships > CP.SCHOLARSHIPS ? `<p class="note small down">⚠️ ${sc.scholarships - CP.SCHOLARSHIPS} over the scholarship limit: cut a scholarship player or make it up with walk-ons who pay their own way.</p>` : ''}
       ${sc.walkons.length ? `<fieldset class="frame"><legend>Your Walk-Ons</legend><div class="stack">${sc.walkons.map(p => cpRow(p, `<button class="btn small" data-act="walkonScholarship" data-id="${p.id}" ${sc.scholarships >= CP.SCHOLARSHIPS ? 'disabled' : ''}>🎓 Scholarship</button>`)).join('')}</div>
         <p class="note muted small">Putting a walk-on on scholarship is a reward the locker room notices.</p></fieldset>` : ''}
-      <fieldset class="frame"><legend>Preferred Walk-Ons</legend><div class="stack">${cands.map(c => `<div class="drill-row"><span class="grow"><b>${esc(playerName(c.p))}</b> ${lvTag(c.p)} <span class="stars">${stars(c.p.pot)}</span><br><span class="small muted">${esc(posName(c.p))} · ${heightStr(c.p.ht)} · ${classOf(c.p.yrs)} · local kid</span></span><button class="btn small" data-act="walkonAdd" data-i="${c.i}" ${t.roster.length >= 15 ? 'disabled' : ''}>Add</button></div>`).join('') || '<p class="note small muted">No more this year.</p>'}</div></fieldset>`,
+      <fieldset class="frame"><legend>Preferred Walk-Ons</legend><div class="stack">${cands.map(c => `<div class="drill-row"><span class="grow"><b>${esc(playerName(c.p))}</b> ${lvTag(c.p)} ${potTag(c.p.pot)}<br><span class="small muted">${esc(posName(c.p))} · ${heightStr(c.p.ht)} · ${classOf(c.p.yrs)} · local kid</span></span><button class="btn small" data-act="walkonAdd" data-i="${c.i}" ${t.roster.length >= 15 ? 'disabled' : ''}>Add</button></div>`).join('') || '<p class="note small muted">No more this year.</p>'}</div></fieldset>`,
     action: isStep('walkons') ? { act: 'walkonsDone', label: 'Wrap Up' } : null,
   });
 };
