@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.121';
+const APP_VERSION = '0.365.122';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2681,6 +2681,7 @@ function teamGames(L, t) {
 // Christmas Day in this season's schedule. Start files and the schedule maker give it a day of its own (a small slate
 // between full ones): that day, near where Dec 25 falls. Otherwise where it falls on the calendar.
 function xmasDay(L = league()) {
+  if (isCollege()) return -1;   // the NBA's day; college plays its own calendar
   const sched = L.season.schedule || [], days = sched.length - ((sched.some(d => (d.results || []).some(g => g.gameType !== 0 && g.gameType !== 2))) ? 1 : 0);
   if (days < 30) return -1;
   const est = SM.dayFor('christmas', days), n = d => (sched[d]?.results || []).filter(g => g.gameType === 0 && g.homeTeam && g.awayTeam).length;
@@ -3272,8 +3273,37 @@ function seasonAwardsCard() {
     ${rows.length ? `<div class="stack">${rows.map(([n, ps]) => `<div class="small mv-row aw-row"><span class="mv-l">${awardSprite(n)}<b>${esc(n)}</b></span><span class="mv-r">${ps.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</span>`).join(', ')}</span></div>`).join('')}</div>` : '<p class="note small muted">The awards aren\'t in this save yet.</p>'}
     <p class="note small" style="margin-top:8px">The regular season is over. Keep going in Hoop Land: the play-in and the playoffs are played there. Load the save again at the start of the playoffs for the playoff preview, or once the season ends (Pre-Lottery) to run the offseason.</p></fieldset>`;
 }
+// ---- The college season (phases 9-14; 15 is Season Complete): the same in-season home as the pros, minus what
+// college doesn't have (trades, the deadline, the G League, the Cup). Your record and conference, the poll, your
+// leaders, the last five and the next three, and the national Top 25.
+function collegeSeasonCard() {
+  const L = league(), s = L.season, yr = s.currentYear, me = L.teams.find(isUserTeam);
+  if (!me) return '';
+  const row = t => (t.season || []).find(x => x.yr === yr) || {}, st = t => row(t).seasonStats || {};
+  const wl = a => (Array.isArray(a) ? `${a[0]}-${a[1]}` : '0-0');
+  const poll = t => { const v = row(t).poll; return v >= 1 && v <= 25 ? v : null; };
+  const games = teamGames(L, me), played = games.filter(g => { const r = (s.schedule[g.day]?.results || []).find(x => (x.homeTeam === me.id || x.awayTeam === me.id) && x.gameType === 0); return r && (r.homeScore || r.awayScore); });
+  const res = g => { const r = (s.schedule[g.day]?.results || []).find(x => (x.homeTeam === me.id || x.awayTeam === me.id) && x.gameType === 0); const mine = g.home ? r.homeScore : r.awayScore, theirs = g.home ? r.awayScore : r.homeScore; return { g, won: mine > theirs, mine, theirs }; };
+  const last = played.slice(-5).map(res), next = games.filter(g => !played.includes(g)).slice(0, 3);
+  const opp = id => L.teams.find(x => x.id === id);
+  const leaders = FA.signedRoster(me).map(p => ({ p, l: seasonLine(p, state.leagueIdx, yr) })).filter(x => x.l?.gp).sort((a, b) => b.l.ppg - a.l.ppg).slice(0, 3);
+  const top25 = L.teams.filter(poll).sort((a, b) => poll(a) - poll(b));
+  const tName = t => `${t.logoURL ? `${logoImg(t)} ` : ''}<b class="${isUserTeam(t) ? 'gold' : ''}">${esc(t.shortName)}</b>`;
+  const rank = poll(me);
+  const started = played.length > 0;
+  return `<fieldset class="frame"><legend>🏀 ${dispYr(yr)} Season</legend>
+    <div class="bio-grid"><div class="bio-box"><span class="glbl">Record</span><b>${st(me).W || 0}-${st(me).L || 0}</b></div><div class="bio-box"><span class="glbl">Conference</span><b>${wl(st(me).CONF)}</b></div><div class="bio-box"><span class="glbl">AP Poll</span><b>${rank ? `#${rank}` : 'NR'}</b></div></div>
+    ${!started ? '<p class="note small">Tip-off: the season starts with your first game in Hoop Land.</p>' : ''}
+    ${last.length ? `<p class="note small" style="margin:8px 0 2px"><b>Last ${last.length}</b></p><div class="stack">${last.reverse().map(x => `<div class="small"><span class="${x.won ? 'up' : 'down'}"><b>${x.won ? 'W' : 'L'}</b> ${x.mine}-${x.theirs}</span> ${x.g.home ? 'vs' : '@'} ${tName(opp(x.g.opp))}${poll(opp(x.g.opp)) ? ` <span class="muted">#${poll(opp(x.g.opp))}</span>` : ''}</div>`).join('')}</div>` : ''}
+    ${next.length ? `<p class="note small" style="margin:8px 0 2px"><b>Up next</b></p><div class="stack">${next.map(g => `<div class="small">${g.home ? 'vs' : '@'} ${tName(opp(g.opp))}${poll(opp(g.opp)) ? ` <span class="muted">#${poll(opp(g.opp))}</span>` : ''} <span class="muted">· ${st(opp(g.opp)).W || 0}-${st(opp(g.opp)).L || 0}</span></div>`).join('')}</div>` : ''}
+    ${leaders.length ? `<p class="note small" style="margin:8px 0 2px"><b>Your leaders</b></p><div class="stack">${leaders.map(({ p, l }) => `<div class="small"><b class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</b> <span class="muted">${l.ppg.toFixed(1)} pts · ${l.rpg.toFixed(1)} reb · ${l.apg.toFixed(1)} ast</span></div>`).join('')}</div>` : ''}
+    ${top25.length ? `<details class="cmb-fold"><summary>🏆 Top 25</summary><div class="stack">${top25.map(t => `<div class="small"><span class="muted">${poll(t)}.</span> ${tName(t)} <span class="muted">${st(t).W || 0}-${st(t).L || 0}</span></div>`).join('')}</div></details>` : ''}
+    <div class="grid2" style="margin-top:8px"><button class="btn small" data-act="nav" data-to="standings">📊 Standings</button><button class="btn small" data-act="nav" data-to="injuries">🩹 Injuries</button></div>
+    <p class="note small muted" style="margin-top:6px">The offseason opens when the season's over: load your Season Complete file.</p></fieldset>`;
+}
 function calendarCard() {
   const s = league().season;
+  if (isCollege() && s.phase >= 9 && s.phase < 15) return collegeSeasonCard();
   if (phaseRank(s) === 0 && !isCollege()) {
     if (seasonUnplayed()) return setupCard();
     if (CL3.atAllStarBreak(league())) return deadlineCard() + glCard();
@@ -3349,6 +3379,9 @@ function screenAllowed(name) {
   if (!state.data || ALWAYS.includes(name)) return true;
   if (name === 'teams' && !isCollege() && phaseRank(league().season) === 0) return true;   // Franchise Setup: pick your teams
   if (isCollege()) {
+    // In season: the whole league is open to look at, the way it is for the pros; college has no trades, deadline, G
+    // League or Cup, and the season check-in is the pros' (all-star break, deadline).
+    if (league().season.phase >= 9 && league().season.phase < 15) return !['liveTrade', 'deadline', 'gleague', 'cup', 'checkin', 'market'].includes(name);
     const cur = currentStep();
     // Recruiting stays open to look back at once the weeks are done.
     if (['recruit', 'recruitee', 'recruitweek'].includes(name) && market()) return true;
@@ -4157,7 +4190,7 @@ function ptwKeys(p, l, t, pools = {}, shown = new Set()) {
   return out.slice(0, 3);
 }
 function ptwCard(opp) {
-  const healthy = opp.roster.filter(p => (p.status === 3 || p.status === 2) && !((p.season?.injury?.gamesOut || 0) > 0));
+  const healthy = opp.roster.filter(p => (p.status === 3 || p.status === 2 || isCollege()) && !((p.season?.injury?.gamesOut || 0) > 0));   // college rosters carry no contract status
   const yr = lastSeasonYear(), lines = healthy.map(p => [p, seasonLine(p, state.leagueIdx, yr)]).filter(([, l]) => l?.gp >= 3);
   const top = lines.sort((a, b) => b[1].ppg - a[1].ppg)[0];
   if (!top) return '';
@@ -4214,7 +4247,7 @@ screens.matchup = () => {
       <fieldset class="frame mu-frame"><legend>Team Stats</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${MU_STATS.map(statRow).join('')}</fieldset>
       <fieldset class="frame mu-frame mu-mtch"><legend>Matchups</legend><div class="mu-tr mu-th"><span>${esc(me.shortName)}</span><span></span><span>${esc(opp.shortName)}</span></div>${[0, 1, 2, 3, 4].map(mRow).join('')}</fieldset>
       <fieldset class="frame"><legend>Injury Report</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b>${hurt(me)}</div><div><b class="small">${esc(opp.shortName)}</b>${hurt(opp)}</div></div></fieldset>
-      <fieldset class="frame"><legend>Hot &amp; Cold</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b><span>🔥 ${streak(me, true)}</span><span>❄️ ${streak(me, false)}</span></div><div><b class="small">${esc(opp.shortName)}</b><span>🔥 ${streak(opp, true)}</span><span>❄️ ${streak(opp, false)}</span></div></div></fieldset>`,
+      ${isCollege() ? '' : `<fieldset class="frame"><legend>Hot &amp; Cold</legend><div class="mu-two"><div><b class="small">${esc(me.shortName)}</b><span>🔥 ${streak(me, true)}</span><span>❄️ ${streak(me, false)}</span></div><div><b class="small">${esc(opp.shortName)}</b><span>🔥 ${streak(opp, true)}</span><span>❄️ ${streak(opp, false)}</span></div></div></fieldset>`}`,
   });
 };
 function mediaCard() {
