@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.113';
+const APP_VERSION = '0.365.114';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2690,7 +2690,7 @@ function xmasDay(L = league()) {
 // The holiday ball (Christmas games), in the game's pixel style.
 const xmasIcon = (cls = '') => `<img class="px-art ${cls}" src="img/holiday/xmas-ball.png" alt="🎄">`;
 // Holiday art for the key dates: the tree (Christmas Day) and the raised fist (MLK Day).
-const DAY_ART = { opening: ['holiday/ball', '🏀'], xmas: ['holiday/xmas-tree', '🎄'], mlk: ['holiday/mlk-fist', '✊'], deadline: ['holiday/swap', '🔁'], allStar: ['holiday/allstar', '⭐'], last: ['holiday/flag', '🏁'] };
+const DAY_ART = { cup: ['awards/champ', '🏆'], opening: ['holiday/ball', '🏀'], xmas: ['holiday/xmas-tree', '🎄'], mlk: ['holiday/mlk-fist', '✊'], deadline: ['holiday/swap', '🔁'], allStar: ['holiday/allstar', '⭐'], last: ['holiday/flag', '🏁'] };
 const dayIcon = k => `<img class="px-art" src="img/${DAY_ART[k][0]}.png" alt="${DAY_ART[k][1]}">`;
 // Where the All-Star Game is: the host's city and state (Phoenix, Arizona), not the team.
 const STATE_OF = { ATL: 'GA', BOS: 'MA', BKN: 'NY', CHA: 'NC', CHO: 'NC', CHI: 'IL', CLE: 'OH', DAL: 'TX', DEN: 'CO', DET: 'MI', GSW: 'CA', HOU: 'TX', IND: 'IN', LAC: 'CA', LAL: 'CA', MEM: 'TN', MIA: 'FL', MIL: 'WI', MIN: 'MN', NOP: 'LA', NYK: 'NY', OKC: 'OK', ORL: 'FL', PHI: 'PA', PHX: 'AZ', POR: 'OR', SAC: 'CA', SAS: 'TX', TOR: 'ON', UTA: 'UT', WAS: 'DC', SEA: 'WA', LVV: 'NV', LV: 'NV' };
@@ -2720,8 +2720,12 @@ function scheduleMakerBox() {
   const days = Math.max(60, (S.schedule || []).length - ((S.schedule || []).some(d => (d.results || []).some(g => g.gameType !== 0)) ? 1 : 0));
   const picks = smPicks(L), cands = smCands(L).slice(0, 60), tm = id => evTeam(id);
   const host = L.teams.find(t => t.id === S.allStarHostId);
-  const key = [['opening', 'Opening Night', SM.realDate(yr, 0, days)], ['xmas', 'Christmas Day', SM.realDate(yr, SM.dayFor('christmas', days), days)], ['mlk', 'MLK Day', SM.realDate(yr, SM.dayFor('mlk', days), days)],
-    ['deadline', 'Trade Deadline', SM.realDate(yr, SM.dayFor('deadline', days), days)], ['allStar', 'All-Star Weekend', SM.realDate(yr, SM.dayFor('allStar', days), days), host ? hostPlace(host) : ''], ['last', 'Last Day', SM.realDate(yr, days - 1, days)]];
+  // Day numbers as the game counts them (Opening Night is Day 1); after the All-Star break, one more for its own day.
+  const asD = SM.dayFor('allStar', days), dayN = d => d + 1 + (d >= asD ? 1 : 0);
+  const on = (d, extra = '') => `${SM.realDate(yr, d, days)} (Day ${dayN(d)})${extra}`;
+  const cupN = cupOn() ? CUP.CUP_ROUND_NIGHTS.filter(n => n < days) : [];
+  const key = [['opening', 'Opening Night', on(0)], ...(cupN.length ? [['cup', 'NBA Cup', `${SM.realDate(yr, cupN[0], days)} – ${SM.realDate(yr, cupN[cupN.length - 1], days)} (Days ${dayN(cupN[0])}–${dayN(cupN[cupN.length - 1])})`, '5 group nights, then the knockout']] : []), ['xmas', 'Christmas Day', on(SM.dayFor('christmas', days))], ['mlk', 'MLK Day', on(SM.dayFor('mlk', days))],
+    ['deadline', 'Trade Deadline', on(SM.dayFor('deadline', days))], ['allStar', 'All-Star Weekend', `${SM.realDate(yr, asD, days)} (Day ${asD + 1})`, host ? hostPlace(host) : ''], ['last', 'Last Day', on(days - 1)]];
   const opt = (h, a) => cands.map(c => `<option value="${c.h}-${c.aw}" ${(c.h === h && c.aw === a) || (c.h === a && c.aw === h) ? 'selected' : ''}>${esc(tm(c.aw)?.shortName || '?')} @ ${esc(tm(c.h)?.shortName || '?')}${c.r >= 3 ? ' 🔥' : ''}</option>`).join('');
   const slot = (night, i, [h, a]) => `<div class="sm-slot"><span class="sm-n">${i + 1}</span><span class="sm-game">${logoImg(tm(a))} <b>${esc(tm(a)?.shortName || '?')}</b> @ ${logoImg(tm(h))} <b>${esc(tm(h)?.shortName || '?')}</b></span>
     <select class="sel-team sm-sel" data-change="smPick" data-night="${night}" data-i="${i}">${opt(h, a)}</select></div>`;
@@ -2749,7 +2753,11 @@ actions.smBuild = () => {
   S.schedule = cloneData(f.smUndo.sched); S.allStarWeekend = f.smUndo.as; S.tradeDeadline = f.smUndo.dl;
   const xmas = SM.dayFor('christmas', days);
   const pins = [...picks.opening.map(([h, a]) => ({ day: 0, h, a })), ...picks.christmas.map(([h, a]) => ({ day: xmas, h, a }))];
-  const r = SM.buildSeason(L, { pins, seed: (saveSalt() ^ S.currentYear) >>> 0 });
+  // The NBA Cup: its group games on Cup nights of their own (like Opening Night and Christmas), placed here so the
+  // export doesn't lay the season out again around them.
+  const cupDrawn = cupOn() ? cupDraw() : null, cupP = cupDrawn ? CUP.cupPins(cupDrawn) : [];
+  const r = SM.buildSeason(L, { pins: [...pins, ...cupP], seed: (saveSalt() ^ S.currentYear) >>> 0 });
+  if (cupDrawn) { const games = []; S.schedule.forEach((d, di) => (d.results || []).forEach(g => { if (g.gameType === 0 && cupP.some(p => p.day === di && ((p.h === g.homeTeam && p.a === g.awayTeam) || (p.h === g.awayTeam && p.a === g.homeTeam)))) games.push({ day: di, home: g.homeTeam, away: g.awayTeam }); })); cupSet({ draw: cupDrawn, games }); }
   const bad = [...r.count.values()].filter(n => n !== 82).length;
   f.smUndo.games = [...r.count.values()].reduce((a, n) => a + n, 0) / 2; f.smUndo.days = r.days;
   state.dirty = true;
@@ -2759,6 +2767,7 @@ actions.smBuild = () => {
 actions.smUndo = () => {
   const L = league(), S = L.season, f = calFlags(); if (!f.smUndo) return;
   S.schedule = f.smUndo.sched; S.allStarWeekend = f.smUndo.as; S.tradeDeadline = f.smUndo.dl; if (L.meta && f.smUndo.uGID != null) L.meta.uGID = f.smUndo.uGID;
+  if (cupOn() && cupGet()?.games && !cupGet()?.ko) cupSet({ draw: cupGet().draw });   // the Cup goes back to placing its own nights at export
   delete f.smUndo; state.dirty = true; render();
 };
 screens.schedRelease = () => {

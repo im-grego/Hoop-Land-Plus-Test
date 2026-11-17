@@ -30,8 +30,11 @@ export function buildSeason(L, { pins = [], seed = 1, mode = 'nba' } = {}) {
   for (const d of held) out.splice(d, 0, []);
   for (const p of pins) out[p.day].push({ h: p.h, a: p.a });
   // The All-Star break where it was (as a share of the season).
-  const asDay = hadStar ? Math.round((S.allStarWeekend || dayFor('allStar', days)) / Math.max(1, old.length) * (days + 1)) : undefined;
+  // The All-Star break and the trade deadline where they fall on the real calendar (the deadline two weeks before the
+  // break, as in the NBA), so the file matches the key dates.
+  const asDay = hadStar ? dayFor('allStar', days) : undefined;
   writeSchedule(L, out, { allStarDay: asDay });
+  if (hadStar) S.tradeDeadline = dayFor('deadline', days);
   const count = new Map();
   for (const d of S.schedule) for (const g of d.results || []) if (g.gameType === 0 && g.homeTeam && g.awayTeam) for (const t of [g.homeTeam, g.awayTeam]) count.set(t, (count.get(t) || 0) + 1);
   return { days: S.schedule.length, count };

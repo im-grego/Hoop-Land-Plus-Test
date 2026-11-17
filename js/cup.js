@@ -41,6 +41,21 @@ export function drawGroups(L, rec, seed) {
 // (teams with the most games left first, nobody twice in a day). Only before the season's first game.
 // Returns { games: [{ day, home, away }] }.
 export const CUP_ROUND_NIGHTS = [6, 10, 14, 18, 22];
+// The group games as fixed nights (for the schedule maker, which builds the season around them): each group's round
+// robin, one round a Cup night, the first-listed team at home. Returns [{ day, h, a }].
+export function cupPins(draw) {
+  const out = [];
+  for (const gr of draw.groups) {
+    const t = [...gr.teams]; if (t.length % 2) t.push(null);
+    const n = t.length;
+    for (let r = 0; r < n - 1; r++) {
+      const day = CUP_ROUND_NIGHTS[r % CUP_ROUND_NIGHTS.length] + Math.floor(r / CUP_ROUND_NIGHTS.length);
+      for (let i = 0; i < n / 2; i++) { const a = t[i], b = t[n - 1 - i]; if (a != null && b != null) out.push({ day, h: r % 2 ? b : a, a: r % 2 ? a : b }); }
+      t.splice(1, 0, t.pop());
+    }
+  }
+  return out;
+}
 export function placeCupGames(L, draw, seed) {
   const S = L.season;
   if (!Array.isArray(S.schedule) || !S.schedule.length) return null;
