@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.132';
+const APP_VERSION = '0.365.133';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -757,6 +757,8 @@ function skillHint(id) {
 // fetched them all again, and on busy screens (the draft redraws after every pick) they flickered, then went blank
 // once Dropbox started turning the requests away. A redraw now moves the logos already on screen into their new spots.
 function keepLogos(draw) {
+  // The ticker keeps scrolling through a redraw (a button, a new screen): the new one picks up where the old one was.
+  const tk0 = document.querySelector('.tk-track'), tkAnim = tk0?.getAnimations?.()[0], tkTime = tkAnim ? tkAnim.currentTime : null;
   const pool = new Map();
   for (const img of $app.querySelectorAll('img.logo-sm')) {
     if (!img.complete || !img.naturalWidth) continue;
@@ -764,6 +766,7 @@ function keepLogos(draw) {
     (pool.get(k) || pool.set(k, []).get(k)).push(img);
   }
   draw();
+  if (tkTime != null) { const a1 = document.querySelector('.tk-track')?.getAnimations?.()[0]; if (a1) try { a1.currentTime = tkTime; } catch { /* ignore */ } }
   if (!pool.size) return;
   for (const img of $app.querySelectorAll('img.logo-sm')) {
     const old = pool.get(img.getAttribute('src'))?.pop();
@@ -4871,12 +4874,22 @@ actions.simTradeBlock = async () => {
   const st = storyGet(), lines = [], used = new Set();
   if (st && L.season.currentYear === st.yr) for (const r of st.requests || []) if (!r.done) { const out = storyDeal(L, st, r); if (out) lines.push(...out); }
   if (st) storySave(st);
+  // Interest: the teams that can make a real offer, best first. A good player draws up to three, a solid one two, the
+  // rest one at most. More interest, better odds of a deal today; often he stays on the block for now.
   for (const { p, t } of blockList(L)) {
-    let best = null;
-    for (const u of L.teams.filter(x => x !== t && !isUserTeam(x) && !used.has(x.id)).sort(() => Math.random() - 0.5).slice(0, 10)) { const o = blockOffer(L, p, t, u); if (o && (!best || o.score < best.score)) best = o; }
-    if (!best || Math.random() > 0.7) { lines.push(`… ${playerName(p)} (${t.shortName}) stays on the block: no deal yet`); continue; }
-    doBlockDeal(L, p, t, best); used.add(best.u.id);
-    lines.push(`🔁 ${best.u.shortName} land ${playerName(p)} (Lv ${shownLevel(p)}) from ${t.shortName} for ${offerLine(best)}`);
+    const lv = shownLevel(p), cap = lv >= 82 ? 3 : lv >= 76 ? 2 : 1;
+    const offers = L.teams.filter(x => x !== t && !isUserTeam(x) && !used.has(x.id)).map(u => blockOffer(L, p, t, u)).filter(Boolean).sort((a, b) => a.score - b.score);
+    const interest = offers.slice(0, Math.min(cap, offers.length));
+    const names = interest.map(o => o.u.shortName).join(', ');
+    if (!interest.length) { lines.push(`… ${playerName(p)} (${t.shortName}) stays on the block: no interest yet`); continue; }
+    if (Math.random() >= [0, 0.35, 0.5, 0.6][interest.length]) { lines.push(`… ${playerName(p)} (${t.shortName}) stays on the block for now · interest from ${names}`); continue; }
+    // The best offer most often, the others now and then.
+    const W = [0.55, 0.3, 0.15].slice(0, interest.length), sum = W.reduce((a, b) => a + b, 0);
+    let roll = Math.random() * sum, o = interest[0];
+    for (let i = 0; i < interest.length; i++) { if ((roll -= W[i]) <= 0) { o = interest[i]; break; } }
+    doBlockDeal(L, p, t, o); used.add(o.u.id);
+    const others = interest.filter(x => x !== o).map(x => x.u.shortName);
+    lines.push(`🔁 ${o.u.shortName} land ${playerName(p)} (Lv ${lv}) from ${t.shortName} for ${offerLine(o)}${others.length ? ` · also interested: ${others.join(', ')}` : ''}`);
   }
   state.dirty = true;
   const o = overlay(`<p class="note"><b>🔁 The Trade Block</b></p><div class="stack" style="text-align:left">${lines.map(x => `<p class="note small" style="margin:0">${esc(x)}</p>`).join('') || '<p class="note small muted">Nobody is on the block.</p>'}</div><button class="btn focus" data-close>OK</button>`);
