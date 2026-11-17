@@ -141,11 +141,12 @@ const OCEANIA = ['AU', 'NZ'];
 const COUNTRY = { GR: 'Greece', RS: 'Serbia', FR: 'France', LT: 'Lithuania', ES: 'Spain', FI: 'Finland', LV: 'Latvia', TR: 'Turkey', HR: 'Croatia', SI: 'Slovenia', IT: 'Italy', UK: 'England', GB: 'England', DE: 'Germany', PL: 'Poland', BE: 'Belgium', CH: 'Switzerland', AT: 'Austria', UA: 'Ukraine', HU: 'Hungary', CZ: 'Czechia', SE: 'Sweden', NL: 'the Netherlands', PT: 'Portugal', ME: 'Montenegro', BA: 'Bosnia', AR: 'Argentina', BR: 'Brazil', UY: 'Uruguay', VE: 'Venezuela', CL: 'Chile', CO: 'Colombia', AU: 'Australia', NZ: 'New Zealand' };
 export const tripRegion = c => (EUROPE.includes(c) ? 'Europe' : SOUTH_AMERICA.includes(c) ? 'South America' : OCEANIA.includes(c) ? 'Australia' : null);
 export const countryName = c => COUNTRY[c] || c;
-export const RUN_COST = 60, TRIP_COST = 180;
+export const RUN_COST = 60, TRIP_COST = 180, TRIP_MIN_LV = 84;
 export function tripHosts(p, team) {
   if (!team) return [];
-  // One trip: to the home country of the best-rated teammate from abroad (not Mexico or Canada: next door is no trip).
-  const host = team.roster.filter(m => m.id !== p.id && m.status === 3 && m.ctry && !['US', 'MX', 'CA'].includes(m.ctry)).sort((a, b) => levelOf(b) - levelOf(a))[0];
+  // One trip: to the home country of the best-rated teammate from abroad (not Mexico or Canada: next door is no trip),
+  // and only a star (Lv 84+) brings the whole team home with him.
+  const host = team.roster.filter(m => m.id !== p.id && m.status === 3 && m.ctry && !['US', 'MX', 'CA'].includes(m.ctry) && levelOf(m) >= TRIP_MIN_LV).sort((a, b) => levelOf(b) - levelOf(a))[0];
   return host ? [host] : [];
 }
 // What a young teammate picks up from his runs: his best habit trait.
