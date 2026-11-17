@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.109';
+const APP_VERSION = '0.365.110';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2690,7 +2690,12 @@ function xmasDay(L = league()) {
 // The holiday ball (Christmas games), in the game's pixel style.
 const xmasIcon = (cls = '') => `<img class="px-art ${cls}" src="img/holiday/xmas-ball.png" alt="🎄">`;
 // Holiday art for the key dates: the tree (Christmas Day) and the raised fist (MLK Day).
-const dayIcon = k => `<img class="px-art" src="img/holiday/${k === 'mlk' ? 'mlk-fist' : 'xmas-tree'}.png" alt="${k === 'mlk' ? '✊' : '🎄'}">`;
+const DAY_ART = { opening: ['holiday/ball', '🏀'], xmas: ['holiday/xmas-tree', '🎄'], mlk: ['holiday/mlk-fist', '✊'], deadline: ['holiday/swap', '🔁'], allStar: ['awards/allstar', '⭐'], last: ['holiday/flag', '🏁'] };
+const dayIcon = k => `<img class="px-art" src="img/${DAY_ART[k][0]}.png" alt="${DAY_ART[k][1]}">`;
+// Where the All-Star Game is: the host's city and state (Phoenix, Arizona), not the team.
+const STATE_OF = { ATL: 'Georgia', BOS: 'Massachusetts', BKN: 'New York', CHA: 'North Carolina', CHO: 'North Carolina', CHI: 'Illinois', CLE: 'Ohio', DAL: 'Texas', DEN: 'Colorado', DET: 'Michigan', GSW: 'California', HOU: 'Texas', IND: 'Indiana', LAC: 'California', LAL: 'California', MEM: 'Tennessee', MIA: 'Florida', MIL: 'Wisconsin', MIN: 'Minnesota', NOP: 'Louisiana', NYK: 'New York', OKC: 'Oklahoma', ORL: 'Florida', PHI: 'Pennsylvania', PHX: 'Arizona', POR: 'Oregon', SAC: 'California', SAS: 'Texas', TOR: 'Ontario', UTA: 'Utah', WAS: 'D.C.', SEA: 'Washington', LVV: 'Nevada', LV: 'Nevada' };
+const CITY_OF = { GSW: 'San Francisco', BKN: 'Brooklyn', LAC: 'Los Angeles', LAL: 'Los Angeles', MIN: 'Minneapolis', UTA: 'Salt Lake City', IND: 'Indianapolis', NYK: 'New York', WAS: 'Washington' };
+const hostPlace = t => { const city = CITY_OF[t.shortName] || t.city || teamFull(t), st = STATE_OF[t.shortName]; return st ? `${city}, ${st}` : city; };
 // ---- The schedule maker: key dates, the marquee games for Opening Night (two) and Christmas (five), then the whole
 // season built around them with the NBA's formula. Only before any game is played; Undo puts the game's own back.
 const smOn = () => labOn() && !isCollege() && league().leagueType === 0 && !(league().season.schedule || []).some(d => (d.results || []).some(g => g.homeScore || g.awayScore));
@@ -2714,8 +2719,8 @@ function scheduleMakerBox() {
   const days = Math.max(60, (S.schedule || []).length - ((S.schedule || []).some(d => (d.results || []).some(g => g.gameType !== 0)) ? 1 : 0));
   const picks = smPicks(L), cands = smCands(L).slice(0, 60), tm = id => evTeam(id);
   const host = L.teams.find(t => t.id === S.allStarHostId);
-  const key = [['🏀 Opening Night', SM.realDate(yr, 0, days)], [`${dayIcon('xmas')} Christmas Day`, SM.realDate(yr, SM.dayFor('christmas', days), days)], [`${dayIcon('mlk')} MLK Day`, SM.realDate(yr, SM.dayFor('mlk', days), days)],
-    ['🔁 Trade Deadline', SM.realDate(yr, SM.dayFor('deadline', days), days)], ['⭐ All-Star Weekend', `${SM.realDate(yr, SM.dayFor('allStar', days), days)}${host ? ` · ${esc(teamFull(host))}` : ''}`], ['🏁 Last Day', SM.realDate(yr, days - 1, days)]];
+  const key = [[`${dayIcon('opening')} Opening Night`, SM.realDate(yr, 0, days)], [`${dayIcon('xmas')} Christmas Day`, SM.realDate(yr, SM.dayFor('christmas', days), days)], [`${dayIcon('mlk')} MLK Day`, SM.realDate(yr, SM.dayFor('mlk', days), days)],
+    [`${dayIcon('deadline')} Trade Deadline`, SM.realDate(yr, SM.dayFor('deadline', days), days)], [`${dayIcon('allStar')} All-Star Weekend`, `${SM.realDate(yr, SM.dayFor('allStar', days), days)}${host ? ` · ${esc(hostPlace(host))}` : ''}`], [`${dayIcon('last')} Last Day`, SM.realDate(yr, days - 1, days)]];
   const opt = (h, a) => cands.map(c => `<option value="${c.h}-${c.aw}" ${(c.h === h && c.aw === a) || (c.h === a && c.aw === h) ? 'selected' : ''}>${esc(tm(c.aw)?.shortName || '?')} @ ${esc(tm(c.h)?.shortName || '?')}${c.r >= 3 ? ' 🔥' : ''}</option>`).join('');
   const slot = (night, i, [h, a]) => `<div class="sm-slot"><span class="sm-n">${i + 1}</span><span class="sm-game">${logoImg(tm(a))} <b>${esc(tm(a)?.shortName || '?')}</b> @ ${logoImg(tm(h))} <b>${esc(tm(h)?.shortName || '?')}</b></span>
     <select class="sel-team sm-sel" data-change="smPick" data-night="${night}" data-i="${i}">${opt(h, a)}</select></div>`;
@@ -2723,7 +2728,7 @@ function scheduleMakerBox() {
   return `<fieldset class="frame"><legend>🗓️ Schedule Maker</legend>
     <p class="note small">Set the marquee nights, then build the whole season around them with the NBA's formula (82 games, rest days, the All-Star break). 🔥 marks a rivalry.</p>
     <div class="sm-dates">${key.map(([l, d]) => `<div class="small"><b>${l}</b> <span class="muted">${esc(d)}</span></div>`).join('')}</div>
-    <h4 class="ov-h">Opening Night</h4><div class="stack">${picks.opening.map((g, i) => slot('opening', i, g)).join('')}</div>${dup('opening') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
+    <h4 class="ov-h">${dayIcon('opening')} Opening Night</h4><div class="stack">${picks.opening.map((g, i) => slot('opening', i, g)).join('')}</div>${dup('opening') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
     <h4 class="ov-h">${xmasIcon()} Christmas Day</h4><div class="stack">${picks.christmas.map((g, i) => slot('christmas', i, g)).join('')}</div>${dup('christmas') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
     <div class="grid2" style="margin-top:10px">${f.smUndo ? '<button class="btn off" data-act="smUndo">↺ Undo</button>' : '<button class="btn off" data-act="smReset">↺ Suggested</button>'}<button class="btn focus" data-act="smBuild" ${dup('opening') || dup('christmas') ? 'disabled' : ''}>🗓️ ${f.smUndo ? 'Rebuild' : 'Build the Schedule'}</button></div>
     ${f.smUndo ? `<p class="note small up" style="margin-top:6px">✓ Built: ${f.smUndo.games} games over ${f.smUndo.days} days, every team at 82. The look at your schedule below is the new one.</p>` : ''}
