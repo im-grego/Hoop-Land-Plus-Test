@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.119';
+const APP_VERSION = '0.365.120';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5551,6 +5551,7 @@ actions.careerAsk = d => {
 };
 
 // 6. Summer runs and the team trip
+const tripCountry = c => { if (c === 'CD') return 'DR Congo'; const n = CL2.countryName(c); if (n !== c) return n; const o = OLY.nation(c); if (o !== c) return o; try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(c === 'UK' ? 'GB' : c) || c; } catch { return c; } };
 function careerRunsBox(L, p, team) {
   if (!careerOffseason() || !team) return '';
   const { cy } = careerYear(), coins = L.career?.coins || 0;
@@ -5558,7 +5559,7 @@ function careerRunsBox(L, p, team) {
   const hosts = CL2.tripHosts(p, team);
   return `<fieldset class="frame"><legend>Summer Runs</legend><p class="note small">Get the guys together before camp.</p><div class="stack">
     <button class="btn left small" data-act="careerRuns" ${coins < CL2.RUN_COST ? 'disabled' : ''}>🏀 Host runs in your city · ${CL2.RUN_COST} coins<br><span class="note small">Bonds with everyone who shows up; the young guys pick up your habits.</span></button>
-    ${hosts.map(m => `<button class="btn left small" data-act="careerRuns" data-trip="${m.id}" ${coins < CL2.TRIP_COST ? 'disabled' : ''}>✈️ Team trip to ${esc(CL2.countryName(m.ctry))} with ${esc(m.ln)} · ${CL2.TRIP_COST} coins<br><span class="note small">${esc(CL2.tripRegion(m.ctry))}: the whole team's morale and bonds go up, ${esc(m.ln)}'s most of all.</span></button>`).join('')}
+    ${hosts.map(m => `<button class="btn left small" data-act="careerRuns" data-trip="${m.id}" ${coins < CL2.TRIP_COST ? 'disabled' : ''}>✈️ Team trip to ${esc(tripCountry(m.ctry))} with ${esc(m.ln)} · ${CL2.TRIP_COST} coins<br><span class="note small">A week in ${esc(tripCountry(m.ctry))}: the whole team's morale and bonds go up, ${esc(m.ln)}'s most of all.</span></button>`).join('')}
   </div></fieldset>`;
 }
 actions.careerRuns = d => {
@@ -5570,7 +5571,7 @@ actions.careerRuns = d => {
     careerCoins(-CL2.TRIP_COST, 'Team trip');
     for (const m of mates) { careerBond(m, 10); if (m.season) m.season.morale = Math.min(100, (m.season.morale ?? 60) + 8); }
     careerBond(host, 5); careerMorale(p, 8);
-    const where = CL2.countryName(host.ctry);
+    const where = tripCountry(host.ctry);
     cy.runs = `Team trip to ${where}, hosted by ${playerName(host)}: everyone +10 with you and morale +8, ${host.ln} +15.`;
     careerFeed(cy, playerName(host), `Showed the squad my home. ${where} 🤝 ${team.shortName}. ❤️`);
     careerFeed(cy, playerName(p), `${where} was different. Brothers for life. ✈️`);

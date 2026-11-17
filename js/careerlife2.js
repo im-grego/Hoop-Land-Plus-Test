@@ -134,7 +134,7 @@ export function teammateAsk(L, p, team, seed, inFA) {
 }
 
 // ---------------------------------------------------------------------------
-// 6. Summer runs, and a team trip when a teammate's home is in Europe, South America or Australia.
+// 6. Summer runs, and a team trip to the home country of the best teammate from abroad.
 const EUROPE = ['GR', 'RS', 'FR', 'LT', 'ES', 'FI', 'LV', 'TR', 'HR', 'SI', 'IT', 'UK', 'GB', 'DE', 'PL', 'BE', 'CH', 'AT', 'UA', 'HU', 'CZ', 'SK', 'SE', 'NO', 'DK', 'NL', 'PT', 'IE', 'ME', 'BA', 'MK', 'BG', 'RO', 'EE', 'GE', 'IS', 'BY', 'RU', 'LU', 'AL', 'XK'];
 const SOUTH_AMERICA = ['AR', 'BR', 'UY', 'VE', 'CL', 'CO', 'PE', 'EC', 'PY', 'BO'];
 const OCEANIA = ['AU', 'NZ'];
@@ -144,9 +144,9 @@ export const countryName = c => COUNTRY[c] || c;
 export const RUN_COST = 60, TRIP_COST = 180;
 export function tripHosts(p, team) {
   if (!team) return [];
-  // One trip a country, hosted by its best player on the team.
-  const seen = new Set();
-  return team.roster.filter(m => m.id !== p.id && m.status === 3 && tripRegion(m.ctry)).sort((a, b) => levelOf(b) - levelOf(a)).filter(m => !seen.has(m.ctry) && seen.add(m.ctry)).slice(0, 3);
+  // One trip: to the home country of the best-rated teammate from abroad (not Mexico or Canada: next door is no trip).
+  const host = team.roster.filter(m => m.id !== p.id && m.status === 3 && m.ctry && !['US', 'MX', 'CA'].includes(m.ctry)).sort((a, b) => levelOf(b) - levelOf(a))[0];
+  return host ? [host] : [];
 }
 // What a young teammate picks up from his runs: his best habit trait.
 export function runLesson(p) {
