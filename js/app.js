@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.116';
+const APP_VERSION = '0.365.117';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -23223,7 +23223,10 @@ screens.olympics = (args = {}) => {
     const rows = G.box[s].filter(r => r.min > 0).sort((a, b) => b.min - a.min), tot = k => rows.reduce((a, r) => a + r[k], 0);
     return `<h4 class="ov-h">${flag(c)} ${esc(OLY.nation(c))}${olyGameMark(G, c)}</h4><table class="oly-box"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>${rows.map(r => { const x = t.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === r.k) || { fn: r.k, ln: '' }; return `<tr><td>${who(x)}</td><td>${r.min}</td><td><b>${r.pts}</b></td><td>${r.reb}</td><td>${r.ast}</td></tr>`; }).join('')}<tr class="tot"><td>Team</td><td>${tot('min')}</td><td>${tot('pts')}</td><td>${tot('reb')}</td><td>${tot('ast')}</td></tr></tbody></table>`; }).join('')}<button class="btn small off" data-act="olyGame" data-g="">← All games</button></fieldset>` : '';
   const stages = R ? [...new Set(R.games.map(G => G.stage.startsWith('Group') ? 'Group stage' : G.stage))].reverse() : [];
-  const gamesTab = R ? (boxTab || `<details class="cmb-fold"><summary>🗂️ Group standings</summary>${groupsTab}</details>` + stages.map(st => `<fieldset class="frame"><legend>${st === 'Gold Medal Game' || st === 'Final' ? '🏆 ' : st === 'Bronze Medal Game' ? '🥇 ' : ''}${esc(st)}</legend><div class="stack">${R.games.map((G, i) => [G, i]).filter(([G]) => (G.stage.startsWith('Group') ? 'Group stage' : G.stage) === st).reverse().map(([G, i]) => `<div class="tap" data-act="olyGame" data-g="${i}">${st === 'Group stage' ? `<span class="muted small">${esc(G.stage)}</span>` : ''}${lineScore(G)}</div>`).join('')}</div></fieldset>`).join('')) : '';
+  const gamesTab = R ? (boxTab || `<details class="cmb-fold"><summary>🗂️ Group standings</summary>${groupsTab}</details>` + stages.map(st => `<fieldset class="frame"><legend>${st === 'Gold Medal Game' || st === 'Final' ? '🏆 ' : st === 'Bronze Medal Game' ? '🥇 ' : ''}${esc(st)}</legend><div class="stack">${st === 'Group stage'
+      // The group games by group (A, B, C...), each in the order they were played.
+      ? [...new Set(R.games.filter(G => G.stage.startsWith('Group')).map(G => G.stage))].sort().map(gs => `<h4 class="ov-h">${esc(gs)}</h4>${R.games.map((G, i) => [G, i]).filter(([G]) => G.stage === gs).map(([G, i]) => `<div class="tap" data-act="olyGame" data-g="${i}">${lineScore(G)}</div>`).join('')}`).join('')
+      : R.games.map((G, i) => [G, i]).filter(([G]) => G.stage === st).reverse().map(([G, i]) => `<div class="tap" data-act="olyGame" data-g="${i}">${lineScore(G)}</div>`).join('')}</div></fieldset>`).join('')) : '';
   // ---- Results: the podium, the MVP, the All-Star Five, then what it did to the league (folded).
   const lineOf = k => R.lines[k], per = (L, k) => (L[k] / Math.max(1, L.gp)).toFixed(1);
   const xOf = (k, c) => F.field.find(t => t.c === c)?.roster.find(y => (y.pid ?? `${y.fn} ${y.ln}`) === k) || { fn: String(k), ln: '' };
