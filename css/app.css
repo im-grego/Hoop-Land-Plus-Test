@@ -2627,3 +2627,8 @@ legend .px-art { height: 1.4em; vertical-align: -0.32em; }
 .score-card .big-n { font-size: clamp(20px, 7vw, 34px); white-space: nowrap; }
 .recap-row .logo-gap { flex: none; width: 34px; }   /* a team with no logo keeps the names lined up */
 .out-row .out-mv + .out-mv { margin-left: 6px; }
+
+/* PC: the page scrolls without a visible scrollbar, so it doesn't eat width and push the app off center.
+   (Lists that want a visible bar, like Roster Moves, keep their own.) */
+html, body { scrollbar-width: none; -ms-overflow-style: none; }
+html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; height: 0; }
