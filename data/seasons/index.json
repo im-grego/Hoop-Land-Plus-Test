@@ -68,18 +68,18 @@
           }
         },
         {
-          "date": "2026-11-16",
-          "file": "data/seasons/2026-27/2026-11-16.txt.gz",
-          "through": "2026-11-15",
+          "date": "2026-11-17",
+          "file": "data/seasons/2026-27/2026-11-17.txt.gz",
+          "through": "2026-11-16",
           "opening": false,
           "injuries": true,
           "days": 99,
           "snap": {
             "east": {
-              "team": "BOS",
-              "name": "Boston Celtics",
-              "w": 11,
-              "l": 2
+              "team": "PHI",
+              "name": "Philadelphia 76ers",
+              "w": 12,
+              "l": 3
             },
             "west": {
               "team": "LAL",
