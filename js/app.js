@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.104';
+const APP_VERSION = '0.365.105';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -86,6 +86,7 @@ const DEVLOG = [
     ['Features', [
       'Resume: the save you\'re working on is kept on your device, so closing the app doesn\'t lose it. Pick up where you left off from the start screen',
       'The Expansion Draft step can be skipped',
+      'Christmas games get the holiday ball: on the Next Game card, the Scouting Report, Schedule Release and the schedule maker',
       'Settings → Look: Hide Potential keeps potential stars, potential up or down and regression age out of sight (Edit mode still shows them)',
       'Hot and cold streaks (and other temporary changes) show in the app, but the file you export keeps everyone\'s real ratings',
       'Scouting Report: Player to Watch, the opponent\'s top scorer on a card (his face in his team\'s colors, his league ranks and line), with three keys to stopping him',
@@ -2676,6 +2677,17 @@ function teamGames(L, t) {
   (L.season.schedule || []).forEach((d, i) => { for (const g of d.results || []) if (g.gameType === 0 && g.homeTeam && g.awayTeam && (g.homeTeam === t.id || g.awayTeam === t.id)) out.push({ day: i, home: g.homeTeam === t.id, opp: g.homeTeam === t.id ? g.awayTeam : g.homeTeam }); });
   return out;
 }
+// Christmas Day in this season's schedule. Start files and the schedule maker give it a day of its own (a small slate
+// between full ones): that day, near where Dec 25 falls. Otherwise where it falls on the calendar.
+function xmasDay(L = league()) {
+  const sched = L.season.schedule || [], days = sched.length - ((sched.some(d => (d.results || []).some(g => g.gameType !== 0 && g.gameType !== 2))) ? 1 : 0);
+  if (days < 30) return -1;
+  const est = SM.dayFor('christmas', days), n = d => (sched[d]?.results || []).filter(g => g.gameType === 0 && g.homeTeam && g.awayTeam).length;
+  for (const off of [0, -1, 1, -2, 2, -3, 3, -4, 4]) { const d = est + off; if (n(d) >= 2 && n(d) <= 6 && n(d - 1) >= n(d) + 2 && n(d + 1) >= n(d) + 2) return d; }
+  return est;
+}
+// The holiday ball (Christmas games), in the game's pixel style.
+const xmasIcon = (cls = '') => `<img class="px-art ${cls}" src="img/holiday/xmas-ball.png" alt="🎄">`;
 // ---- The schedule maker: key dates, the marquee games for Opening Night (two) and Christmas (five), then the whole
 // season built around them with the NBA's formula. Only before any game is played; Undo puts the game's own back.
 const smOn = () => labOn() && !isCollege() && league().leagueType === 0 && !(league().season.schedule || []).some(d => (d.results || []).some(g => g.homeScore || g.awayScore));
@@ -2699,7 +2711,7 @@ function scheduleMakerBox() {
   const days = Math.max(60, (S.schedule || []).length - ((S.schedule || []).some(d => (d.results || []).some(g => g.gameType !== 0)) ? 1 : 0));
   const picks = smPicks(L), cands = smCands(L).slice(0, 60), tm = id => evTeam(id);
   const host = L.teams.find(t => t.id === S.allStarHostId);
-  const key = [['🏀 Opening Night', SM.realDate(yr, 0, days)], ['🎄 Christmas Day', SM.realDate(yr, SM.dayFor('christmas', days), days)], ['✊ MLK Day', SM.realDate(yr, SM.dayFor('mlk', days), days)],
+  const key = [['🏀 Opening Night', SM.realDate(yr, 0, days)], [`${xmasIcon()} Christmas Day`, SM.realDate(yr, SM.dayFor('christmas', days), days)], ['✊ MLK Day', SM.realDate(yr, SM.dayFor('mlk', days), days)],
     ['🔁 Trade Deadline', SM.realDate(yr, SM.dayFor('deadline', days), days)], ['⭐ All-Star Weekend', `${SM.realDate(yr, SM.dayFor('allStar', days), days)}${host ? ` · ${esc(teamFull(host))}` : ''}`], ['🏁 Last Day', SM.realDate(yr, days - 1, days)]];
   const opt = (h, a) => cands.map(c => `<option value="${c.h}-${c.aw}" ${(c.h === h && c.aw === a) || (c.h === a && c.aw === h) ? 'selected' : ''}>${esc(tm(c.aw)?.shortName || '?')} @ ${esc(tm(c.h)?.shortName || '?')}${c.r >= 3 ? ' 🔥' : ''}</option>`).join('');
   const slot = (night, i, [h, a]) => `<div class="sm-slot"><span class="sm-n">${i + 1}</span><span class="sm-game">${logoImg(tm(a))} <b>${esc(tm(a)?.shortName || '?')}</b> @ ${logoImg(tm(h))} <b>${esc(tm(h)?.shortName || '?')}</b></span>
@@ -2709,7 +2721,7 @@ function scheduleMakerBox() {
     <p class="note small">Set the marquee nights, then build the whole season around them with the NBA's formula (82 games, rest days, the All-Star break). 🔥 marks a rivalry.</p>
     <div class="sm-dates">${key.map(([l, d]) => `<div class="small"><b>${l}</b> <span class="muted">${esc(d)}</span></div>`).join('')}</div>
     <h4 class="ov-h">Opening Night</h4><div class="stack">${picks.opening.map((g, i) => slot('opening', i, g)).join('')}</div>${dup('opening') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
-    <h4 class="ov-h">Christmas Day</h4><div class="stack">${picks.christmas.map((g, i) => slot('christmas', i, g)).join('')}</div>${dup('christmas') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
+    <h4 class="ov-h">${xmasIcon()} Christmas Day</h4><div class="stack">${picks.christmas.map((g, i) => slot('christmas', i, g)).join('')}</div>${dup('christmas') ? '<p class="note small down">A team is in two games that night.</p>' : ''}
     <div class="grid2" style="margin-top:10px">${f.smUndo ? '<button class="btn off" data-act="smUndo">↺ Undo</button>' : '<button class="btn off" data-act="smReset">↺ Suggested</button>'}<button class="btn focus" data-act="smBuild" ${dup('opening') || dup('christmas') ? 'disabled' : ''}>🗓️ ${f.smUndo ? 'Rebuild' : 'Build the Schedule'}</button></div>
     ${f.smUndo ? `<p class="note small up" style="margin-top:6px">✓ Built: ${f.smUndo.games} games over ${f.smUndo.days} days, every team at 82. The look at your schedule below is the new one.</p>` : ''}
   </fieldset>`;
@@ -2757,6 +2769,7 @@ screens.schedRelease = () => {
     const cup = typeof cupOn === 'function' && cupOn() ? (() => { const d = cupDraw(), grp = d.groups.find(x => x.teams.includes(t.id)); return grp ? `<p class="note small">🏆 NBA Cup: <b>${esc(grp.name)}</b> with ${grp.teams.filter(id => id !== t.id).map(id => esc(evTeam(id)?.shortName || '?')).join(', ')}.</p>` : ''; })() : '';
     return `<fieldset class="frame"><legend>${esc(teamFull(t))}</legend>
       <p class="note">Opening night: ${vs(opener)}${homeOpener && homeOpener !== opener ? ` · Home opener: ${vs(homeOpener)} (game ${g.indexOf(homeOpener) + 1})` : ''}</p>
+      ${(xd => { const x = g.find(y => y.day === xd); return x ? `<p class="note">${xmasIcon()} Christmas Day: ${vs(x)}</p>` : ''; })(xmasDay(L))}
       <div class="bio-grid"><div class="bio-box"><span class="glbl">Games</span><b>${g.length}</b></div><div class="bio-box"><span class="glbl">Big games</span><b>${g.filter(x => top.has(x.opp) || rivals.has(x.opp)).length}</b></div><div class="bio-box"><span class="glbl">Toughness</span><b>${ordN(sosRank.get(t.id))}</b></div>
         <div class="bio-box"><span class="glbl">Longest trip</span><b>${road} road</b></div><div class="bio-box"><span class="glbl">Homestand</span><b>${home} home</b></div><div class="bio-box"><span class="glbl">Home / Away</span><b>${g.filter(x => x.home).length}-${g.filter(x => !x.home).length}</b></div></div>
       ${marquee.length ? `<p class="note small" style="margin-top:6px"><b>Marquee nights</b> (contenders and rivals, first meeting):</p><div class="stack">${marquee.map(x => `<div class="small">Game ${g.indexOf(x) + 1}: ${vs(x)}${rivals.has(x.opp) ? ' <span class="gold">· rivalry</span>' : ''}</div>`).join('')}</div>` : ''}
@@ -3924,7 +3937,8 @@ function nextGameCard() {
     const me = myTeam(), ng = nextGame(me); if (!ng) return '';
     const rec = tm => { const r = muLine(tm); return r?.GP ? `${r.W}-${r.L}` : '0-0'; };
     const keys = muKeys(me, ng.opp).slice(0, 2);
-    return `<fieldset class="frame mu-card"><legend>🏀 Next Game</legend>
+    const xmas = ng.d === xmasDay();
+    return `<fieldset class="frame mu-card ${xmas ? 'xmas' : ''}"><legend>${xmas ? `${xmasIcon()} Christmas Day` : '🏀 Next Game'}</legend>
       <div class="mu-vs tap" data-act="nav" data-to="matchup"><span class="mu-tm">${logoImg(me, 'logo-sm')}<b>${esc(me.shortName)}</b><small>${rec(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(ng.opp, 'logo-sm')}<b>${esc(ng.opp.shortName)}</b><small>${rec(ng.opp)}</small></span></div>
       ${keys.map(([i, s]) => `<p class="note small mu-key">${i} ${s}</p>`).join('')}
       <button class="btn focus" data-act="nav" data-to="matchup">📋 Scouting Report</button></fieldset>`;
@@ -4160,9 +4174,10 @@ screens.matchup = () => {
     return `<div class="mu-tr"><span class="tap ${d >= 4 ? 'up' : ''}" data-act="openPlayer" data-id="${x.id}">${esc(x.ln)}${hotCold(x)} <small>${shownLevel(x)}</small></span><span class="mu-lbl">${LU.SLOTS[s]}</span><span class="tap ${d <= -4 ? 'down' : ''}" data-act="openPlayer" data-id="${y.id}">${esc(y.ln)}${hotCold(y)} <small>${shownLevel(y)}</small></span></div>`; };
   const hurt = tm => { const h = muHurt(tm); return h.length ? h.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}"><b>${esc(p.ln)}</b> <small class="muted">${shownLevel(p)} · ${esc(injShort(p))}</small></span>`).join('') : '<span class="up small">Healthy</span>'; };
   const streak = (tm, hot) => { const l = tm.roster.filter(p => streakOf(p.id) === (hot ? 'hot' : 'cold')).sort((x, y) => shownLevel(y) - shownLevel(x)); return l.length ? l.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(p.ln)}</span>`).join(', ') : '<span class="muted">None</span>'; };
+  const xmas = ng.d === xmasDay();
   layout({
     title: 'Scouting Report',
-    body: `<div class="mu-vs big"><span class="mu-tm">${logoImg(me)}<b>${esc(me.shortName)}</b><small>${rec(me)}</small><small class="muted">${l10(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(opp)}<b>${esc(opp.shortName)}</b><small>${rec(opp)}</small><small class="muted">${l10(opp)}</small></span></div>
+    body: `${xmas ? `<p class="note xmas-note">${xmasIcon()} <b>Christmas Day game</b></p>` : ''}<div class="mu-vs big"><span class="mu-tm">${logoImg(me)}<b>${esc(me.shortName)}</b><small>${rec(me)}</small><small class="muted">${l10(me)}</small></span><span class="mu-at">${ng.home ? 'vs' : '@'}</span><span class="mu-tm">${logoImg(opp)}<b>${esc(opp.shortName)}</b><small>${rec(opp)}</small><small class="muted">${l10(opp)}</small></span></div>
       ${ptwCard(opp)}
       <fieldset class="frame"><legend>Keys to the Game</legend>${muKeys(me, opp).map(([i, s]) => `<p class="note small mu-key">${i} ${s}</p>`).join('')}</fieldset>
       <fieldset class="frame"><legend>How They Play</legend>${muStyle(opp).map(s => `<p class="note small mu-key">• ${esc(s)}</p>`).join('')}

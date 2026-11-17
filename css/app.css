@@ -2605,3 +2605,7 @@ body::after {
 .ru-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, .08); }
 .ru-scroll .ru-list { margin: 4px 0; }
 html:has(.ru-box), html:has(.ru-box) body { overflow: hidden; }
+/* Pixel art inline with text (the holiday ball): crisp, about a line tall. */
+.px-art { height: 1.25em; width: auto; vertical-align: -0.28em; image-rendering: pixelated; image-rendering: crisp-edges; }
+legend .px-art { height: 1.4em; vertical-align: -0.32em; }
+.xmas-note { text-align: center; margin: 0 0 6px; }
