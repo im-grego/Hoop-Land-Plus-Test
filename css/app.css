@@ -2621,3 +2621,7 @@ legend .px-art { height: 1.4em; vertical-align: -0.32em; }
 .sm-date b { white-space: nowrap; }
 .sm-date > span:last-child { min-width: 0; }
 @media (max-width: 359px) { .sm-date b { white-space: normal; } }
+/* A row of big numbers keeps a gap and shrinks to fit a phone (NIL Collective: Budget · Committed · Left). */
+.score-card { gap: 8px; }
+.score-card > div { min-width: 0; flex: 1 1 0; }
+.score-card .big-n { font-size: clamp(20px, 7vw, 34px); white-space: nowrap; }
