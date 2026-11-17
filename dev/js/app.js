@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.140';
+const APP_VERSION = '0.365.141';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3173,7 +3173,35 @@ async function realClassCheck() {
   try { const r = await fetch(RDC.classUrl(yr), { cache: 'no-cache' }); if (r.ok) json = await r.json(); } catch { json = null; }
   const found = json && RDC.prospectsIn(json);
   if (!found || league() !== L) return;
-  const { cls, meta } = CG.unpackClass(state.data, found.pack);
+  // Returners: a few second-round projections stay in school a year and come back in the next class (older, a year
+  // more experience, a little better). Picked the same way at both ends (seeded by the save and the year), so they
+  // leave this class only when next year's realistic class is coming, and join it only if this year's went in.
+  const real = y => RDC.REAL_CLASS_YEARS.includes(y) && realClassYears().includes(y);
+  let prospects = found.pack.prospects, meta0 = { ...(found.pack.meta || {}) }, back = [];
+  if (real(yr + 1)) { const out = new Set(returnersOf(found.pack, yr).map(p => p.id)); prospects = prospects.filter(p => !out.has(p.id)); }
+  if (real(yr - 1) && f[`realclass${yr - 1}`]) {
+    let pj = null;
+    try { const r = await fetch(RDC.classUrl(yr - 1), { cache: 'no-cache' }); if (r.ok) pj = await r.json(); } catch { pj = null; }
+    const pf = pj && RDC.prospectsIn(pj);
+    if (pf) {
+      const names = new Set(prospects.map(p => `${p.fn} ${p.ln}`.trim().toLowerCase()));
+      let id = 1 + Math.max(0, ...prospects.map(p => p.id));
+      back = returnersOf(pf.pack, yr - 1).filter(p => !names.has(`${p.fn} ${p.ln}`.trim().toLowerCase())).map(p0 => {
+        const m0 = pf.pack.meta?.[p0.id] || {}, q = ageReturner(p0, CG.mulberry((nameSalt() ^ Math.imul(p0.id + 31, 2654435761) ^ yr) >>> 0));
+        q.id = id++;
+        meta0[q.id] = { ...m0, rank: (m0.rank || 45) - 10 - (q.id % 8), ped: olderPed(m0.ped || '') };
+        return q;
+      });
+      prospects = [...prospects, ...back];
+    }
+  }
+  if (back.length || prospects.length !== found.pack.prospects.length) {
+    // The board closes up around who left and who came back; each projection follows the new spot.
+    const bands = new Map(Object.values(found.pack.meta || {}).map(m => [m.rank, m.proj]));
+    const last = Math.max(0, ...bands.keys());
+    prospects.map(p => p.id).filter(id => meta0[id]).sort((a, b) => meta0[a].rank - meta0[b].rank).forEach((id, i) => { meta0[id] = { ...meta0[id], rank: i + 1, proj: bands.get(i + 1) ?? bands.get(last) ?? meta0[id].proj }; });
+  }
+  const { cls, meta } = CG.unpackClass(state.data, { ...found.pack, prospects, meta: meta0 });
   // Each prospect's college season from this save (the same player, by name, in the game's class or on a college
   // roster): his stats come along, and his production against the class sets his readiness and tilts his potential.
   const nm = p => `${p.fn} ${p.ln}`.trim().toLowerCase();
@@ -3193,8 +3221,36 @@ async function realClassCheck() {
   state.dirty = true;
   render();
   const c = RDC.potCounts(varied);
-  toast(`🎓 The ${yr} draft class is in`, `${varied.length} prospects · ${c[10] || 0} five-star, ${c[9] || 0} four-and-a-half.`, 4500);
+  toast(`🎓 The ${yr} draft class is in`, `${varied.length} prospects · ${c[10] || 0} five-star, ${c[9] || 0} four-and-a-half${back.length ? ` · ${back.length} back for another year (${back.map(p => p.ln.trim()).join(', ')})` : ''}.`, 5500);
 }
+// The save's own seed, the same every year (saveSalt changes with the season), so both ends pick the same returners.
+function nameSalt() { let h = 2166136261; for (const ch of String(league().meta?.saveName || '')) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; }
+// Who stays in school: two to four of the class's second-round projections (31-60 on its board), 21 or younger.
+function returnersOf(pack, yr) {
+  const rng = CG.mulberry((nameSalt() ^ Math.imul(yr, 0x9e3779b1) ^ 0x7e7) >>> 0), meta = pack.meta || {};
+  const pool = pack.prospects.filter(p => { const r = meta[p.id]?.rank; return r >= 31 && r <= 60 && (p.age || 19) <= 21; });
+  const out = [], n = Math.min(pool.length, 2 + Math.floor(rng() * 3));
+  while (out.length < n) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+  return out;
+}
+// A year older and a year more experienced: most ratings tick up a little (a few dip), and now and then the
+// potential steps up half a star, never past four stars.
+function ageReturner(p0, rng) {
+  const p = JSON.parse(JSON.stringify(p0));
+  p.age = (p.age || 19) + 1;
+  p.yrs = (p.yrs || 0) + 1;
+  if (p.pot < 8 && rng() < 0.3) p.pot += 1;
+  for (const [k, a] of Object.entries(p.attributes || {})) {
+    if (!Array.isArray(a) || ['STR', 'SPD', 'STM'].includes(k)) continue;
+    const r = rng(), d = r < 0.1 ? -1 : r < 0.55 ? 0 : r < 0.9 ? 1 : 2;
+    a[0] = Math.max(1, Math.min(20, a[0] + d));
+    if (a[0] > a[1]) a[1] = a[0];
+  }
+  if (p.attributes?.STR && rng() < 0.4) p.attributes.STR = p.attributes.STR.map(v => Math.min(20, v + 1));
+  RDC.fitPotential(p);
+  return p;
+}
+const olderPed = s => s.replace(/Senior/, 'Graduate').replace(/Junior/, 'Senior').replace(/Sophomore/, 'Junior').replace(/Freshman/, 'Sophomore').replace(/(\d+) years old/, (m, n) => `${+n + 1} years old`);
 // The realistic expansion: Seattle and Las Vegas, announced for the 2029 offseason (the save's 2030, the 2029 draft), a
 // summer after the 2028 Olympics so the two don't land in the same offseason.
 const REAL_EXP_YR = 2030;
