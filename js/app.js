@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.110';
+const APP_VERSION = '0.365.111';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -2690,7 +2690,7 @@ function xmasDay(L = league()) {
 // The holiday ball (Christmas games), in the game's pixel style.
 const xmasIcon = (cls = '') => `<img class="px-art ${cls}" src="img/holiday/xmas-ball.png" alt="🎄">`;
 // Holiday art for the key dates: the tree (Christmas Day) and the raised fist (MLK Day).
-const DAY_ART = { opening: ['holiday/ball', '🏀'], xmas: ['holiday/xmas-tree', '🎄'], mlk: ['holiday/mlk-fist', '✊'], deadline: ['holiday/swap', '🔁'], allStar: ['awards/allstar', '⭐'], last: ['holiday/flag', '🏁'] };
+const DAY_ART = { opening: ['holiday/ball', '🏀'], xmas: ['holiday/xmas-tree', '🎄'], mlk: ['holiday/mlk-fist', '✊'], deadline: ['holiday/swap', '🔁'], allStar: ['holiday/allstar', '⭐'], last: ['holiday/flag', '🏁'] };
 const dayIcon = k => `<img class="px-art" src="img/${DAY_ART[k][0]}.png" alt="${DAY_ART[k][1]}">`;
 // Where the All-Star Game is: the host's city and state (Phoenix, Arizona), not the team.
 const STATE_OF = { ATL: 'Georgia', BOS: 'Massachusetts', BKN: 'New York', CHA: 'North Carolina', CHO: 'North Carolina', CHI: 'Illinois', CLE: 'Ohio', DAL: 'Texas', DEN: 'Colorado', DET: 'Michigan', GSW: 'California', HOU: 'Texas', IND: 'Indiana', LAC: 'California', LAL: 'California', MEM: 'Tennessee', MIA: 'Florida', MIL: 'Wisconsin', MIN: 'Minnesota', NOP: 'Louisiana', NYK: 'New York', OKC: 'Oklahoma', ORL: 'Florida', PHI: 'Pennsylvania', PHX: 'Arizona', POR: 'Oregon', SAC: 'California', SAS: 'Texas', TOR: 'Ontario', UTA: 'Utah', WAS: 'D.C.', SEA: 'Washington', LVV: 'Nevada', LV: 'Nevada' };
