@@ -294,7 +294,7 @@ export function revertRise(p, x, keepK) {
 export { playerName };
 
 // File size: the free agent pool only grows (every undrafted player lands in it and most never sign). On export, drop
-// the ones who'll never play: 24 or older with no NBA game and below Lv 60, or no game in three seasons and below Lv 65.
+// the ones who'll never play: 22 or older with no NBA game and below Lv 63, or no game in two seasons and below Lv 68.
 // Never during free agency, never anyone with an award. Returns the players removed.
 export function trimFreeAgents(L, levelOf, li = 0) {
   const s = L.season, y = s.currentYear;
@@ -304,9 +304,36 @@ export function trimFreeAgents(L, levelOf, li = 0) {
   L.freeAgents = L.freeAgents.filter(p => {
     if ((p.awards || []).length) return true;
     const yrs = played(p), lv = levelOf(p);
-    const drop = yrs.length ? y - Math.max(...yrs) >= 3 && lv < 65 : p.age >= 24 && lv < 60;
+    const drop = yrs.length ? y - Math.max(...yrs) >= 2 && lv < 68 : p.age >= 22 && lv < 63;
     if (drop) gone.push(p);
     return !drop;
+  });
+  return gone;
+}
+// Everyone a league's record book names (a record holder stays in the file).
+const recordIds = L => { const ids = new Set(); const walk = o => { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) k === 'pid' ? ids.add(v) : walk(v); }; walk(L.records); return ids; };
+// Pro retirees below Lv 79 with no award, no retired jersey and no record go (after the season they retired in).
+export function trimRetirees(L, levelOf) {
+  if (L.leagueType !== 0 || !Array.isArray(L.retirees)) return [];
+  const y = L.season.currentYear, rec = recordIds(L), jersey = new Set(L.teams.flatMap(t => (t.retiredNumbers || []).map(r => r.pid)));
+  const gone = [];
+  L.retirees = L.retirees.filter(p => {
+    const keep = levelOf(p) >= 79 || (p.awards || []).length || jersey.has(p.id) || rec.has(p.id) || (p.history?.yearRetired ?? y) >= y;
+    if (!keep) gone.push(p);
+    return keep;
+  });
+  return gone;
+}
+// College: a player five seasons past his last college season goes unless he won something of his own or a national
+// title (the All-Tournament team alone doesn't keep him), or holds a record.
+const COLLEGE_TEAM_ONLY = new Set([20]);
+export function trimCollegeRetirees(L) {
+  if (L.leagueType !== 1 || !Array.isArray(L.retirees)) return [];
+  const y = L.season.currentYear, rec = recordIds(L), gone = [];
+  L.retirees = L.retirees.filter(p => {
+    const keep = (p.awards || []).some(a => !COLLEGE_TEAM_ONLY.has(a.id)) || rec.has(p.id) || (p.history?.yearRetired ?? y) > y - 5;
+    if (!keep) gone.push(p);
+    return keep;
   });
   return gone;
 }
