@@ -32,13 +32,46 @@ export function dedupeAwards(L) {
   }
   return fixed;
 }
+// Head coaches' season records: the app's coach hires (the carousel, an expansion team's first coach) never gave the
+// new coach a record with his new team, so Hoop Land started his season with no team on it (or none at all). The
+// prime suspect for the stall after the play-in: every award went out but Coach of the Year, and the first round never
+// came. During the season every head coach gets exactly one record for the year, tied to his team.
+export function fixCoachHistory(L) {
+  const y = L.season.currentYear, out = [];
+  const zero = o => JSON.parse(JSON.stringify(o), (k, v) => (typeof v === 'number' ? 0 : k === 'L10' ? [] : v));
+  for (const t of L.teams) {
+    const c = (t.frontOffice?.staff || []).find(s => s.pos === 1);
+    if (!c?.career?.teamHistory) continue;
+    const th = c.career.teamHistory;
+    const row = (t.season || []).find(r => r.yr === y);
+    let h = th.find(e => e.yr === y);
+    if (!h) {
+      const tpl = th[th.length - 1] || L.teams.flatMap(x => x.frontOffice.staff).find(s => s.career?.teamHistory?.length)?.career.teamHistory[0];
+      if (!tpl) continue;
+      h = zero(tpl); h.yr = y; h.league = 0;
+      // The game folded this season's games into his last record: move them over (team row = his games here).
+      const prev = th[th.length - 1], st = row?.seasonStats;
+      if (prev && st && prev.yr < y && (prev.season?.[0]?.GP || 0) >= (st.GP || 0) + 1) {
+        const p0 = prev.season[0];
+        for (const [k, v] of Object.entries(st)) if (typeof v === 'number' && typeof p0[k] === 'number' && k !== 'tid') p0[k] -= v;
+          else if (Array.isArray(v) && Array.isArray(p0[k]) && v.every(n => typeof n === 'number') && k !== 'L10') p0[k] = p0[k].map((n, i) => n - (v[i] || 0));
+        h.season[0] = { ...JSON.parse(JSON.stringify(st)) };
+      }
+      th.push(h); out.push(`${t.shortName} ${c.ln}: added ${y}`);
+    }
+    if (h.season?.[0] && h.season[0].tid !== t.id) { out.push(`${t.shortName} ${c.ln}: ${y} record tid ${h.season[0].tid} -> ${t.id}`); h.season[0].tid = t.id; }
+  }
+  return out;
+}
+
 // Save integrity, once per load: a player's contract team matches the team he's on (trades used to leave the old
 // one), and no rating sits above its ceiling (a ceiling the game drops to 0 under a higher rating). Returns counts.
 export function repairSave(L) {
   let contracts = 0, ceilings = 0;
   for (const t of L.teams) for (const p of t.roster || []) if (p.contract?.tid && p.contract.tid !== t.id) { p.contract.tid = t.id; contracts++; }
   for (const p of [...L.teams.flatMap(t => t.roster || []), ...(L.freeAgents || [])]) for (const v of Object.values(p.attributes || {})) if (Array.isArray(v) && v[1] < v[0]) { v[1] = v[0]; ceilings++; }
-  return { contracts, ceilings };
+  const coaches = L.season.phase >= 9 && L.season.phase <= 14 ? fixCoachHistory(L).length : 0;
+  return { contracts, ceilings, coaches };
 }
 // Stuck after the play-in: the regular season and the play-in are played (phase 13), but the game never built the
 // first round, so Continue does nothing. Some long saves hit it in Hoop Land; building round 1 by hand lets the game go on.
