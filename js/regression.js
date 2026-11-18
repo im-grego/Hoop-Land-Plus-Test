@@ -14,7 +14,8 @@ export const REG_RATE = {
   DNK: 0.875, BLK: 0.875,
 };
 // Checked against the game: Anthony Davis at 33 with a regression age of 32 shows one year of decline (Lv 91).
-export const declineYear = p => Math.max(0, (p.age || 0) - (p.regressionAge || 99));
+// A retired player (status 7) has no decline: the app shows him at his peak, the way the game does.
+export const declineYear = p => (p.status === 7 || p.history?.yearRetired > 0 ? 0 : Math.max(0, (p.age || 0) - (p.regressionAge || 99)));
 // The rating the game shows (never below 1).
 export function regressed(p, k) {
   const core = p.attributes[k][0];
