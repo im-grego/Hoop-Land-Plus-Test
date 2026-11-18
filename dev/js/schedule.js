@@ -134,7 +134,9 @@ export function buildSchedule(L, seed = 1) {
   const mk = g => ({ ...tpl, homeTeam: g.home, awayTeam: g.away, gId: gid++, homeScore: 0, awayScore: 0, winner: 0, potg: 0, periods: 0, totalPeriods: 0, homeRecord: [0, 0], awayRecord: [0, 0], forced: -1 });
   const sched = days.map(d => ({ results: d.map(mk) }));
   const star = special.map(g => ({ ...g, gId: gid++, homeScore: 0, awayScore: 0, winner: 0, potg: 0 }));
-  if (star.length) { sched.splice(at, 0, { results: star }); S.allStarWeekend = at; S.tradeDeadline = Math.min(sched.length - 1, at + 2); }
+  // The deadline keeps its place against the All-Star day (the game's own sits a week before it).
+  const gap = (S.allStarWeekend || 0) - (S.tradeDeadline || 0);
+  if (star.length) { sched.splice(at, 0, { results: star }); S.allStarWeekend = at; S.tradeDeadline = Math.max(0, Math.min(sched.length - 1, at - (gap > 0 && gap < 20 ? gap : -2))); }
   for (const m of markers) sched[Math.min(sched.length - 1, Math.round(m.at * (sched.length - 1)))].results.push(m.g);
   S.schedule = sched;
   // The game hands out new game ids from its counter: it starts after the last one here.
