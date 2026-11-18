@@ -167,6 +167,15 @@ export function hireHeadCoach(league, team, coach) {
   coach.tid = team.id; coach.status = 1; coach.pos = 1;
   coach.contract = { tid: team.id, pid: coach.id, type: 0, yrs: ask.yrs, sal: ask.sal, nil: 0, opt: 0, noTrd: 0, canExt: false, ext: { yrs: 0, sal: 0, opt: 0, noTrd: 0 } };
   staff[i] = coach;
+  // His record for the season with his new team (Hoop Land carries a coach's team from it; without one his season
+  // started on no team, and Coach of the Year broke the step after the play-in).
+  const th = coach.career?.teamHistory;
+  if (Array.isArray(th) && th.length) {
+    const y = league.season?.currentYear, li = league.leagueType === 0 ? 0 : (coach.league ?? 1);
+    let h = th.find(e => e.yr === y && (e.league ?? li) === li);
+    if (!h) { h = JSON.parse(JSON.stringify(th[th.length - 1]), (k, v) => (typeof v === 'number' ? 0 : k === 'L10' ? [] : v)); h.yr = y; h.league = li; th.push(h); }
+    if (h.season?.[0]) h.season[0].tid = team.id;
+  }
   if (!vacant) { old.tid = 0; old.status = 3; old.contract = empty(0); pool.push(old); }
   return { old: vacant ? null : old, ask };
 }

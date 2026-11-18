@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.159';
+const APP_VERSION = '0.365.160';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -936,7 +936,7 @@ function render() {
   document.documentElement.dataset.px = state.params.pixelIcons === false ? 'off' : 'on';
   if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); setSalaryScale(FA.capSystemOn() ? Math.max(0.6, FA.capLines(league()).cap / 165) : 1); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) { fitClassIncoming(); realClassCheck(); } }
   if (state.data && isCollege() && state.cal) { try { localStorage.setItem(collegeCalKey(), JSON.stringify(state.cal)); } catch { /* ignore */ } }
-  if (state.data && !isCollege()) { seasonDrift(); cpuComebacks(); cpuNumbers(); cpuJerseys(); realAllStarHost(); if (state.retFixed !== saveTag()) { state.retFixed = saveTag(); fixRetiredNumbers(); } if (state.awFixed !== saveTag()) { state.awFixed = saveTag(); if (PO.dedupeAwards(league())) state.dirty = true; const r = PO.repairSave(league()); if (r.contracts || r.ceilings || r.coaches) state.dirty = true; } glSettle(); taxSettle(); cpuShifts(); }   // once an offseason each (the G League once a season)
+  if (state.data && !isCollege()) { seasonDrift(); cpuComebacks(); cpuNumbers(); cpuJerseys(); realAllStarHost(); if (state.retFixed !== saveTag()) { state.retFixed = saveTag(); fixRetiredNumbers(); } if (state.awFixed !== saveTag()) { state.awFixed = saveTag(); if (PO.dedupeAwards(league())) state.dirty = true; const r = PO.repairSave(league()); if (r.contracts || r.ceilings || r.coaches) state.dirty = true; if (otherCoachFix()) state.dirty = true; } glSettle(); taxSettle(); cpuShifts(); }   // once an offseason each (the G League once a season)
   if (state.data && !isCollege()) { careerSync(); syncScarcity(); poSettle(); campAuto(); }
   const top = state.stack[state.stack.length - 1];
   const view = `${state.stack.length}:${top.name}:${top.args?.tab ?? ''}:${top.name === 'fa' ? '' : top.args?.view ?? ''}:${top.args?.id ?? ''}`;
@@ -1699,6 +1699,12 @@ function lineupOk(t) {
 // The game writes its offseason stories (options, extensions, picks, signings) before the app's trades and releases,
 // and its own files never hold one that's gone stale. A story naming a team the player has since left (traded,
 // released, unsigned) goes before export; retirements from a team stay, and so do stories with no team.
+// The other leagues in the save (the college league in a pro save, and back): head coaches' season records too.
+function otherCoachFix() {
+  let n = 0;
+  state.data.seasonLeagues.forEach((X, li) => { if (li !== state.leagueIdx && X.season?.phase >= 9 && X.season.phase <= 14) n += PO.fixCoachHistory(X, li).length; });
+  return n;
+}
 function pruneGhostNews(D, L) {
   const ids = new Set();
   for (const X of D.seasonLeagues) for (const p of [...X.teams.flatMap(t => t.roster), ...(X.freeAgents || []), ...(X.retirees || []), ...(X.hallOfFame || []), ...(X.draftClass || [])]) ids.add(p.id);
@@ -1912,6 +1918,7 @@ function buildExport() {
   // Integrity before the game sees the file: one of each award, contract teams that match the roster, no rating above
   // its ceiling, and no news about a player who no longer exists anywhere in the save.
   if (!isCollege()) { PO.dedupeAwards(league()); PO.repairSave(league()); pruneGhostNews(state.data, league()); }
+  otherCoachFix();
   if (!isCollege()) pickWindow(league());
   // The game made the season's schedule before the expansion draft: new teams would have no games. Rebuild it.
   if (!isCollege() && needsSchedule(league())) {
