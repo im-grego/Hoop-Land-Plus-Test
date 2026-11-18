@@ -292,3 +292,21 @@ export function revertRise(p, x, keepK) {
   return moved;
 }
 export { playerName };
+
+// File size: the free agent pool only grows (every undrafted player lands in it and most never sign). On export, drop
+// the ones who'll never play: 24 or older with no NBA game and below Lv 60, or no game in three seasons and below Lv 65.
+// Never during free agency, never anyone with an award. Returns the players removed.
+export function trimFreeAgents(L, levelOf, li = 0) {
+  const s = L.season, y = s.currentYear;
+  if (s.phase === 6 || !Array.isArray(L.freeAgents)) return [];
+  const played = p => (p.stats || []).filter(x => (x.league ?? 0) === li && (x.season || []).some(r => r.GP > 0)).map(x => x.yr);
+  const gone = [];
+  L.freeAgents = L.freeAgents.filter(p => {
+    if ((p.awards || []).length) return true;
+    const yrs = played(p), lv = levelOf(p);
+    const drop = yrs.length ? y - Math.max(...yrs) >= 3 && lv < 65 : p.age >= 24 && lv < 60;
+    if (drop) gone.push(p);
+    return !drop;
+  });
+  return gone;
+}

@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.163';
+const APP_VERSION = '0.365.164';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -1917,7 +1917,7 @@ function buildExport() {
   if (!isCollege()) { fixLineups(league()); pruneStaleNews(league()); proLeagueFlags(league()); clearStaleOptions(league()); }
   // Integrity before the game sees the file: one of each award, contract teams that match the roster, no rating above
   // its ceiling, and no news about a player who no longer exists anywhere in the save.
-  if (!isCollege()) { PO.dedupeAwards(league()); PO.repairSave(league()); pruneGhostNews(state.data, league()); }
+  if (!isCollege()) { PO.dedupeAwards(league()); PO.repairSave(league()); PO.trimFreeAgents(league(), shownLevel, state.leagueIdx); pruneGhostNews(state.data, league()); }
   otherCoachFix();
   if (!isCollege()) pickWindow(league());
   // The game made the season's schedule before the expansion draft: new teams would have no games. Rebuild it.
