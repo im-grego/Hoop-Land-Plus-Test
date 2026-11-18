@@ -46,6 +46,14 @@ export const DEFAULT_PARAMS = {
   // (season age) who play 100% of games at 62.5%+ of minutes (30 of 48).
   // The app lowers that bar; players the game already rewarded are skipped.
   naturalMinAge: 30,
+  naturalChance: 50,       // % a durable starter at his regression age gets the year (was every time)
+  gameLongevityKeep: 40,   // % the game's own +1 (30+, every game at 30 minutes) stands; the rest the offseason takes back
+  longevityDampAge: 33,    // past this regression age, every way of adding a year halves per year (not everyone is LeBron)
+  secondWind: true,        // a declining veteran can bounce back (regression age pushed back 2-3 years)
+  windChance: 1,           // % base chance a season for a declining vet (29+)
+  windProdPerZ: 4,         // + this % x his production z, when z is over 1 (a standout season)
+  windNewTeam: 3,          // + this % in his first season with a new team
+  windHoldZ: 0.5,          // the next season: production this good holds it (60%); otherwise 10%
   naturalGamesPct: 95,
   naturalMinutesPct: 65,
   gameNaturalGamesPct: 100,
@@ -454,7 +462,7 @@ export function maybeLongevity(p, mult, params, rng, injury = null, z = null, cu
   const pct = injury === 'structural' ? params.structuralLongevityCut : injury ? params.injuryLongevityCut : 0;
   const cut = 1 - pct * cutMult * durMult(p) / 100;
   // Durability: an Ironman's body holds off decline longer (about ×1.25), an injury-prone one less (about ×0.78).
-  const chance = (year === 1 ? params.regFirstYearChance : params.regLaterChance) * mult * cut * durLongevity(p);
+  const chance = (year === 1 ? params.regFirstYearChance : params.regLaterChance) * mult * cut * durLongevity(p) * longevityDamp(p, params);
   if (rng() * 100 >= chance) return false;
   p.regressionAge++;
   return true;
@@ -590,6 +598,32 @@ export function maybeSkills(p, points, params, profiles, rng, skillMult = 1) {
 // production (Map id -> z) }.
 // `spend` spends the player's held points into ratings afterwards.
 // Returns Map pid -> points awarded.
+// Past a regression age of 33, each way of adding a year halves per year: a few players last like LeBron, most don't.
+export const longevityDamp = (p, params) => Math.pow(0.5, Math.max(0, (p.regressionAge || 0) - (params.longevityDampAge ?? 99)));
+
+// Second wind: a declining veteran (29+) bounces back. His regression age goes back 2 years (3 now and then), so the
+// next season he shows a level between his peak and where he'd fallen. Rare: about 1% a season, more after a standout
+// season or in his first year with a new team, more for a coachable, durable player. The season after, a good year
+// holds it (60%, otherwise 10%); if not, one of the years comes back off. e.windPrev = the wind he got last offseason.
+export function secondWind(e, z, params, rng, awards) {
+  const p = e.p, li = e.leagueIdx ?? 0, seasonAge = p.age - (e.rolled ? 1 : 0);
+  if (e.windPrev) {
+    const held = rng() < (z != null && z >= (params.windHoldZ ?? 0.5) ? 0.6 : 0.1);
+    if (!held && p.regressionAge > 30) p.regressionAge--;
+    (awards.windEnd ||= new Map()).set(p.id, held ? 'held' : 'faded');
+    return;
+  }
+  if (seasonAge < 29 || seasonAge - p.regressionAge < 1) return;   // only someone already declining
+  const last = (p.stats || []).filter(s => (s.league ?? 0) === li).sort((a, b) => a.yr - b.yr).pop();
+  const stints = last?.season || [], newTeam = stints.length > 1 || (stints[0] && stints[0].tid !== p.tid);
+  const chance = ((params.windChance ?? 1) + (z != null && z > 1 ? z * (params.windProdPerZ ?? 4) : 0) + (newTeam ? params.windNewTeam ?? 3 : 0)) * coachMult(p) * durLongevity(p);
+  if (rng() * 100 >= chance) return;
+  const amt = Math.min(rng() < 0.25 ? 3 : 2, seasonAge + 1 - p.regressionAge);   // never past his peak
+  if (amt < 1) return;
+  p.regressionAge += amt;
+  (awards.wind ||= new Map()).set(p.id, amt);
+}
+
 export function runProgression(entries, params, profiles) {
   const rng = mulberry32(params.seed);
   const awards = new Map();
@@ -616,8 +650,12 @@ export function runProgression(entries, params, profiles) {
     const z = e.production?.get(e.p.id) ?? null;
     // Trainer: regression age up (earned, or a production-scaled roll) or
     // down (injury / poor production), never both.
-    if (earnsNaturalLongevity(e.p, mpg, e, params)) e.p.regressionAge++;
-    else if (gameRewardedLongevity(e.p, mpg, e, params)) { /* the game gave his year already */ }
+    const damp = longevityDamp(e.p, params);
+    if (earnsNaturalLongevity(e.p, mpg, e, params) && rng() * 100 < (params.naturalChance ?? 100) * damp) e.p.regressionAge++;
+    else if (gameRewardedLongevity(e.p, mpg, e, params)) {
+      // The game gave him a year already; most of the time the offseason takes it back.
+      if (rng() * 100 >= (params.gameLongevityKeep ?? 100) * damp && e.p.regressionAge > 30) { e.p.regressionAge--; (awards.gameBack ||= new Set()).add(e.p.id); }
+    }
     else if (!maybeRegressionDown(e.p, injured ? risk.cls : null, z, params, rng)) {
       const prod = z == null ? 1 : Math.max(0.2, Math.min(2, 1 + params.prodLongevityPerZ * z));
       maybeLongevity(e.p, mult * prod * (e.longMult || 1), params, rng, injured ? risk.cls : null, z, e.longCutMult ?? 1);
@@ -632,6 +670,7 @@ export function runProgression(entries, params, profiles) {
     // Never more room than his potential allows (a drop takes ceilings down with it; a start file may carry extra).
     fitCeilingsToPot(e.p);
     if (e.p.pot < pot) awards.why.set(e.p.id, injured ? 'injury' : z != null && z <= params.prodPotDownZ ? 'production' : mpg && mpg.mpg < 12 ? 'minutes' : 'development');
+    if (params.secondWind !== false) secondWind(e, z, params, rng, awards);
     maybeSkills(e.p, pts, params, profiles, rng, e.skillMult ?? 1);
     if (e.spend) spendHeldPoints(e.p, params, rng);
   }

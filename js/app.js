@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.169';
+const APP_VERSION = '0.365.170';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -7092,6 +7092,11 @@ function campHoldouts(team) {
     .sort((a, b) => shownLevel(b) - shownLevel(a));
 }
 setHoldouts(t => (state.data && !isCollege() && isUserTeam(t) ? campHoldouts(t) : []));
+// Second winds, kept per save: { pid: { yr, amt } } (yr = the season he earned it after). The next offseason reads it to
+// see whether he held it.
+const windKey = () => `hlc:wind:${saveTag()}`;
+function windStore() { try { return JSON.parse(localStorage.getItem(windKey())) || {}; } catch { return {}; } }
+function windSave(v) { try { localStorage.setItem(windKey(), JSON.stringify(v)); } catch { /* ignore */ } }
 function applyBump(seed) {
   const li = state.leagueIdx;
   // Start from the original file each time so re-rolls don't stack.
@@ -7100,7 +7105,9 @@ function applyBump(seed) {
   // Ceilings that are all used up get re-spread to the level his potential allows.
   if (state.params.dynamicCeilings !== false) for (const p of vetPlayers()) refitCeilings(p);
   const devT = tierNow('dev');
+  const winds = windStore(), lsy = lastSeasonYear();
   const entries = bumpEntries().map(e => ({ ...e, ...bumpContext(), spend: state.params.spendCpuPoints && !isUserTeam(e.team),
+    windPrev: winds[e.p.id]?.yr === lsy - 1 ? winds[e.p.id].amt : 0,
     ...(() => {
       const F = FX.facilityFx(e.team), u = isUserTeam(e.team), f = u ? fxNow() : null, a = e.p.age;
       // Every team's coach counts: yours with the tree on top, the rest by his own ratings.
@@ -7119,6 +7126,10 @@ function applyBump(seed) {
   const awards = runProgression(entries, { ...state.params, seed }, state.profiles[li]);
   state.potWhy = new Map(awards.why);
   state.injCut = new Map(awards.injCut || []);
+  state.wind = new Map(awards.wind || []); state.windEnd = new Map(awards.windEnd || []);
+  { for (const [pid, r] of Object.entries(winds)) if (r.yr >= lsy || r.yr < lsy - 1) delete winds[pid];   // a re-run starts clean
+    for (const [pid, amt] of state.wind) winds[pid] = { yr: lsy, amt };
+    windSave(winds); }
   { const all = glStore(), recs = all[lastSeasonYear()]; if (recs) { for (const [pid, r] of Object.entries(recs)) r.bumped = awards.gl.get(+pid) || 0; glSave(all); } }
   // A potential bump brings new ratings room with it, adding up to the new potential.
   if (state.params.dynamicCeilings !== false) for (const e of entries) potBumpCeilings(e.p, snapOf(e.p).pot);
@@ -7149,7 +7160,7 @@ function applyBump(seed) {
   const all = (state.awards[li] ||= new Map());
   for (const p of vetPlayers()) all.delete(p.id);
   for (const [k, v] of awards) all.set(k, v);
-  state.auto[li] = { seed, players, points, mine, longevity, earned, regDowns, potUps, potDowns, total: entries.length, spent: state.params.spendCpuPoints };
+  state.auto[li] = { seed, players, points, mine, longevity, earned, regDowns, potUps, potDowns, winds: state.wind.size, total: entries.length, spent: state.params.spendCpuPoints };
   state.dirty = true;
 }
 
@@ -8191,6 +8202,7 @@ screens.offseason = (args = {}) => {
               <dt>Potential ↓</dt><dd class="down">${auto.potDowns ?? 0}</dd>`}
               <dt>Regression age ↑</dt><dd class="up">${auto.longevity ?? 0}</dd>
               <dt>Regression age ↓</dt><dd class="down">${auto.regDowns ?? 0}</dd>
+              ${auto.winds ? `<dt>🔥 Second wind</dt><dd class="up">${auto.winds}</dd>` : ''}
             </dl>
             <button class="btn focus" data-act="nav" data-to="report">📋 Progression Report</button>
             ${P.commissioner ? '<button class="btn small" data-act="undoAuto">↺ Undo</button>' : ''}`
@@ -10623,7 +10635,15 @@ function longevityBadges(p, d, injury = true) {
   const hide = potHidden();
   return (d.regDelta && !hide ? `<span class="badge ${d.regDelta > 0 ? 'lvl' : 'down-b'}">${paused ? 'Regression paused' : `Regression age ${was}→${p.regressionAge}`}</span>` : '') +
     (hide ? '' : d.potDelta > 0 ? '<span class="badge new">POT ▲</span>' : d.potDelta < 0 ? `<span class="badge down-b">POT ▼${why ? ` · ${why}` : ''}</span>` : '') +
-    (injury ? injuryBadge(p) : '') + injCutBadge(p);
+    (injury ? injuryBadge(p) : '') + injCutBadge(p) + windBadge(p);
+}
+// A second wind: his decline pushed back (he'll look better next season), or how last year's went.
+function windBadge(p) {
+  const w = state.wind?.get(p.id), end = state.windEnd?.get(p.id);
+  if (w) return `<span class="badge new">🔥 Second wind: decline pushed back ${w} years</span>`;
+  if (end === 'held') return '<span class="badge new">🔥 Held his second wind</span>';
+  if (end === 'faded') return '<span class="badge down-b">Second wind faded</span>';
+  return '';
 }
 // The injury took him under his own level: what it cost, and where he tops out now.
 function injCutBadge(p) {
