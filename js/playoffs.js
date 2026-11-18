@@ -294,11 +294,15 @@ export function revertRise(p, x, keepK) {
 export { playerName };
 
 // File size: the free agent pool only grows (every undrafted player lands in it and most never sign). On export, drop
-// the ones who'll never play: 22 or older with no NBA game and below Lv 63, or no game in two seasons and below Lv 68.
+// anyone under Lv 50 at once, and the ones who'll never play: 22 or older with no NBA game and below Lv 63, or no game in two seasons and below Lv 68.
 // Never during free agency, never anyone with an award. Returns the players removed.
 export function trimFreeAgents(L, levelOf, li = 0) {
   const s = L.season, y = s.currentYear;
-  if (s.phase === 6 || !Array.isArray(L.freeAgents)) return [];
+  if (!Array.isArray(L.freeAgents)) return [];
+  // Under Lv 50 goes at once, in any phase (free agency too).
+  const low = [];
+  L.freeAgents = L.freeAgents.filter(p => { const drop = levelOf(p) < 50 && !(p.awards || []).length; if (drop) low.push(p); return !drop; });
+  if (s.phase === 6) return low;
   const played = p => (p.stats || []).filter(x => (x.league ?? 0) === li && (x.season || []).some(r => r.GP > 0)).map(x => x.yr);
   const gone = [];
   L.freeAgents = L.freeAgents.filter(p => {
@@ -308,17 +312,20 @@ export function trimFreeAgents(L, levelOf, li = 0) {
     if (drop) gone.push(p);
     return !drop;
   });
-  return gone;
+  return [...low, ...gone];
 }
 // Everyone a league's record book names (a record holder stays in the file).
 const recordIds = L => { const ids = new Set(); const walk = o => { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) k === 'pid' ? ids.add(v) : walk(v); }; walk(L.records); return ids; };
-// Pro retirees below Lv 79 with no award, no retired jersey and no record go (after the season they retired in).
+// Pro retirees below Lv 79 with no award, no retired jersey and no record go (after the season they retired in);
+// below Lv 50 they go whatever they won. The level he retired at (the raw ratings), not the age-worn one the app shows.
 export function trimRetirees(L, levelOf) {
   if (L.leagueType !== 0 || !Array.isArray(L.retirees)) return [];
   const y = L.season.currentYear, rec = recordIds(L), jersey = new Set(L.teams.flatMap(t => (t.retiredNumbers || []).map(r => r.pid)));
   const gone = [];
   L.retirees = L.retirees.filter(p => {
-    const keep = levelOf(p) >= 79 || (p.awards || []).length || jersey.has(p.id) || rec.has(p.id) || (p.history?.yearRetired ?? y) >= y;
+    const lv = levelOf(p);
+    // Under Lv 50 goes even with an award; only a retired jersey (or a record) keeps him.
+    const keep = jersey.has(p.id) || rec.has(p.id) || (lv >= 50 && (lv >= 79 || (p.awards || []).length || (p.history?.yearRetired ?? y) >= y));
     if (!keep) gone.push(p);
     return keep;
   });

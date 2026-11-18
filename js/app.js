@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.166';
+const APP_VERSION = '0.365.167';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -1815,7 +1815,8 @@ function cutWeakSeconds(L) {
   calFlags().weakSeconds = L.season.currentYear;
   const log = [], dy = draftYear(L), day = L.season.currentDay || 3;
   for (const t of L.teams.filter(x => !isUserTeam(x) && x.roster.length)) {
-    const weak = FA.signedRoster(t).filter(p => p.history?.draft?.rd === 2 && p.history.draft.yr >= dy - 2 && levelStarsOf(shownLevel(p)) <= 3 && (p.pot || 0) < 9 && !extPending(p));
+    // A rookie under Lv 50 (either round) isn't signed: he goes, and the export clears him from free agency.
+    const weak = FA.signedRoster(t).filter(p => ((p.history?.draft?.rd === 2 && p.history.draft.yr >= dy - 2 && levelStarsOf(shownLevel(p)) <= 3 && (p.pot || 0) < 9) || (p.history?.draft?.rd > 0 && p.history.draft.yr >= dy && shownLevel(p) < 50)) && !extPending(p));
     for (const p of weak) {
       FA.cutPlayer(L, t, p);
       // A late-summer price (about 60% of his ask, never under the minimum) that fits before the team's next tax line.
@@ -1826,8 +1827,8 @@ function cutWeakSeconds(L) {
         const sal = price(up);
         FA.signPlayer(L, up, t, { tid: t.id, sal, yrs: 1, opt: 0 }, day);
         lockSigning(up, 'Signed this offseason');
-        log.push(`${t.shortName} cut 2nd-rounder ${playerName(p)} (Lv ${shownLevel(p)}) and signed ${playerName(up)} (Lv ${shownLevel(up)}, $${sal}M)`);
-      } else log.push(`${t.shortName} cut 2nd-rounder ${playerName(p)} (Lv ${shownLevel(p)})`);
+        log.push(`${t.shortName} cut ${p.history.draft.rd === 1 ? '1st' : '2nd'}-rounder ${playerName(p)} (Lv ${shownLevel(p)}) and signed ${playerName(up)} (Lv ${shownLevel(up)}, $${sal}M)`);
+      } else log.push(`${t.shortName} cut ${p.history.draft.rd === 1 ? '1st' : '2nd'}-rounder ${playerName(p)} (Lv ${shownLevel(p)})`);
     }
   }
   if (log.length) { (calFlags().dumpLog ||= []).push(...log); state.dirty = true; }
@@ -1919,7 +1920,7 @@ function buildExport() {
   // its ceiling, and no news about a player who no longer exists anywhere in the save.
   if (!isCollege()) { PO.dedupeAwards(league()); PO.repairSave(league()); PO.trimFreeAgents(league(), shownLevel, state.leagueIdx); }
   // Smaller files: retirees nobody will look up again, in every league of the save (the college one too).
-  for (const X of state.data.seasonLeagues) { PO.trimRetirees(X, shownLevel); PO.trimCollegeRetirees(X); }
+  for (const X of state.data.seasonLeagues) { PO.trimRetirees(X, levelOf); PO.trimCollegeRetirees(X); }
   for (const X of state.data.seasonLeagues) pruneGhostNews(state.data, X);
   otherCoachFix();
   if (!isCollege()) pickWindow(league());
