@@ -153,6 +153,19 @@ export function cleanCoachPool(league) {
   }
   return n;
 }
+// A head coach's record for the season with his team. Hoop Land carries a coach's team from it: without one, a coach
+// the app placed started his season on no team (or with no record at all), and Coach of the Year then broke the step
+// after the play-in. Used by every app hire and swap.
+export function giveSeasonRecord(league, coach, team) {
+  const th = coach?.career?.teamHistory;
+  if (!Array.isArray(th) || !th.length) return false;
+  const y = league.season?.currentYear, li = coach.league ?? (league.leagueType === 0 ? 0 : 1);
+  let h = th.find(e => e.yr === y && (e.league ?? li) === li);
+  if (h && h.season?.[0]?.tid && h.season[0].tid !== team.id && (h.season[0].GP || 0) > 0) h = null;   // his stint elsewhere this season stays
+  if (!h) { h = JSON.parse(JSON.stringify(th[th.length - 1]), (k, v) => (typeof v === 'number' ? 0 : k === 'L10' ? [] : v)); h.yr = y; h.league = li; th.push(h); }
+  if (h.season?.[0]) h.season[0].tid = team.id;
+  return true;
+}
 export function hireHeadCoach(league, team, coach) {
   const staff = team.frontOffice?.staff || [];
   // The head coach's slot, or the empty one the game leaves when it fires a coach and hires nobody.
@@ -167,15 +180,7 @@ export function hireHeadCoach(league, team, coach) {
   coach.tid = team.id; coach.status = 1; coach.pos = 1;
   coach.contract = { tid: team.id, pid: coach.id, type: 0, yrs: ask.yrs, sal: ask.sal, nil: 0, opt: 0, noTrd: 0, canExt: false, ext: { yrs: 0, sal: 0, opt: 0, noTrd: 0 } };
   staff[i] = coach;
-  // His record for the season with his new team (Hoop Land carries a coach's team from it; without one his season
-  // started on no team, and Coach of the Year broke the step after the play-in).
-  const th = coach.career?.teamHistory;
-  if (Array.isArray(th) && th.length) {
-    const y = league.season?.currentYear, li = league.leagueType === 0 ? 0 : (coach.league ?? 1);
-    let h = th.find(e => e.yr === y && (e.league ?? li) === li);
-    if (!h) { h = JSON.parse(JSON.stringify(th[th.length - 1]), (k, v) => (typeof v === 'number' ? 0 : k === 'L10' ? [] : v)); h.yr = y; h.league = li; th.push(h); }
-    if (h.season?.[0]) h.season[0].tid = team.id;
-  }
+  giveSeasonRecord(league, coach, team);
   if (!vacant) { old.tid = 0; old.status = 3; old.contract = empty(0); pool.push(old); }
   return { old: vacant ? null : old, ask };
 }

@@ -33,7 +33,7 @@ import { refitCeilings, potBumpCeilings, autoTendencies, normalizeTendencies } f
 import { saveToLeague } from './leagueexport.js';
 import * as RP from './realpicks.js';
 import { SKILL_INFO, skillDoes, skillSays } from './skillinfo.js';
-import { archName as coachArch, strengthName, shownRating, shownCeiling, potentialStars, schemeOf, careerOf, securityOf, philosophyOf, coachGrade, askingContract, hireHeadCoach, cleanCoachPool, coachGone, hireable, headVacant } from './coachprofile.js';
+import { archName as coachArch, strengthName, shownRating, shownCeiling, potentialStars, schemeOf, careerOf, securityOf, philosophyOf, coachGrade, askingContract, hireHeadCoach, giveSeasonRecord, cleanCoachPool, coachGone, hireable, headVacant } from './coachprofile.js';
 import { signatureOf, evolve, STYLE_WORD } from './schemeevo.js';
 import { runMeeting, traitName } from './influence.js';
 import { FOCUS, MAX_USAGE, MIN_USAGE, MAX_TOTAL, focusFor, autoOptions, fixOptions } from './scoring.js';
@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.160';
+const APP_VERSION = '0.365.161';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -22884,6 +22884,7 @@ function swapHeadCoach(from, to) {
   if (!a || !b || (b.fn === a.fn && b.ln === a.ln)) return;
   from.frontOffice.staff[0] = b; to.frontOffice.staff[0] = a;
   a.tid = to.id; b.tid = from.id;
+  for (const [c, tm] of [[a, to], [b, from]]) { if (c.contract?.tid) c.contract.tid = tm.id; giveSeasonRecord(league(), c, tm); }
 }
 const cpRow = (p, right = '', sub = '') => `<div class="drill-row tap" data-act="openPlayer" data-id="${p.id}"><span class="grow"><b>${esc(playerName(p))}</b> ${lvTag(p)} ${potTag(p.pot)}<br>
   <span class="small muted">${esc(posName(p))} · ${p.age}y · ${classOf(p.yrs ?? 0)}${sub ? ` · ${sub}` : ''}</span></span>${right ? `<span class="small" style="text-align:right">${right}</span>` : ''}</div>`;
@@ -23693,6 +23694,8 @@ actions.stashSend = async d => {
   const copy = JSON.parse(JSON.stringify(p));   // as he was, for an undo this summer
   t.roster.splice(t.roster.indexOf(p), 1);
   if (Array.isArray(t.startingLineup)) t.startingLineup = t.startingLineup.filter(e => e.pid !== p.id);
+  // A scoring option he held goes to the best player not already one (the game keeps three).
+  for (const o of t.scoringOptions || []) if (o.pid === p.id) { const next = [...t.roster].sort((a, b) => levelOf(b) - levelOf(a)).find(q => !(t.scoringOptions || []).some(x => x.pid === q.id)); if (next) o.pid = next.id; }
   stashSave([...stashList(), { tid: t.id, yr: L.season.currentYear, player: copy }]);
   delete cutSel()[p.id];
   state.dirty = true; render();
