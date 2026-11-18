@@ -459,11 +459,28 @@ export function canGrow(p, k, max = 20) {
   const a = p.attributes?.[k];
   if (!a || a[0] >= Math.min(max, attrCap(k))) return false;
   if (PHYSICAL.includes(k)) return true;
+  // His potential is a hard cap: at the level it allows, no skill rating grows (whatever his ceilings say) until his
+  // potential goes up or someone raises him by hand.
+  if (nowTotal(p) >= potCap(p)) return false;
   return a[0] < a[1] || ceilTotal(p) < potCap(p);
+}
+const nowTotal = p => SKILL_KEYS.reduce((a, k) => a + (p.attributes?.[k]?.[0] ?? 0), 0);
+// Ceilings never promise more than his potential: trim the ones with the most room until they add up to what his
+// potential allows (or to his ratings now, if he's already past it). Run when potential drops. Returns points cut.
+export function fitCeilingsToPot(p) {
+  if (!p.attributes || !p.pot) return 0;
+  const target = Math.max(potCap(p), nowTotal(p));
+  let cut = 0;
+  while (ceilTotal(p) > target) {
+    const k = SKILL_KEYS.filter(x => p.attributes[x] && p.attributes[x][1] > p.attributes[x][0]).sort((x, y) => (p.attributes[y][1] - p.attributes[y][0]) - (p.attributes[x][1] - p.attributes[x][0]))[0];
+    if (!k) break;
+    p.attributes[k][1]--; cut++;
+  }
+  return cut;
 }
 // Points a player still has room for across his skill ratings: to his ceilings, plus whatever his potential leaves
 // above them.
-export const growthRoom = p => SKILL_KEYS.reduce((a, k) => a + Math.max(0, (p.attributes?.[k]?.[1] ?? 0) - (p.attributes?.[k]?.[0] ?? 0)), 0) + Math.max(0, potCap(p) - ceilTotal(p));
+export const growthRoom = p => Math.max(0, Math.min(SKILL_KEYS.reduce((a, k) => a + Math.max(0, (p.attributes?.[k]?.[1] ?? 0) - (p.attributes?.[k]?.[0] ?? 0)), 0) + Math.max(0, potCap(p) - ceilTotal(p)), potCap(p) - nowTotal(p)));
 export function levelOf(p) {
   const total = SKILL_KEYS.reduce((a, k) => a + (p.attributes?.[k]?.[0] ?? 0), 0);
   // No cap: a player pushed past five stars by hand reads over 100.

@@ -5,7 +5,7 @@
 
 import { secsOf } from './gameclock.js';
 import { coachMult, durMult, durLongevity } from './traits.js';
-import { ATTRS, ATTR_MAX, attrCap, SKILL_MAX_LEVEL, CATEGORIES, POT_MIN, POT_MAX, MINOR_INJURY, lastSeasonMpg, activeSkills, isLeveled, injuryHistory, injuryPart, canGrow, growthRoom, potCap, levelOf } from './savefile.js';
+import { fitCeilingsToPot, ATTRS, ATTR_MAX, attrCap, SKILL_MAX_LEVEL, CATEGORIES, POT_MIN, POT_MAX, MINOR_INJURY, lastSeasonMpg, activeSkills, isLeveled, injuryHistory, injuryPart, canGrow, growthRoom, potCap, levelOf } from './savefile.js';
 
 // Categories the bump awards points in (Physical is left alone).
 export const AWARD_CATEGORIES = [0, 1, 2, 3];
@@ -629,6 +629,8 @@ export function runProgression(entries, params, profiles) {
     }
     else maybePotential(e.p, mult * (e.potMult || 1), params, rng, z);
     // Why potential dropped, for the report.
+    // Never more room than his potential allows (a drop takes ceilings down with it; a start file may carry extra).
+    fitCeilingsToPot(e.p);
     if (e.p.pot < pot) awards.why.set(e.p.id, injured ? 'injury' : z != null && z <= params.prodPotDownZ ? 'production' : mpg && mpg.mpg < 12 ? 'minutes' : 'development');
     maybeSkills(e.p, pts, params, profiles, rng, e.skillMult ?? 1);
     if (e.spend) spendHeldPoints(e.p, params, rng);
