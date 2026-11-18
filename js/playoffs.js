@@ -11,6 +11,27 @@ export function atPlayoffStart(L) {
   const po = thisPlayoffs(L);
   return L.season.phase === 11 && !!po && (po.rounds || []).length === 1 && (po.rounds[0].series || []).every(s => (s.currentGame || 0) <= 1);
 }
+// Awards handed out more than once: each time Continue fails after the play-in, the game runs its awards again, so a
+// player can hold the same award for one season five times (a year listed again and again, or the same All-NBA year
+// on two teams). One of each: a year appears once per award, and on a team award only on one team (the first listed).
+export function dedupeAwards(L) {
+  let fixed = 0;
+  const all = [...L.teams.flatMap(t => t.roster || []), ...(L.freeAgents || []), ...(L.retirees || []), ...(L.hallOfFame || [])];
+  for (const p of all) {
+    const rows = p.awards || [];
+    for (const a of rows) { const ys = a.yearsWon || []; const u = [...new Set(ys)]; if (u.length !== ys.length) { a.yearsWon = u; fixed++; } }
+    // Same award, same year, on more than one team (or position): keep the first.
+    const byKey = new Map();
+    for (const a of rows) for (const y of a.yearsWon || []) { const k = `${a.id}/${a.league ?? 0}/${y}`; (byKey.get(k) || byKey.set(k, []).get(k)).push(a); }
+    for (const [k, list] of byKey) if (list.length > 1 && [13, 14, 15].includes(+k.split('/')[0])) {
+      const y = +k.split('/')[2];
+      for (const a of list.slice(1)) { a.yearsWon = a.yearsWon.filter(v => v !== y); fixed++; }
+    }
+    const kept = rows.filter(a => (a.yearsWon || []).length);
+    if (kept.length !== rows.length) p.awards = kept;
+  }
+  return fixed;
+}
 // Stuck after the play-in: the regular season and the play-in are played (phase 13), but the game never built the
 // first round, so Continue does nothing. Some long saves hit it in Hoop Land; building round 1 by hand lets the game go on.
 export function stalledAfterPlayIn(L) {
