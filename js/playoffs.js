@@ -11,6 +11,45 @@ export function atPlayoffStart(L) {
   const po = thisPlayoffs(L);
   return L.season.phase === 11 && !!po && (po.rounds || []).length === 1 && (po.rounds[0].series || []).every(s => (s.currentGame || 0) <= 1);
 }
+// Stuck after the play-in: the regular season and the play-in are played (phase 13), but the game never built the
+// first round, so Continue does nothing. Some long saves hit it in Hoop Land; building round 1 by hand lets the game go on.
+export function stalledAfterPlayIn(L) {
+  const s = L.season, po = thisPlayoffs(L);
+  if (s.phase !== 13 || (po && (po.rounds || []).length)) return false;
+  const all = (s.schedule || []).flatMap(d => d.results || []);
+  const reg = all.filter(g => g.gameType === 0 && g.homeTeam && g.awayTeam && !g.tRound);
+  if (!reg.length || reg.some(g => !g.winner)) return false;
+  const pin = all.filter(g => g.gameType === 2);
+  return s.playInTournament ? pin.length >= 6 && pin.every(g => g.winner) : true;
+}
+// Round 1: each conference's top six by the game's own seeds, then the play-in's 7 and 8 (the 7-8 winner, then the
+// winner of the last game); with no play-in, seeds 7 and 8 straight. 1-8, 4-5, 3-6, 2-7, East first, so series i
+// meets series i^1 next round. One game day with game 1 of every series; the save goes to the playoffs (phase 11).
+export function buildFirstRound(L) {
+  const s = L.season, yr = s.currentYear;
+  const half = Math.ceil((L.divisions || []).length / 2) || 3, confOf = t => (t.division < half ? 0 : 1);
+  const seed = t => (t.season || []).find(x => x.yr === yr)?.seed ?? 99;
+  const all = (s.schedule || []).flatMap(d => d.results || []);
+  const pin = all.filter(g => g.gameType === 2).sort((a, b) => a.tId - b.tId);
+  const n = Math.max(2, Math.floor((s.playoffTeams || 16) / 2));
+  const seeds = [0, 1].map(c => {
+    const ts = L.teams.filter(t => confOf(t) === c).sort((a, b) => seed(a) - seed(b)).map(t => t.id);
+    if (!s.playInTournament || n !== 8) return ts.slice(0, n);
+    const mine = pin.filter(g => ts.includes(g.homeTeam));
+    if (mine.length < 3) return ts.slice(0, n);
+    return [...ts.slice(0, 6), mine[0].winner, mine[2].winner];
+  });
+  const pairs = x => { const out = [], m = x.length; const order = m === 8 ? [[0, 7], [3, 4], [2, 5], [1, 6]] : Array.from({ length: m / 2 }, (_, i) => [i, m - 1 - i]); for (const [a, b] of order) out.push([x[a], x[b]]); return out; };
+  const series = [...pairs(seeds[0]), ...pairs(seeds[1])];
+  let po = thisPlayoffs(L);
+  if (!po) { po = { yr, seriesLength: [...(s.seriesLength || [4, 4, 4, 4, 7, 7])], rounds: [] }; (s.playoffs ||= []).push(po); }
+  po.rounds = [{ series: series.map(([a, b], i) => ({ topSeed: a, lowerSeed: b, tId: i, tRound: 1, currentGame: 1, firstTo: 4, winner: 0 })) }];
+  let gid = Math.max(0, ...all.map(g => g.gId || 0));
+  const tpl = all.find(g => g.gameType === 0 && g.homeTeam && g.awayTeam) || {};
+  s.schedule.push({ results: series.map(([a, b], i) => ({ ...tpl, league: 0, gameType: 0, homeTeam: a, awayTeam: b, gId: ++gid, tId: i, tRound: 1, homeScore: 0, awayScore: 0, winner: 0, potg: 0, periods: 0, totalPeriods: 0, homeRecord: [0, 0], awayRecord: [0, 0], forced: -1 })) });
+  s.phase = 11; s.currentRound = 0; s.currentDay = s.schedule.length - 1;
+  return series;
+}
 const record = (L, t) => { const r = t.season?.find(x => x.yr === L.season.currentYear)?.seasonStats || {}; return { w: r.W || 0, l: r.L || 0, pct: r.GP ? r.W / r.GP : 0.5 }; };
 // Team strength: this season's record and its best three players (by level and this season's production).
 export function strength(L, t) {

@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.154';
+const APP_VERSION = '0.365.155';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -3337,6 +3337,16 @@ actions.expAsk = d => {
 };
 // Past the regular season but not yet in the playoffs (the game's awards and play-in, phase 13, and any late-season
 // phase this app doesn't know): the awards from the save and what comes next, instead of the offseason message.
+actions.repairPlayoffs = async () => {
+  const L = league();
+  if (!PO.stalledAfterPlayIn(L)) return;
+  if (!(await confirmBox('Set the first round from the final standings and the play-in, and move the save to the playoffs?', 'Start the Playoffs'))) return;
+  checkpoint('Start the playoffs');
+  const ser = PO.buildFirstRound(L), nm = id => L.teams.find(t => t.id === id)?.shortName || id;
+  state.dirty = true;
+  toast('🏀 The playoffs are set', ser.map(([a, b]) => `${nm(a)}-${nm(b)}`).join(' · ') + '. Export and load it in Hoop Land.', 6000);
+  render();
+};
 function seasonAwardsCard() {
   const L = league(), s = L.season, yr = s.currentYear, table = L.awards || [];
   if (![10, 12, 13, 14].includes(s.phase)) return '';
@@ -3350,6 +3360,7 @@ function seasonAwardsCard() {
   }
   const rows = [...won.entries()].sort((x, y) => x[1].length - y[1].length);
   return `<fieldset class="frame"><legend>🏆 ${dispYr(yr)} Season Awards</legend>
+    ${PO.stalledAfterPlayIn(L) ? `<div style="margin:0 0 12px"><p class="note small"><b class="gold">Stuck after the play-in?</b> The play-in is done but the first round was never set, so Hoop Land won't go on. Set it here, then export and load the file.</p><button class="btn focus wide" data-act="repairPlayoffs">🏀 Start the Playoffs</button></div>` : ''}
     ${rows.length ? `<div class="stack">${rows.map(([n, ps]) => `<div class="small mv-row aw-row"><span class="mv-l">${awardSprite(n)}<b>${esc(n)}</b></span><span class="mv-r">${ps.map(p => `<span class="tap" data-act="openPlayer" data-id="${p.id}">${esc(playerName(p))}</span>`).join(', ')}</span></div>`).join('')}</div>` : '<p class="note small muted">The awards aren\'t in this save yet.</p>'}
     <p class="note small" style="margin-top:8px">The regular season is over. Keep going in Hoop Land: the play-in and the playoffs are played there. Load the save again at the start of the playoffs for the playoff preview, or once the season ends (Pre-Lottery) to run the offseason.</p></fieldset>`;
 }
