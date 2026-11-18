@@ -178,6 +178,7 @@ export function movePlayer(p, from, to, year, { newStint = true } = {}) {
   from.roster.splice(i, 1);
   p.num = jerseyNumber(to, p);
   p.tid = to.id;
+  if (p.contract && p.contract.tid) p.contract.tid = to.id;   // the deal goes with him (a stale contract team breaks the game's books)
   p.linePos = to.roster.length;
   to.roster.push(p);
   const row = (p.stats || []).filter(s => s.yr === year).pop();

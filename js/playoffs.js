@@ -32,6 +32,14 @@ export function dedupeAwards(L) {
   }
   return fixed;
 }
+// Save integrity, once per load: a player's contract team matches the team he's on (trades used to leave the old
+// one), and no rating sits above its ceiling (a ceiling the game drops to 0 under a higher rating). Returns counts.
+export function repairSave(L) {
+  let contracts = 0, ceilings = 0;
+  for (const t of L.teams) for (const p of t.roster || []) if (p.contract?.tid && p.contract.tid !== t.id) { p.contract.tid = t.id; contracts++; }
+  for (const p of [...L.teams.flatMap(t => t.roster || []), ...(L.freeAgents || [])]) for (const v of Object.values(p.attributes || {})) if (Array.isArray(v) && v[1] < v[0]) { v[1] = v[0]; ceilings++; }
+  return { contracts, ceilings };
+}
 // Stuck after the play-in: the regular season and the play-in are played (phase 13), but the game never built the
 // first round, so Continue does nothing. Some long saves hit it in Hoop Land; building round 1 by hand lets the game go on.
 export function stalledAfterPlayIn(L) {
