@@ -67,7 +67,33 @@ const hex = s => String(s || '').replace('#', '').toUpperCase().slice(0, 6);
 // The next team id: after every team and the All-Star teams (starTeams), so a 30-team league with its All-Star teams
 // on 32 and 33 adds 34, then 35.
 export function nextTeamId(league, taken = []) {
-  return Math.max(0, ...league.teams.map(t => t.id), ...(league.starTeams || []).map(t => t.id), ...taken) + 1;
+  return Math.max(0, ...league.teams.map(t => t.id), ...taken) + 1;
+}
+// The game expects its teams on ids 1..N with the All-Star teams after them: a 30-team league's All-Stars sit on 32
+// and 33, so before two teams join on 31 and 32 the All-Stars move up (to 33 and 34) everywhere they're named.
+export function clearStarIds(league, adding) {
+  const top = Math.max(0, ...league.teams.map(t => t.id)), want = new Set(Array.from({ length: adding }, (_, i) => top + 1 + i));
+  const stars = league.starTeams || [];
+  if (!stars.some(s => want.has(s.id))) return null;
+  const map = new Map(stars.map((s, i) => [s.id, top + adding + 1 + i]));
+  remapTeamIds(league, map);
+  return map;
+}
+// Renumber teams through a pro league: team and All-Star ids, and every team reference (tid, otid, home and away
+// teams, winners and seeds). College rows (league above 0, collegeStats) keep their own ids. map: Map(old -> new).
+const TEAM_KEYS = new Set(['tid', 'otid', 'homeTeam', 'awayTeam', 'winner', 'topSeed', 'lowerSeed']);
+export function remapTeamIds(league, map) {
+  const walk = o => {
+    if (!o || typeof o !== 'object') return;
+    if (!Array.isArray(o) && typeof o.league === 'number' && o.league > 0) return;
+    for (const [k, v] of Object.entries(o)) {
+      if (k === 'collegeStats') continue;
+      if (typeof v === 'number') { if (TEAM_KEYS.has(k) && map.has(v)) o[k] = map.get(v); }
+      else if (v && typeof v === 'object') walk(v);
+    }
+  };
+  for (const t of [...league.teams, ...(league.starTeams || [])]) if (map.has(t.id)) t.id = map.get(t.id);
+  walk(league);
 }
 
 // Numbers retired across the league (on at least half the teams: Bill Russell's 6), for a new team to honor too.
