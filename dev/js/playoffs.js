@@ -324,14 +324,13 @@ export function trimRetirees(L, levelOf) {
   });
   return gone;
 }
-// College: a player five seasons past his last college season goes unless he won something of his own or a national
-// title (the All-Tournament team alone doesn't keep him), or holds a record.
-const COLLEGE_TEAM_ONLY = new Set([20]);
+// College: a player leaves the file the season after his last college season (the pro league keeps its own copy of
+// anyone drafted). Only a record holder stays, since the record book names him by id.
 export function trimCollegeRetirees(L) {
   if (L.leagueType !== 1 || !Array.isArray(L.retirees)) return [];
   const y = L.season.currentYear, rec = recordIds(L), gone = [];
   L.retirees = L.retirees.filter(p => {
-    const keep = (p.awards || []).some(a => !COLLEGE_TEAM_ONLY.has(a.id)) || rec.has(p.id) || (p.history?.yearRetired ?? y) > y - 5;
+    const keep = rec.has(p.id) || (p.history?.yearRetired ?? y) >= y;
     if (!keep) gone.push(p);
     return keep;
   });
