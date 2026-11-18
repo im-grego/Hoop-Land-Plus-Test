@@ -76,7 +76,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.162';
+const APP_VERSION = '0.365.163';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -1503,7 +1503,7 @@ function dumpSalary(L, t, limit, pay = filePay, log = [], o = {}) {
     const order = [...cands.filter(p => sal(p) >= over && overpaid(p) > -3), ...cands];
     let moved = false;
     for (const p of order) {
-      const to = others.filter(x => fits(x, p) && cpuPhysical(p, x) !== 'fail').sort((a, b) => underFloor(L, b) - underFloor(L, a) || reb(a) - reb(b) || pay(a) - pay(b))[0];
+      const to = others.filter(x => fits(x, p) && !hadHim(L, p, x) && cpuPhysical(p, x) !== 'fail').sort((a, b) => underFloor(L, b) - underFloor(L, a) || reb(a) - reb(b) || pay(a) - pay(b))[0];
       if (!to) continue;
       // A bad contract costs the team dumping it picks; a solid player on a fair-ish deal still has a price, even from
       // a team that has to move him: half to three quarters of his worth, more the more teams can fit him.
@@ -1612,7 +1612,7 @@ function floorFill(L, log = []) {
         const core = new Set([...d.roster].sort((a, b) => shownLevel(b) - shownLevel(a)).slice(0, 3).map(q => q.id));
         return FA.signedRoster(d).filter(q => !core.has(q.id) && !tradeLock(q) && !FA.isLifer(L, q, d) && (q.contract?.yrs || 0) <= 2 && (q.contract?.sal || 0) - (back.contract?.sal || 0) >= Math.min(gap, 6) && (q.contract?.sal || 0) - (back.contract?.sal || 0) <= gap + 12)
           .map(q => ({ d, q, over: (q.contract?.sal || 0) - fairSalary(shownLevel(q)) }));
-      }).sort((a, b) => b.over - a.over)[0];
+      }).filter(x => !hadHim(L, x.q, t) && !hadHim(L, back, x.d)).sort((a, b) => b.over - a.over)[0];
       if (!deal) break;
       const picks = dumpPicks(L, deal.d, Math.max(0, deal.over) * (deal.q.contract?.yrs || 1));
       executeTrade({ team: deal.d, players: [deal.q], picks, prospects: [] }, { team: t, players: [back], picks: [], prospects: [] }, L.season.currentYear);
@@ -17783,7 +17783,25 @@ function tradeLock(p) {
 // Lottery picks are off the table from the day before the lottery.
 const lotteryLocked = pk => league().season.phase === 2 && pk.rd === 1 && pk.yr === draftYear(league());
 // Everything a trade has to clear besides value. Sides: { team, players, picks }.
+// No boomerangs: a CPU team can't trade for a player it had in this season or the five before it (a deal you make
+// yourself still can). Read from his stat lines, so it holds across saves and for trades made in Hoop Land.
+const BACK_YEARS = 5;
+let manualTrade = false;
+function hadHim(L, p, team) {
+  const y = L.season.currentYear;
+  return (p.stats || []).some(s => (s.league ?? 0) === state.leagueIdx && s.yr >= y - BACK_YEARS && (s.season || []).some(r => r.tid === team.id));
+}
+function boomerangErr(L, A, B) {
+  if (manualTrade || isUserTeam(A.team) || isUserTeam(B.team)) return null;
+  for (const [me, them] of [[A, B], [B, A]]) {
+    const back = (them.players || []).find(p => hadHim(L, p, me.team));
+    if (back) return `${me.team.shortName} had ${playerName(back)} within the last ${BACK_YEARS} seasons and can't trade for him back`;
+  }
+  return null;
+}
 function tradeRulesErr(L, A, B) {
+  const boom = boomerangErr(L, A, B);
+  if (boom) return boom;
   if (!isComplete()) return null;
   const away = offGet('away');
   for (const [me, them] of [[A, B], [B, A]]) {
@@ -18712,7 +18730,9 @@ actions.liveTradeGo = async d => {
     if (no) { toast(`${no[0].shortName} decline: they want more back`); return; }
   }
   const force = d.force === '1' && state.params.commissioner;
-  const capErr = tradeRulesErr(L, sa, sb) || ntcRefusal(L, sa, sb);
+  manualTrade = true;
+  let capErr;
+  try { capErr = tradeRulesErr(L, sa, sb) || ntcRefusal(L, sa, sb); } finally { manualTrade = false; }
   if (capErr && !force) { toast('Trade not allowed', capErr, 3200, true); return; }
   if (!force && !(await physicals(L, sa, sb))) return;
   // New protections ride with the picks.
