@@ -47,6 +47,18 @@ function noise({ t = 0, d = 0.25, from = 3000, to = 800, q = 1.2, g = 0.4, type 
   n.start(s); n.stop(s + d + 0.05);
 }
 
+// A low "ooo" voice for the boos: a buzzy note through a muffling filter, sliding down.
+function lowVoice(f, f2, t, d) {
+  const c = wake(); if (!c) return;
+  const s = c.currentTime + t + 0.005;
+  const o = c.createOscillator(), fl = c.createBiquadFilter(), e = c.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(f, s); o.frequency.exponentialRampToValueAtTime(f2, s + d);
+  fl.type = 'lowpass'; fl.frequency.value = 520; fl.Q.value = 2;
+  e.gain.setValueAtTime(0.0001, s); e.gain.exponentialRampToValueAtTime(0.09, s + 0.25); e.gain.exponentialRampToValueAtTime(0.0001, s + d);
+  o.connect(fl); fl.connect(e); e.connect(master);
+  o.start(s); o.stop(s + d + 0.05);
+}
+
 // The sounds, by name. Short and quiet: the app is tapped hundreds of times a session.
 const SOUNDS = {
   tap:     () => tone({ f: 1250, d: 0.035, g: 0.22 }),
@@ -63,6 +75,17 @@ const SOUNDS = {
   buzzer:  () => { tone({ f: 110, d: 0.7, g: 0.32, type: 'sawtooth', a: 0.01 }); tone({ f: 116, d: 0.7, g: 0.22, type: 'square', a: 0.01 }); },
   crowd:   () => { noise({ d: 1.2, from: 900, to: 1400, q: 0.6, g: 0.28, a: 0.25 }); noise({ t: 0.15, d: 1.0, from: 2400, to: 1800, q: 0.8, g: 0.14, a: 0.2 }); },
   pick:    () => { SOUNDS.swish(); [784, 1046, 1318].forEach((f, i) => tone({ f, t: 0.18 + i * 0.07, d: i === 2 ? 0.25 : 0.07, g: 0.22 })); },
+  // The fans react to your pick: a roar for a steal, a chorus of boos for a reach.
+  cheer:   () => {
+    noise({ d: 1.6, from: 1400, to: 2200, q: 0.7, g: 0.42, a: 0.18 });
+    noise({ t: 0.1, d: 1.4, from: 3200, to: 2600, q: 1.1, g: 0.22, a: 0.15 });
+    for (let i = 0; i < 4; i++) tone({ f: 900 + Math.random() * 500, f2: 1500 + Math.random() * 700, t: 0.15 + i * 0.22 + Math.random() * 0.1, d: 0.32, g: 0.06, type: 'sine', a: 0.05 });   // whoops
+    tone({ f: 1800, f2: 2600, t: 0.3, d: 0.4, g: 0.07, type: 'sine', a: 0.03 });   // a whistle
+  },
+  boo:     () => {
+    for (let i = 0; i < 6; i++) { const f = 120 + Math.random() * 70; lowVoice(f, f * 0.82, Math.random() * 0.18, 1.3 + Math.random() * 0.3); }
+    noise({ d: 1.5, from: 500, to: 350, q: 0.8, g: 0.16, a: 0.2, type: 'lowpass' });
+  },
   coin:    () => { tone({ f: 988, d: 0.05, g: 0.22 }); tone({ f: 1319, t: 0.05, d: 0.2, g: 0.22 }); },
 };
 export const SOUND_NAMES = Object.keys(SOUNDS);
