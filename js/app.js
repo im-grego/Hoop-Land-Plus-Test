@@ -78,7 +78,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.182';
+const APP_VERSION = '0.365.183';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5116,18 +5116,38 @@ function tradeBlockCard() {
   return offersCard + blockCard;
 }
 
+// The app's own data files (the season list and season starts): from this site, and when that can't be reached (a
+// network blip, a domain hiccup), the same file from a public mirror of the live repo.
+const DATA_MIRROR = 'https://cdn.jsdelivr.net/gh/im-grego/hoop-land-plus@main/';
+async function fetchData(path, opts = {}) {
+  let err;
+  try { const r = await fetch(path, opts); if (r.ok) return r; err = new Error(`${r.status}`); } catch (e) { err = e; }
+  if (liveSite()) {
+    try { const r = await fetch(DATA_MIRROR + path, { cache: 'no-cache' }); if (r.ok) return r; } catch { /* the first error stands */ }
+  }
+  throw err;
+}
+const SEASON_IDX_KEY = 'hlc:seasonIdx';
 async function seasonIndex() {
   if (state.seasonIdx) return state.seasonIdx;
-  const r = await fetch('data/seasons/index.json', { cache: 'no-cache' });
-  if (!r.ok) throw new Error(`index ${r.status}`);
-  return (state.seasonIdx = await r.json());
+  try {
+    const r = await fetchData('data/seasons/index.json', { cache: 'no-cache' });
+    state.seasonIdx = await r.json();
+    try { localStorage.setItem(SEASON_IDX_KEY, JSON.stringify(state.seasonIdx)); } catch { /* full or blocked: fine */ }
+    return state.seasonIdx;
+  } catch (e) {
+    // Offline or unreachable: the list from the last time it loaded, if there is one.
+    try { const kept = JSON.parse(localStorage.getItem(SEASON_IDX_KEY) || 'null'); if (kept?.seasons) return (state.seasonIdx = kept); } catch { /* none */ }
+    throw e;
+  }
 }
+actions.startRetry = () => { state.seasonIdx = null; replace('start'); };
 const fmtDay = iso => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 screens.start = () => {
   const idx = state.seasonIdx;
   if (!idx) {
     layout({ title: 'Start a Franchise', body: '<div class="spinner"></div><p class="note center">Getting the seasons…</p>' });
-    seasonIndex().then(() => replace('start')).catch(e => layout({ title: 'Start a Franchise', body: `<p class="note">Couldn't reach the seasons (${esc(e.message)}). Check your connection and try again.</p>` }));
+    seasonIndex().then(() => replace('start')).catch(e => layout({ title: 'Start a Franchise', body: `<fieldset class="frame"><legend>Couldn't reach the seasons</legend><p class="note">The season list didn't load (${esc(e.message)}). Check your connection, then try again.</p><button class="btn focus wide" data-act="startRetry">🔄 Try Again</button></fieldset>` }));
     return;
   }
   // One card per start: the date across the top, then a snapshot of the league that day (or Opening Night's clean slate).
@@ -5185,7 +5205,7 @@ actions.startPick = async d => {
   if (state.data && state.dirty && !(await confirmBox('You have unsaved changes. Start a new franchise anyway?', 'Start'))) return;
   const o = overlay('<div class="spinner"></div><p class="note">Getting the season…</p>');
   try {
-    const r = await fetch(d.file);
+    const r = await fetchData(d.file);
     if (!r.ok) throw new Error(`${r.status}`);
     let text;
     if (/\.gz$/.test(d.file) && typeof DecompressionStream !== 'undefined' && !(r.headers.get('content-encoding') || '').includes('gzip')) {
