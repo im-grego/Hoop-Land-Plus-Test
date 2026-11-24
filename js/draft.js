@@ -53,6 +53,54 @@ export function incomingLevel(p, ready = 0) {
   const r = Math.max(-1, Math.min(1, ready ?? 0)), C = ceilingLevel(p.pot);
   return Math.min(86, Math.round(C - (20 - 6 * r) * Math.max(0.3, (C - 50) / 50)));   // a 4-star: ready 76, average 72, project 67
 }
+// College to pro potential (Campus saves): college ratings show how good a player is in college, and his potential is
+// his college ceiling. When he declares, his NBA potential comes down in half stars:
+//   sophomore -1, junior -1, senior or older -2 (college years from history.yrs: 1 so, 2 jr, 3+ sr; no college: by
+//   age, 20 / 21 / 22+); undersized for his position -1; a below-average athlete for his position -1 (speed for guards
+//   and wings, speed and strength for forwards and bigs, 2+ under the NBA average for that group). The cuts stack.
+// Then, when the year has a draft board (data/boards), he's capped at his board tier (anyone not on it at 3 stars): the
+// board is how good a pro prospect he was to begin with, the cuts what staying in school and his frame take off.
+// Nobody goes under 2.5 stars or up. fitIncoming then sets his incoming level from the new potential and how ready he
+// is (college production, body, age), and his ceilings come down to the new potential's cap.
+export const PRO_CUTS = { sophomore: 1, junior: 1, senior: 2, small: 1, athlete: 1, floor: 5, offBoard: 6 };
+export const SMALL_HT = [74, 75, 76, 77, 78, 79, 80, 81, 82];   // under this (inches) at PG, G, SG, GF, SF, F, PF, FC, C
+const athleteGroup = pos => (pos <= 2 ? 'G' : pos <= 4 ? 'W' : 'B');   // F and up are judged like bigs: speed and strength
+const athleteScore = p => { const A = k => p.attributes?.[k]?.[0] ?? 10; return athleteGroup(p.pos) === 'B' ? (A('SPD') + A('STR')) / 2 : A('SPD'); };
+export function athleteNorms(L) {
+  const by = { G: [], W: [], B: [] };
+  for (const t of L.teams || []) for (const p of t.roster || []) if (p.attributes?.SPD) by[athleteGroup(p.pos)].push(athleteScore(p));
+  return Object.fromEntries(Object.entries(by).map(([g, v]) => [g, v.length ? v.reduce((a, b) => a + b, 0) / v.length : 12]));
+}
+// Board names match loosely: case, accents, Jr./Sr./II/III/IV and punctuation don't count.
+export const boardName = s => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  .replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, ' ').replace(/-/g, ' ').replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+export const boardMap = json => new Map((json?.prospects || []).map(x => [boardName(x.name), x.pot]));
+export function proPotential(p, norms, college = true, board = null) {
+  const cuts = [], yrs = Math.max(p.history?.yrs ?? 0, college ? (p.yrs ?? 0) : 0), age = p.age || 19;
+  const cls = college ? (yrs >= 3 ? 'senior' : yrs === 2 ? 'junior' : yrs === 1 ? 'sophomore' : null)
+    : (age >= 22 ? 'senior' : age === 21 ? 'junior' : age === 20 ? 'sophomore' : null);
+  if (cls) cuts.push(cls);
+  if ((p.ht || 0) < (SMALL_HT[p.pos] ?? 0)) cuts.push('small');
+  if (norms && athleteScore(p) <= (norms[athleteGroup(p.pos)] ?? 0) - 2) cuts.push('athlete');
+  const pot0 = p.pot || 0;
+  let pot = pot0 - cuts.reduce((a, c) => a + PRO_CUTS[c], 0);
+  let cap = null;
+  if (board?.size) { cap = board.get(boardName(`${p.fn} ${p.ln}`)) ?? PRO_CUTS.offBoard; pot = Math.min(pot, cap); }
+  pot = Math.min(pot0, Math.max(PRO_CUTS.floor, pot));
+  return { pot, cuts, cap };
+}
+// Ceilings down to the potential's cap (168 for 5 stars, 14 less per half star) without touching current ratings: the
+// room above current gives first, the most room first. Used after the college-to-pro conversion.
+export function capCeilings(p) {
+  if (!p?.attributes || !SKILL_ATTRS.every(k => Array.isArray(p.attributes[k]))) return;
+  const cap = 168 - 14 * (10 - Math.min(10, p.pot || 0));
+  let over = SKILL_ATTRS.reduce((a, k) => a + p.attributes[k][1], 0) - Math.max(cap, SKILL_ATTRS.reduce((a, k) => a + p.attributes[k][0], 0));
+  while (over > 0) {
+    const k = SKILL_ATTRS.reduce((b, x) => (p.attributes[x][1] - p.attributes[x][0] > (b ? p.attributes[b][1] - p.attributes[b][0] : 0) ? x : b), null);
+    if (!k) break;
+    p.attributes[k][1]--; over--;
+  }
+}
 export function fitIncoming(p, ready = 0) {
   if (!p?.attributes || !SKILL_ATTRS.every(k => Array.isArray(p.attributes[k]))) return 0;
   const total = () => SKILL_ATTRS.reduce((a, k) => a + p.attributes[k][0], 0), before = total();

@@ -1,0 +1,1418 @@
+{
+"kind": "hlc-board",
+"v": 1,
+"year": 2027,
+"about": "2027 draft boards, combined (average of two boards; a player on one gets +15). Pro potential cap by rank: #1 5 stars, 2-4 4.5, 5-16 4, 17-56 3.5, 57+ 3. Anyone not listed caps at 3 stars.",
+"prospects": [
+{
+"rank": 1,
+"name": "Tyran Stokes",
+"pot": 10
+},
+{
+"rank": 2,
+"name": "Bruce Branch III",
+"pot": 9
+},
+{
+"rank": 3,
+"name": "Quentin Coleman",
+"pot": 9
+},
+{
+"rank": 4,
+"name": "Jordan Smith Jr.",
+"pot": 9
+},
+{
+"rank": 5,
+"name": "Stefan Joksimovic",
+"pot": 8
+},
+{
+"rank": 6,
+"name": "Caleb Holt",
+"pot": 8
+},
+{
+"rank": 7,
+"name": "Ivan Kharchenkov",
+"pot": 8
+},
+{
+"rank": 8,
+"name": "Colben Landrew",
+"pot": 8
+},
+{
+"rank": 9,
+"name": "Amari Allen",
+"pot": 8
+},
+{
+"rank": 10,
+"name": "Abdou Toure",
+"pot": 8
+},
+{
+"rank": 11,
+"name": "Motiejus Krivas",
+"pot": 8
+},
+{
+"rank": 12,
+"name": "Alijah Arenas",
+"pot": 8
+},
+{
+"rank": 13,
+"name": "Braylon Mullins",
+"pot": 8
+},
+{
+"rank": 14,
+"name": "Thomas Haugh",
+"pot": 8
+},
+{
+"rank": 15,
+"name": "Obinna Ekezie Jr.",
+"pot": 8
+},
+{
+"rank": 16,
+"name": "Trey McKenney",
+"pot": 8
+},
+{
+"rank": 17,
+"name": "Patrick Ngongba II",
+"pot": 7
+},
+{
+"rank": 18,
+"name": "Christian Collins",
+"pot": 7
+},
+{
+"rank": 19,
+"name": "Jason Crowe Jr.",
+"pot": 7
+},
+{
+"rank": 20,
+"name": "Hugo Yimga Moukouri",
+"pot": 7
+},
+{
+"rank": 21,
+"name": "Tounde Yessoufou",
+"pot": 7
+},
+{
+"rank": 22,
+"name": "Dylan Mingo",
+"pot": 7
+},
+{
+"rank": 23,
+"name": "Luigi Suigo",
+"pot": 7
+},
+{
+"rank": 24,
+"name": "Anthony Thompson",
+"pot": 7
+},
+{
+"rank": 25,
+"name": "Brandon McCoy Jr.",
+"pot": 7
+},
+{
+"rank": 26,
+"name": "Billy Richmond III",
+"pot": 7
+},
+{
+"rank": 27,
+"name": "Dame Sarr",
+"pot": 7
+},
+{
+"rank": 28,
+"name": "David Mirkovic",
+"pot": 7
+},
+{
+"rank": 29,
+"name": "Shelton Henderson",
+"pot": 7
+},
+{
+"rank": 30,
+"name": "Davis Fogle",
+"pot": 7
+},
+{
+"rank": 31,
+"name": "Malachi Moreno",
+"pot": 7
+},
+{
+"rank": 32,
+"name": "Daniel Jacobsen",
+"pot": 7
+},
+{
+"rank": 33,
+"name": "Austin Goosby",
+"pot": 7
+},
+{
+"rank": 34,
+"name": "Andrej Stojakovic",
+"pot": 7
+},
+{
+"rank": 35,
+"name": "Thijs De Ridder",
+"pot": 7
+},
+{
+"rank": 36,
+"name": "Baba Oladotun",
+"pot": 7
+},
+{
+"rank": 37,
+"name": "Rueben Chinyelu",
+"pot": 7
+},
+{
+"rank": 38,
+"name": "Arafan Diane",
+"pot": 7
+},
+{
+"rank": 39,
+"name": "Adonis Ratliff",
+"pot": 7
+},
+{
+"rank": 40,
+"name": "Alex Condon",
+"pot": 7
+},
+{
+"rank": 41,
+"name": "Dash Daniels",
+"pot": 7
+},
+{
+"rank": 42,
+"name": "Na'jai Hines",
+"pot": 7
+},
+{
+"rank": 43,
+"name": "Matt Able",
+"pot": 7
+},
+{
+"rank": 44,
+"name": "Caleb Gaskins",
+"pot": 7
+},
+{
+"rank": 45,
+"name": "Pryce Sandfort",
+"pot": 7
+},
+{
+"rank": 46,
+"name": "Deron Rippey Jr.",
+"pot": 7
+},
+{
+"rank": 47,
+"name": "Milan Momcilovic",
+"pot": 7
+},
+{
+"rank": 48,
+"name": "Stefan Vaaks",
+"pot": 7
+},
+{
+"rank": 49,
+"name": "Juke Harris",
+"pot": 7
+},
+{
+"rank": 50,
+"name": "Tyler Tanner",
+"pot": 7
+},
+{
+"rank": 51,
+"name": "Matas Vokietaitis",
+"pot": 7
+},
+{
+"rank": 52,
+"name": "J.J. Andrews",
+"pot": 7
+},
+{
+"rank": 53,
+"name": "Neoklis Avdalas",
+"pot": 7
+},
+{
+"rank": 54,
+"name": "Cameron Williams",
+"pot": 7
+},
+{
+"rank": 55,
+"name": "Moustapha Thiam",
+"pot": 7
+},
+{
+"rank": 56,
+"name": "Jeremy Fears Jr.",
+"pot": 7
+},
+{
+"rank": 57,
+"name": "Cameron Houindo",
+"pot": 6
+},
+{
+"rank": 58,
+"name": "Hamad Mousa",
+"pot": 6
+},
+{
+"rank": 59,
+"name": "Miles Sadler",
+"pot": 6
+},
+{
+"rank": 60,
+"name": "Flory Bidunga",
+"pot": 6
+},
+{
+"rank": 61,
+"name": "Pavle Backo",
+"pot": 6
+},
+{
+"rank": 62,
+"name": "Jacob Cofie",
+"pot": 6
+},
+{
+"rank": 63,
+"name": "Bryson Howard",
+"pot": 6
+},
+{
+"rank": 64,
+"name": "Miikka Muurinen",
+"pot": 6
+},
+{
+"rank": 65,
+"name": "Nikolas Khamenia",
+"pot": 6
+},
+{
+"rank": 66,
+"name": "Tomislav Ivisic",
+"pot": 6
+},
+{
+"rank": 67,
+"name": "JT Toppin",
+"pot": 6
+},
+{
+"rank": 68,
+"name": "Ian Jackson",
+"pot": 6
+},
+{
+"rank": 69,
+"name": "Cayden Boozer",
+"pot": 6
+},
+{
+"rank": 70,
+"name": "Tajh Ariza",
+"pot": 6
+},
+{
+"rank": 71,
+"name": "Sebastian Rancik",
+"pot": 6
+},
+{
+"rank": 72,
+"name": "Maximo Adams",
+"pot": 6
+},
+{
+"rank": 73,
+"name": "John Blackwell",
+"pot": 6
+},
+{
+"rank": 74,
+"name": "Kayden Mingo",
+"pot": 6
+},
+{
+"rank": 75,
+"name": "Adam Atamna",
+"pot": 6
+},
+{
+"rank": 76,
+"name": "Isaiah Johnson",
+"pot": 6
+},
+{
+"rank": 77,
+"name": "Michael Ruzic",
+"pot": 6
+},
+{
+"rank": 78,
+"name": "Coen Carr",
+"pot": 6
+},
+{
+"rank": 79,
+"name": "Paul McNeil Jr.",
+"pot": 6
+},
+{
+"rank": 80,
+"name": "Mor Massamba Diop",
+"pot": 6
+},
+{
+"rank": 81,
+"name": "Jaxon Richardson",
+"pot": 6
+},
+{
+"rank": 82,
+"name": "Cheickh Niang",
+"pot": 6
+},
+{
+"rank": 83,
+"name": "Kanon Catchings",
+"pot": 6
+},
+{
+"rank": 84,
+"name": "Tyler Betsey",
+"pot": 6
+},
+{
+"rank": 85,
+"name": "Somto Cyril",
+"pot": 6
+},
+{
+"rank": 86,
+"name": "Mario Saint-Supery",
+"pot": 6
+},
+{
+"rank": 87,
+"name": "Oscar Wembanyama",
+"pot": 6
+},
+{
+"rank": 88,
+"name": "Amani Hansberry",
+"pot": 6
+},
+{
+"rank": 89,
+"name": "Derek Dixon",
+"pot": 6
+},
+{
+"rank": 90,
+"name": "Tay Kinney",
+"pot": 6
+},
+{
+"rank": 91,
+"name": "Johann Grunloh",
+"pot": 6
+},
+{
+"rank": 92,
+"name": "Bryson Tiller",
+"pot": 6
+},
+{
+"rank": 93,
+"name": "Omer Mayer",
+"pot": 6
+},
+{
+"rank": 94,
+"name": "Eric Reibe",
+"pot": 6
+},
+{
+"rank": 95,
+"name": "Joseph Tugler",
+"pot": 6
+},
+{
+"rank": 96,
+"name": "David Punch",
+"pot": 6
+},
+{
+"rank": 97,
+"name": "Isiah Harwell",
+"pot": 6
+},
+{
+"rank": 98,
+"name": "Lucas Morillo",
+"pot": 6
+},
+{
+"rank": 99,
+"name": "Drew Scharnowski",
+"pot": 6
+},
+{
+"rank": 100,
+"name": "Silas Demary Jr.",
+"pot": 6
+},
+{
+"rank": 101,
+"name": "Marc-Owen Fodzo Dada",
+"pot": 6
+},
+{
+"rank": 102,
+"name": "Nolan Minessale",
+"pot": 6
+},
+{
+"rank": 103,
+"name": "Zvonimir Ivisic",
+"pot": 6
+},
+{
+"rank": 104,
+"name": "Klark Riethauser",
+"pot": 6
+},
+{
+"rank": 105,
+"name": "Ognjen Srzentic",
+"pot": 6
+},
+{
+"rank": 106,
+"name": "Karter Knox",
+"pot": 6
+},
+{
+"rank": 107,
+"name": "Elliott Cadeau",
+"pot": 6
+},
+{
+"rank": 108,
+"name": "Acaden Lewis",
+"pot": 6
+},
+{
+"rank": 109,
+"name": "PJ Haggerty",
+"pot": 6
+},
+{
+"rank": 110,
+"name": "London Jemison",
+"pot": 6
+},
+{
+"rank": 111,
+"name": "Alexandros Samodurav",
+"pot": 6
+},
+{
+"rank": 112,
+"name": "Amael L'Etang",
+"pot": 6
+},
+{
+"rank": 113,
+"name": "John Mobley Jr.",
+"pot": 6
+},
+{
+"rank": 114,
+"name": "Braden Huff",
+"pot": 6
+},
+{
+"rank": 115,
+"name": "Matthys Mahop",
+"pot": 6
+},
+{
+"rank": 116,
+"name": "Tahaad Pettiford",
+"pot": 6
+},
+{
+"rank": 117,
+"name": "Kahmare Holmes",
+"pot": 6
+},
+{
+"rank": 118,
+"name": "Robert Wright III",
+"pot": 6
+},
+{
+"rank": 119,
+"name": "Cruz Davis",
+"pot": 6
+},
+{
+"rank": 120,
+"name": "Kiyan Anthony",
+"pot": 6
+},
+{
+"rank": 121,
+"name": "Killyan Toure",
+"pot": 6
+},
+{
+"rank": 122,
+"name": "Zoom Diallo",
+"pot": 6
+},
+{
+"rank": 123,
+"name": "Isaiah Denis",
+"pot": 6
+},
+{
+"rank": 124,
+"name": "Adrian Wooley",
+"pot": 6
+},
+{
+"rank": 125,
+"name": "Kameron Taylor",
+"pot": 6
+},
+{
+"rank": 126,
+"name": "Darius Ratliff",
+"pot": 6
+},
+{
+"rank": 127,
+"name": "Nolan Winter",
+"pot": 6
+},
+{
+"rank": 128,
+"name": "Jalen Haralson",
+"pot": 6
+},
+{
+"rank": 129,
+"name": "Dwayne Aristode",
+"pot": 6
+},
+{
+"rank": 130,
+"name": "Sammy Jackson",
+"pot": 6
+},
+{
+"rank": 131,
+"name": "Shon Abaev",
+"pot": 6
+},
+{
+"rank": 132,
+"name": "Sayon Keita",
+"pot": 6
+},
+{
+"rank": 133,
+"name": "De'Shayne Montgomery",
+"pot": 6
+},
+{
+"rank": 134,
+"name": "Ruben Prey",
+"pot": 6
+},
+{
+"rank": 135,
+"name": "C.J. Shaw",
+"pot": 6
+},
+{
+"rank": 136,
+"name": "Alex Wilkins",
+"pot": 6
+},
+{
+"rank": 137,
+"name": "Abraham Joum Maker Bol",
+"pot": 6
+},
+{
+"rank": 138,
+"name": "Xavier Booker",
+"pot": 6
+},
+{
+"rank": 139,
+"name": "Alvaro Folguerias",
+"pot": 6
+},
+{
+"rank": 140,
+"name": "Braden Frager",
+"pot": 6
+},
+{
+"rank": 141,
+"name": "Caleb Foster",
+"pot": 6
+},
+{
+"rank": 142,
+"name": "Kwame Evans Jr.",
+"pot": 6
+},
+{
+"rank": 143,
+"name": "Chandler Bing",
+"pot": 6
+},
+{
+"rank": 144,
+"name": "Jaden Toombs",
+"pot": 6
+},
+{
+"rank": 145,
+"name": "Miles Byrd",
+"pot": 6
+},
+{
+"rank": 146,
+"name": "Mouhamed Dioubate",
+"pot": 6
+},
+{
+"rank": 147,
+"name": "Toni Bryant",
+"pot": 6
+},
+{
+"rank": 148,
+"name": "Mackenzie Mgbako",
+"pot": 6
+},
+{
+"rank": 149,
+"name": "Noa Kouakou-Heugue",
+"pot": 6
+},
+{
+"rank": 150,
+"name": "Dillan Shaw",
+"pot": 6
+},
+{
+"rank": 151,
+"name": "Davion Thompson",
+"pot": 6
+},
+{
+"rank": 152,
+"name": "Collin Chandler",
+"pot": 6
+},
+{
+"rank": 153,
+"name": "Anthony Felesi",
+"pot": 6
+},
+{
+"rank": 154,
+"name": "Anton Bonke",
+"pot": 6
+},
+{
+"rank": 155,
+"name": "Mikey Lewis",
+"pot": 6
+},
+{
+"rank": 156,
+"name": "Solo Ball",
+"pot": 6
+},
+{
+"rank": 157,
+"name": "Baye Ndongo",
+"pot": 6
+},
+{
+"rank": 158,
+"name": "Eric Dailey Jr.",
+"pot": 6
+},
+{
+"rank": 159,
+"name": "Aiden Sherrell",
+"pot": 6
+},
+{
+"rank": 160,
+"name": "Elyjah Freeman",
+"pot": 6
+},
+{
+"rank": 161,
+"name": "Paulius Murauskas",
+"pot": 6
+},
+{
+"rank": 162,
+"name": "Magoon Gwath",
+"pot": 6
+},
+{
+"rank": 163,
+"name": "Sam Orme",
+"pot": 6
+},
+{
+"rank": 164,
+"name": "Latrell Allmond",
+"pot": 6
+},
+{
+"rank": 165,
+"name": "Mouhamed Faye",
+"pot": 6
+},
+{
+"rank": 166,
+"name": "Andrija Jelavic",
+"pot": 6
+},
+{
+"rank": 167,
+"name": "Michael Nwoko",
+"pot": 6
+},
+{
+"rank": 168,
+"name": "Jaland Lowe",
+"pot": 6
+},
+{
+"rank": 169,
+"name": "Money Williams",
+"pot": 6
+},
+{
+"rank": 170,
+"name": "A'mare Bynum",
+"pot": 6
+},
+{
+"rank": 171,
+"name": "Wesley Yates III",
+"pot": 6
+},
+{
+"rank": 172,
+"name": "Eian Elmer",
+"pot": 6
+},
+{
+"rank": 173,
+"name": "Taylor Bol Bowen",
+"pot": 6
+},
+{
+"rank": 174,
+"name": "Xavier Edmonds",
+"pot": 6
+},
+{
+"rank": 175,
+"name": "Anthony Robinson",
+"pot": 6
+},
+{
+"rank": 176,
+"name": "Sadiq White",
+"pot": 6
+},
+{
+"rank": 177,
+"name": "Kellen Thames",
+"pot": 6
+},
+{
+"rank": 178,
+"name": "D.J. Wagner",
+"pot": 6
+},
+{
+"rank": 179,
+"name": "Carey Booth",
+"pot": 6
+},
+{
+"rank": 180,
+"name": "Amare Allen",
+"pot": 6
+},
+{
+"rank": 181,
+"name": "Cameron Holmes",
+"pot": 6
+},
+{
+"rank": 182,
+"name": "Bangot Dak",
+"pot": 6
+},
+{
+"rank": 183,
+"name": "Marcus Johnson",
+"pot": 6
+},
+{
+"rank": 184,
+"name": "Berke Buyuktuncel",
+"pot": 6
+},
+{
+"rank": 185,
+"name": "K.J. Lewis",
+"pot": 6
+},
+{
+"rank": 186,
+"name": "Blake Harper",
+"pot": 6
+},
+{
+"rank": 187,
+"name": "TJ Power",
+"pot": 6
+},
+{
+"rank": 188,
+"name": "Jarin Stevenson",
+"pot": 6
+},
+{
+"rank": 189,
+"name": "Owen Freeman",
+"pot": 6
+},
+{
+"rank": 190,
+"name": "Adlan Elamin",
+"pot": 6
+},
+{
+"rank": 191,
+"name": "Jahel Trefle",
+"pot": 6
+},
+{
+"rank": 192,
+"name": "Brandon Garrison",
+"pot": 6
+},
+{
+"rank": 193,
+"name": "Tyrin Jones",
+"pot": 6
+},
+{
+"rank": 194,
+"name": "Joe Philon",
+"pot": 6
+},
+{
+"rank": 195,
+"name": "Jasiah Jervis",
+"pot": 6
+},
+{
+"rank": 196,
+"name": "Abdi Bashir Jr.",
+"pot": 6
+},
+{
+"rank": 197,
+"name": "Lincoln Cosby",
+"pot": 6
+},
+{
+"rank": 198,
+"name": "Kennard Davis Jr.",
+"pot": 6
+},
+{
+"rank": 199,
+"name": "Tylen Riley",
+"pot": 6
+},
+{
+"rank": 200,
+"name": "Jackson Shelstad",
+"pot": 6
+},
+{
+"rank": 201,
+"name": "Marcis Ponder",
+"pot": 6
+},
+{
+"rank": 202,
+"name": "Jaylin Stewart",
+"pot": 6
+},
+{
+"rank": 203,
+"name": "Freddie Dilione",
+"pot": 6
+},
+{
+"rank": 204,
+"name": "Blue Cain",
+"pot": 6
+},
+{
+"rank": 205,
+"name": "Nikola Janicic",
+"pot": 6
+},
+{
+"rank": 206,
+"name": "Justin Pippen",
+"pot": 6
+},
+{
+"rank": 207,
+"name": "Layden Blocker",
+"pot": 6
+},
+{
+"rank": 208,
+"name": "Jake Wilkins",
+"pot": 6
+},
+{
+"rank": 209,
+"name": "Ethan Roberts",
+"pot": 6
+},
+{
+"rank": 210,
+"name": "Prince-Alexander Moody",
+"pot": 6
+},
+{
+"rank": 211,
+"name": "Aaron Bradshaw",
+"pot": 6
+},
+{
+"rank": 212,
+"name": "Quinn Costello",
+"pot": 6
+},
+{
+"rank": 213,
+"name": "Jake Hall",
+"pot": 6
+},
+{
+"rank": 214,
+"name": "Aden Holloway",
+"pot": 6
+},
+{
+"rank": 215,
+"name": "Scotty Middleton",
+"pot": 6
+},
+{
+"rank": 216,
+"name": "Markus Burton",
+"pot": 6
+},
+{
+"rank": 217,
+"name": "Hudson Mayes",
+"pot": 6
+},
+{
+"rank": 218,
+"name": "Javonte Taylor",
+"pot": 6
+},
+{
+"rank": 219,
+"name": "Elzie Harrington",
+"pot": 6
+},
+{
+"rank": 220,
+"name": "Donald Hand",
+"pot": 6
+},
+{
+"rank": 221,
+"name": "Dominique Diomande",
+"pot": 6
+},
+{
+"rank": 222,
+"name": "Kam Williams",
+"pot": 6
+},
+{
+"rank": 223,
+"name": "Jordan Scott",
+"pot": 6
+},
+{
+"rank": 224,
+"name": "Josh Hubbard",
+"pot": 6
+},
+{
+"rank": 225,
+"name": "Andrew McKeever",
+"pot": 6
+},
+{
+"rank": 226,
+"name": "Simeon Wilcher",
+"pot": 6
+},
+{
+"rank": 227,
+"name": "Ja'Mier Jones",
+"pot": 6
+},
+{
+"rank": 228,
+"name": "Elmarko Jackson",
+"pot": 6
+},
+{
+"rank": 229,
+"name": "Anthony Brown",
+"pot": 6
+},
+{
+"rank": 230,
+"name": "Tyler Harris",
+"pot": 6
+},
+{
+"rank": 231,
+"name": "Roman Domon",
+"pot": 6
+},
+{
+"rank": 232,
+"name": "Mohamed Diakite",
+"pot": 6
+},
+{
+"rank": 233,
+"name": "Nigel James Jr.",
+"pot": 6
+},
+{
+"rank": 234,
+"name": "Paul Ater Maker Bol",
+"pot": 6
+},
+{
+"rank": 235,
+"name": "Jonas Boulefaa",
+"pot": 6
+},
+{
+"rank": 236,
+"name": "Julius Halaifonua",
+"pot": 6
+},
+{
+"rank": 237,
+"name": "Sean Stewart",
+"pot": 6
+},
+{
+"rank": 238,
+"name": "Roman Siulepa",
+"pot": 6
+},
+{
+"rank": 239,
+"name": "Mikey Williams",
+"pot": 6
+},
+{
+"rank": 240,
+"name": "Kyle Evans",
+"pot": 6
+},
+{
+"rank": 241,
+"name": "Jan Vide",
+"pot": 6
+},
+{
+"rank": 242,
+"name": "Mason Falslev",
+"pot": 6
+},
+{
+"rank": 243,
+"name": "Chauncey Wiggins",
+"pot": 6
+},
+{
+"rank": 244,
+"name": "Isaiah Malone",
+"pot": 6
+},
+{
+"rank": 245,
+"name": "Garway Dual",
+"pot": 6
+},
+{
+"rank": 246,
+"name": "Sam Funches IV",
+"pot": 6
+},
+{
+"rank": 247,
+"name": "Vyctorius Miller",
+"pot": 6
+},
+{
+"rank": 248,
+"name": "Urban Kroflic",
+"pot": 6
+},
+{
+"rank": 249,
+"name": "Jordan Burks",
+"pot": 6
+},
+{
+"rank": 250,
+"name": "Joseph Hartman",
+"pot": 6
+},
+{
+"rank": 251,
+"name": "Miro Little",
+"pot": 6
+},
+{
+"rank": 252,
+"name": "Eoin Dillon",
+"pot": 6
+},
+{
+"rank": 253,
+"name": "Sananda Fru",
+"pot": 6
+},
+{
+"rank": 254,
+"name": "Dakari Spear",
+"pot": 6
+},
+{
+"rank": 255,
+"name": "Darren Harris",
+"pot": 6
+},
+{
+"rank": 256,
+"name": "Cooper Bowser",
+"pot": 6
+},
+{
+"rank": 257,
+"name": "Trent Perry",
+"pot": 6
+},
+{
+"rank": 258,
+"name": "Chase McCarty",
+"pot": 6
+},
+{
+"rank": 259,
+"name": "Caden Pierce",
+"pot": 6
+},
+{
+"rank": 260,
+"name": "Lazerek Houston",
+"pot": 6
+},
+{
+"rank": 261,
+"name": "Jackson Holcombe",
+"pot": 6
+},
+{
+"rank": 262,
+"name": "Chance Gladden",
+"pot": 6
+},
+{
+"rank": 263,
+"name": "Chance Westry",
+"pot": 6
+},
+{
+"rank": 264,
+"name": "Dedan Thomas Jr.",
+"pot": 6
+},
+{
+"rank": 265,
+"name": "Rodney Rice",
+"pot": 6
+},
+{
+"rank": 266,
+"name": "Tomislav Buljan",
+"pot": 6
+},
+{
+"rank": 267,
+"name": "Elijah Gertrude",
+"pot": 6
+},
+{
+"rank": 268,
+"name": "Luke Ertel",
+"pot": 6
+},
+{
+"rank": 269,
+"name": "Dhani Miller",
+"pot": 6
+},
+{
+"rank": 270,
+"name": "Colby Garland",
+"pot": 6
+},
+{
+"rank": 271,
+"name": "Rowan Brumbaugh",
+"pot": 6
+},
+{
+"rank": 272,
+"name": "Mantas Rubstavicius",
+"pot": 6
+},
+{
+"rank": 273,
+"name": "Will Heimbrodt",
+"pot": 6
+},
+{
+"rank": 274,
+"name": "Carter Welling",
+"pot": 6
+},
+{
+"rank": 275,
+"name": "C.J. Ingram",
+"pot": 6
+},
+{
+"rank": 276,
+"name": "Daniel Freitag",
+"pot": 6
+},
+{
+"rank": 277,
+"name": "Sidi Gueye",
+"pot": 6
+},
+{
+"rank": 278,
+"name": "Zac Foster",
+"pot": 6
+},
+{
+"rank": 279,
+"name": "Aiden Tobiason",
+"pot": 6
+},
+{
+"rank": 280,
+"name": "Ruben Dominguez",
+"pot": 6
+},
+{
+"rank": 281,
+"name": "Rihards Vavers",
+"pot": 6
+},
+{
+"rank": 282,
+"name": "Jason Rivera-Torres",
+"pot": 6
+}
+]
+}

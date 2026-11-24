@@ -1,9 +1,10 @@
+import * as SFX from './sfx.js';
 import {
   parseSave, serializeSave, FT_MAX, attrCap, injuryHistory, ATTRS, ATTR_NAMES, PHYSICAL, attrMin, skillName, skillCategory, sortSkills, isEliteSkill, isFreeSkill, ELITE_REQUIREMENTS, ELITE_MIN, ATTR_MAX, activeSkills, isLeveled, CATEGORIES, SKILL_MAX_LEVEL, SKILL_CATEGORIES, POSITIONS, MODE_NAMES, phaseName, BUMP_PHASES, BUMP_DAY, POT_MIN, POT_MAX, POT_EDIT_MAX, regressionYear, injuryName, injuryPart, PHASE_POST_DRAFT, PHASE_PRE_DRAFT, PHASE_PRE_LOTTERY, PHASE_FREE_AGENCY, leagueRookies, draftYear, jerseyNumber,
   setBlessed, playerName, heightStr, avgRating, lastSeasonMpg, leaguePlayers, snapshot, restore, diffPlayer, jerseyClashes, fixJerseyNumbers, undoJerseyNumbers, levelOf, cloneData, MINOR_INJURY, potCap, ceilTotal, canGrow,
 } from './savefile.js';
 import { collegeProduction, productionWord, setDevPlans, PLAN_ATTRS, DEFAULT_PARAMS, runProgression, buildSkillProfiles, rankSkillsFor, unlockSkill, mulberry32, runRookieBump, injuryRisk, earnsNaturalLongevity, productionScores, spendHeldPoints } from './progression.js';
-import { setMadeLines, setPreferMade, groupOf as posGroupOf } from './draft.js';
+import { setMadeLines, setPreferMade, groupOf as posGroupOf , proPotential, athleteNorms, boardMap, capCeilings } from './draft.js';
 import { LOGO_MAP } from './logomap.js';
 import { setMadeGameScores, collegeGameScore } from './progression.js';
 import { makeLines, clubFor, clubNamed } from './madeprod.js';
@@ -47,6 +48,7 @@ import * as CA from './campus.js';
 import { leagueLook } from './recruits.js';
 import { isForeign, lookFor, groupFor, makeNamer } from './names.js';
 import * as CG from './classgen.js';
+import { fixArcPos } from './arcpos.js';
 import { egoRead, egoVal, isAlpha, isHumble, EGO_KEY } from './ego.js';
 import * as OLY from './olympics.js';
 import * as CUP from './cup.js';
@@ -76,7 +78,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.174';
+const APP_VERSION = '0.365.181';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -84,6 +86,8 @@ const SHOWN_VERSION = APP_VERSION;
 const DEVLOG = [
   { v: 'Beta 0.2.1', sections: [
     ['Features', [
+      'Campus: a college player\'s potential converts at the draft. Sophomores and juniors lose a half star, seniors a full star, and undersized or below-average athletes a half star each, capped at the player\'s draft-board tier (2.5-star floor). Ceilings come down with it',
+      'Archetype names match the position: Point for PG, Combo for G, Guard for SG, Wing for GF and SF, Forward for F, Four for PF, Big for FC and C. Draft classes, realistic classes and the Draft Class Lab all follow it',
       'Resume: the save you\'re working on is kept on your device, so closing the app doesn\'t lose it. Pick up where you left off from the start screen',
       'The Expansion Draft step can be skipped',
       'Screen titles scroll like a scoreboard: in from the right, all the way out the left, one at a time',
@@ -466,8 +470,31 @@ function fitClassIncoming(L = league()) {
   const todo = L.draftClass.filter(p => !done.has(p.id) && p.attributes);
   if (!todo.length) return 0;
   const ready = new Map(todo.map(p => [p.id, readyScore(p)]));   // read against the class before any rating moves
+  // Campus saves: college potential converts to pro potential (draft.js proPotential) before the incoming level, for
+  // players who declared from college and, unless the class is a realistic one, the international prospects.
+  const campus = (state.data.seasonLeagues?.length || 0) > 1, norms = campus ? athleteNorms(L) : null;
+  const realCls = !!setupFlags()[`realclass${draftYear(L)}`];
+  // The year's draft board (data/boards) caps pro potential; it's fetched first, then the class is fitted.
+  const by = draftYear(L), boards = (state.proBoards ||= {});
+  if (campus && !(by in boards)) {
+    boards[by] = undefined;
+    fetch(`data/boards/${by}.json`, { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+      .then(j => { boards[by] = j ? boardMap(j) : null; if (fitClassIncoming(L)) render(); });
+    return 0;
+  }
+  if (campus && boards[by] === undefined) return 0;   // still loading
+  const board = campus ? boards[by] : null;
   let n = 0;
-  for (const p of todo) { if (fitIncoming(p, ready.get(p.id))) n++; done.add(p.id); }
+  for (const p of todo) {
+    const fromCollege = !!p.history?.coll;
+    if (campus && (fromCollege || !realCls)) {
+      const { pot } = proPotential(p, norms, fromCollege, board);
+      if (pot < p.pot) { p.pot = pot; n++; }
+    }
+    if (fitIncoming(p, ready.get(p.id))) n++;
+    if (campus) capCeilings(p);   // ceilings down to the new potential's cap; current ratings stay
+    done.add(p.id);
+  }
   try { localStorage.setItem(incKey(), JSON.stringify([...done])); } catch { /* ignore */ }
   resetCollegeZ();
   state.compCache = {};
@@ -679,6 +706,7 @@ function toast(msg, detail = '', ms = detail ? 4000 : 2400, warning = false) {
   t.setAttribute('role', 'status');
   t.innerHTML = `<img src="icons/alert.png" alt=""><span><b>${esc(msg)}</b>${detail ? `<span>${esc(detail)}</span>` : ''}</span>`;
   t.addEventListener('click', () => t.classList.add('out'));
+  SFX.play(warning ? 'error' : 'notify');
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('in'));
   setTimeout(() => t.classList.add('out'), ms);
@@ -694,6 +722,7 @@ function overlay(html) {
   o.className = 'overlay';
   o.innerHTML = `<div class="box">${html}</div>`;
   document.body.appendChild(o);
+  SFX.play('open');
   return o;
 }
 
@@ -929,11 +958,24 @@ function replace(name, args = {}) {
 }
 // Re-rendering the same screen (a tap that updates it) keeps your place;
 // a new screen, tab or view starts at the top.
+// The wide (landscape) layout: chosen in Settings, or on its own when the screen is wide and sideways.
+const WIDE_MQ = window.matchMedia?.('(orientation: landscape) and (min-width: 900px)');
+function setWide() {
+  const L = state.params.layout || 'auto';
+  const wide = L === 'wide' || (L === 'auto' && !!WIDE_MQ?.matches);
+  const r = document.documentElement;
+  r.dataset.layout = L;
+  if (wide) r.dataset.wide = '1'; else delete r.dataset.wide;
+}
+const isWide = () => !!document.documentElement.dataset.wide;
+WIDE_MQ?.addEventListener?.('change', () => { const was = isWide(); setWide(); if (was !== isWide() && state.stack?.length) render(); });
 let lastView = '';
 function render() {
   resumeSoon();
   loadFaces();
   document.documentElement.dataset.px = state.params.pixelIcons === false ? 'off' : 'on';
+  setWide();
+  SFX.setSound(state.params.sound !== false, state.params.soundVol ?? 0.5);
   if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); setSalaryScale(FA.capSystemOn() ? Math.max(0.6, FA.capLines(league()).cap / 165) : 1); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) { fitClassIncoming(); realClassCheck(); } }
   if (state.data && isCollege() && state.cal) { try { localStorage.setItem(collegeCalKey(), JSON.stringify(state.cal)); } catch { /* ignore */ } }
   if (state.data && !isCollege()) { seasonDrift(); cpuComebacks(); cpuNumbers(); cpuJerseys(); realAllStarHost(); if (state.retFixed !== saveTag()) { state.retFixed = saveTag(); fixRetiredNumbers(); } if (state.awFixed !== saveTag()) { state.awFixed = saveTag(); if (PO.dedupeAwards(league())) state.dirty = true; const r = PO.repairSave(league()); if (r.contracts || r.ceilings || r.coaches) state.dirty = true; if (otherCoachFix()) state.dirty = true; } glSettle(); taxSettle(); cpuShifts(); }   // once an offseason each (the G League once a season)
@@ -1048,6 +1090,7 @@ window.addEventListener('beforeunload', e => {
 $app.addEventListener('toggle', e => { const k = e.target?.dataset?.keep; if (k) (state.keepOpen ||= {})[k] = e.target.open; }, true);
 function runAct(el, e) {
   const act = el.dataset.act;
+  SFX.play(SFX.soundForAct(act, el));
   if (act === 'back') return back();
   const fn = actions[act];
   state.curAct = act; state.curWhy = null;
@@ -5311,11 +5354,7 @@ screens.main = () => {
   layout({
     title: 'Main Menu',
     body: `
-      ${myTeamCard(L) || `<div class="league-card compact">
-        ${leagueBadge(L)}
-        <div class="grow"><b>${esc(L.leagueName || L.shortName)}</b>
-          <span class="note small">${CAR.isCareer(L) ? 'Career mode' : `Your ${isCollege() || isFranchise() ? (isCollege() ? 'school' : 'team') : 'teams'}: ${esc(yourTeams)}`}</span></div>
-      </div>`}
+      <div class="home-main">
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
       ${nbaSetupCard()}
       ${nextGameCard()}
@@ -5327,6 +5366,13 @@ screens.main = () => {
       ${retireeCard()}
       ${careerCard()}
       ${expAskCard()}
+      </div>
+      <div class="home-side">
+  <div class="home-team">${myTeamCard(L) || `<div class="league-card compact">
+        ${leagueBadge(L)}
+        <div class="grow"><b>${esc(L.leagueName || L.shortName)}</b>
+          <span class="note small">${CAR.isCareer(L) ? 'Career mode' : `Your ${isCollege() || isFranchise() ? (isCollege() ? 'school' : 'team') : 'teams'}: ${esc(yourTeams)}`}</span></div>
+      </div>`}</div>
       ${(L.teams.some(isUserTeam) && !/data-to="roster"/.test(sCard)) || isCollege() ? `<div class="grid2">
         ${L.teams.some(isUserTeam) && !/data-to="roster"/.test(sCard) ? '<button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button>' : ''}
         ${isCollege() ? `<button class="btn left" data-act="nav" data-to="coaching"><span class="ico">🧑‍🏫</span> My Coach</button>` : ''}
@@ -5337,7 +5383,8 @@ screens.main = () => {
         <button class="btn" data-act="${isCollege() ? 'nav' : 'myLeague'}" data-to="${isCollege() ? 'editor' : 'leaders'}"><span class="ico">🏀</span> League</button>
         <button class="btn" data-act="nav" data-to="export"><span class="ico">💾</span> Export</button>
       </div>
-      ${communityRow()}`,
+      ${communityRow()}
+      </div>`,
   });
 };
 
@@ -12545,7 +12592,7 @@ function labStoryLine(p) {
   const m = labMeta()[p.id];
   if (!m) return '';
   const tags = (m.tags || []).filter(t => !['sleeper', 'bust'].includes(t)).map(t => CG.STORY_LABEL[t] || t);
-  const arch = m.arch && CG.ARCHETYPES[m.arch]?.label;
+  const arch = m.arch && fixArcPos(CG.ARCHETYPES[m.arch]?.label, p.pos);
   // A realistic class's scouting profile: his projection and pedigree.
   const scout = m.proj || m.ped ? `<p class="note small"><b>${esc(m.proj || '')}</b>${m.proj && m.ped ? ' · ' : ''}<span class="muted">${esc(m.ped || '')}</span></p>` : '';
   return (tags.length || arch ? `<p class="note small gold">${[arch, ...tags].filter(Boolean).map(esc).join(' · ')}</p>` : '') + scout;
@@ -12575,7 +12622,7 @@ function labProspects(prev) {
   const edit = state.labEdit != null ? prev.find(p => p.id === state.labEdit) : null;
   return `<details class="frame" ${edit || state.labListOpen ? 'open' : ''}><summary>All ${prev.length} prospects</summary><div class="stack">${rows.map(p => {
     const m = meta[p.id] || {}, tags = (m.tags || []).map(t => CG.STORY_LABEL[t] || t);
-    return `<div class="drill-row"><span class="grow"><b>${esc(playerName(p))}</b> <span class="gold small">${labStars(p)}</span>${tags.length ? ` <span class="small up">${esc(tags.join(' · '))}</span>` : ''}<br><span class="small muted">${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)} · Lv ${shownLevel(p)}${m.arch ? ` · ${esc(CG.ARCHETYPES[m.arch]?.label || '')}` : ''}${p.ctry && p.ctry !== 'US' ? ` · ${esc(p.ctry)}` : ''} · ${esc(CG.schoolOf(D, p) || 'no school')}</span></span>
+    return `<div class="drill-row"><span class="grow"><b>${esc(playerName(p))}</b> <span class="gold small">${labStars(p)}</span>${tags.length ? ` <span class="small up">${esc(tags.join(' · '))}</span>` : ''}<br><span class="small muted">${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)} · Lv ${shownLevel(p)}${m.arch ? ` · ${esc(fixArcPos(CG.ARCHETYPES[m.arch]?.label || '', p.pos))}` : ''}${p.ctry && p.ctry !== 'US' ? ` · ${esc(p.ctry)}` : ''} · ${esc(CG.schoolOf(D, p) || 'no school')}</span></span>
       <button class="btn tiny ${locked.has(p.id) ? 'focus' : 'off'}" data-act="labLock" data-id="${p.id}" title="Keep when you regenerate">${locked.has(p.id) ? '🔒' : '🔓'}</button><button class="btn tiny off" data-act="labReroll" data-id="${p.id}" title="Reroll">🎲</button><button class="btn tiny off" data-act="labEditOpen" data-id="${p.id}" title="Edit">✏️</button></div>
       ${edit === p ? labEditForm(p) : ''}`;
   }).join('')}</div></details>`;
@@ -14444,9 +14491,10 @@ function oldPlayerScreen(args) {
           <button class="btn" data-act="addSkill">＋ Add Skill</button>
         </div></details>
       </fieldset>`;
-  const tabsRow = `<div class="tabs pl-tabs">${[['scout', 'Overview'], ['traits', 'Traits'], ['attributes', 'Attributes'], ['stats', 'Stats']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="plTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+  const wide = isWide();   // wide: his card and ratings stay on the left, the tabs fill the right
+  const tabsRow = `<div class="tabs pl-tabs">${[['scout', 'Overview'], ['traits', 'Traits'], ['attributes', wide ? 'Trainer' : 'Attributes'], ['stats', 'Stats']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="plTab" data-t="${k}">${l}</button>`).join('')}</div>`;
   const personality = traitsBox(p) || '<p class="note muted">Personality isn\'t set for this player yet. Reload the file and it fills in.</p>';
-  const content = tab === 'attributes' ? `${ratings}${trainer}${apCard}`
+  const content = tab === 'attributes' ? `${wide ? '' : ratings}${trainer}${apCard}`
     : tab === 'traits' ? `${personality}${playStyleBox(p)}${skills}`
     : tab === 'stats' ? statsTab(p, args)
     : `${newsBox(p)}${rankBox(p, mpg, true)}<fieldset class="frame"><legend>Scouting Report</legend>
@@ -14457,7 +14505,15 @@ function oldPlayerScreen(args) {
       ${awardsBox(p)}`;
   layout({
     title: 'Player Profile',
-    body: `
+    body: wide ? `<div class="pl-wide"><div class="pl-side">
+      <div>
+        <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
+        <p class="note"><button class="linkish num-chip" data-act="numPick" data-id="${p.id}" title="Change his number">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</button> · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
+        <p class="note small pl-meta"><span class="stars">${potStars(p)}</span>${[archName(p) && `<b class="arch">${esc(archName(p))}</b>`, isAllAmerican(p) && '<span class="gold">⭐ All-American</span>'].filter(Boolean).map(x => ` ${x}`).join(' ·')}</p>
+        ${headStats(p, mpg)}
+      </div>
+      ${ratings}</div>
+      <div class="pl-main">${tabsRow}${content}</div></div>` : `
       <div>
         <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
         <p class="note"><button class="linkish num-chip" data-act="numPick" data-id="${p.id}" title="Change his number">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</button> · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
@@ -14978,7 +15034,7 @@ const F_INJ = ['injuryMinGames', 'injuryPotPerGame', 'injuryPotMax', 'injuryLowe
 const F_INJC = ['naggingRiskMult', 'naggingPointsMult', 'structuralRiskMult', 'structuralLongevityCut'];
 const F_MIN = ['starterMpg', 'benchMpg', 'starterMult', 'benchMult'];
 const TAB_KEYS = {
-  basics: ['capSystem', 'commissioner', 'tradeValues', 'pixelIcons', 'canBeFired', 'realClasses'],
+  basics: ['capSystem', 'commissioner', 'tradeValues', 'pixelIcons', 'sound', 'soundVol', 'layout', 'canBeFired', 'realClasses'],
   ai: ['liveCpuTradeChance', 'cpuCoachChanges', 'redoOptions', 'faClearCpuOffers', 'spendCpuPoints'],
   draft: ['scoutVariance', 'workoutSlots', 'readiness', 'rookieBands', 'rookieIncludeUndrafted', 'recoveryBands'],
   nba: [],
@@ -15004,7 +15060,7 @@ screens.settings = (args) => {
       ${pro && !CAR.isCareer(league()) ? setGroup('Draft Picks', ['<button class="btn" data-act="resetPicks">↩️ Reset All Picks</button>', '<span class="note muted small">Every pick goes back to its own team, every year: trades, protections and swaps undone, missing picks restored. This year\'s draft order (after the lottery) is kept.</span>', '<button class="btn" data-act="applyRealPicks">🏀 Apply Real Picks</button>', '<span class="note muted small">Then, if you like, the real-world holders (2027-2033) on top.</span>']) : ''}
       ${pro && !CAR.isCareer(league()) ? setGroup('Expansion & Fantasy', [`<button class="btn" data-act="nav" data-to="fantasy">🎲 Fantasy Draft${fanStore()?.status === 'draft' ? ' · in progress' : ''}</button>`, '<span class="note muted small">A start-of-season save: every team drafts its roster from the whole league, 12 rounds, snake order.</span>', `<button class="btn" data-act="nav" data-to="expansion">🏟️ Expansion${(() => { const x = expStore(); return x && x.status && !['none', 'done'].includes(x.status) ? ` · ${x.yr}` : ''; })()}</button>`, '<span class="note muted small">Add two teams: protected lists, a coin flip and an expansion draft after the lottery.</span>', options('Realistic draft classes', 'realClasses', [[true, 'On'], [false, 'Off']], `Hand-built classes for the ${RDC.REAL_CLASS_YEARS.join(', ')} drafts replace the game's, varied a little each save. They go in when the save reaches that offseason, before the draft.`), ...(state.params.realClasses === true ? [`<div class="set-row col"><span class="grow">Which classes</span><div class="seg">${RDC.REAL_CLASS_YEARS.map(y => `<button class="btn small ${realClassYears().includes(y) ? 'on focus' : 'off'}" data-act="setRealYear" data-y="${y}">${y}</button>`).join('')}</div></div>`] : [])]) : ''}
       ${pro ? setGroup('Your Job', [options('You can be fired', 'canBeFired', [[true, 'On'], [false, 'Off']], 'On: two owner meetings under 30 trust bring an ultimatum (make the playoffs), and missing it gets you fired; you pick a new team from the offers. Off: no ultimatums or firings (extensions still come). CPU coach firings are under League AI → Coaching changes.')]) : ''}
-      ${setGroup('Look', [options('Potential', 'hidePotential', [[false, 'Show'], [true, 'Hide']], 'Hide: potential stars, potential up or down and regression age stay out of sight everywhere (scouting reports too), like the game\'s Hide Potential. Edit mode still shows them.'), options('Button icons', 'pixelIcons', [[true, 'Pixel'], [false, 'Emoji']], 'Pixel: white pixel icons like the game\'s. Emoji: the colored emoji.'), state.data ? `<button class="btn" data-act="nav" data-to="faces">🙂 Player Faces${state.faces?.size ? ` · ${state.faces.size}` : ''}</button><span class="note muted small">Cut players' faces from screenshots of the game's roster screen.</span>` : ''])}`;
+      ${setGroup('Look', [options('Potential', 'hidePotential', [[false, 'Show'], [true, 'Hide']], 'Hide: potential stars, potential up or down and regression age stay out of sight everywhere (scouting reports too), like the game\'s Hide Potential. Edit mode still shows them.'), options('Button icons', 'pixelIcons', [[true, 'Pixel'], [false, 'Emoji']], 'Pixel: white pixel icons like the game\'s. Emoji: the colored emoji.'), options('Sound effects', 'sound', [[true, 'On'], [false, 'Off']], 'Retro blips on taps, tabs and pop-ups, and a bigger sound for the big moments (a trade, your draft pick, a saved file).'), state.params.sound !== false ? options('Volume', 'soundVol', [[0.25, 'Low'], [0.5, 'Medium'], [1, 'High']]) + `<div class="set-row col"><span class="grow">Hear them</span><div class="sfx-test">${[['tap', 'Tap'], ['nav', 'Forward'], ['back', 'Back'], ['toggle', 'Switch'], ['open', 'Pop-up'], ['notify', 'Notice'], ['success', 'Success'], ['error', 'No'], ['pick', 'Draft pick'], ['swish', 'Swish'], ['buzzer', 'Buzzer'], ['crowd', 'Crowd'], ['cheer', 'Cheers'], ['boo', 'Boos']].map(([k, l]) => `<button class="btn tiny" data-act="sfxTest" data-sfx="${k}">${l}</button>`).join('')}</div></div>` : '', options('Layout', 'layout', [['auto', 'Auto'], ['portrait', 'Portrait'], ['wide', 'Wide']], 'Wide: a landscape layout that puts boxes side by side, for a tablet, a computer or a phone turned sideways. Auto turns it on when the screen is wide enough.'), state.data ? `<button class="btn" data-act="nav" data-to="faces">🙂 Player Faces${state.faces?.size ? ` · ${state.faces.size}` : ''}</button><span class="note muted small">Cut players' faces from screenshots of the game's roster screen.</span>` : ''])}`;
   } else if (tab === 'ai') {
     body = setGroup('CPU Teams', [
       options('Draft-day trades', 'liveCpuTradeChance', [[0, 'Off'], [5, 'Rare'], [10, 'Normal'], [20, 'Busy']], 'How often CPU teams trade picks around each CPU pick in the live draft.'),
@@ -15079,6 +15135,7 @@ screens.settings = (args) => {
 
 actions.resetKeys = d => { for (const k of String(d.keys).split(',')) state.params[k] = structuredClone(DEFAULT_PARAMS[k]); saveParams(); render(); toast('Reset to defaults'); };
 actions.setTab = d => replace('settings', { tab: d.t });
+actions.sfxTest = () => {};   // the button's own sound (data-sfx) is the test
 actions.setOpt = d => {
   state.params[d.k] = JSON.parse(d.v);
   if (d.k === 'scoutVariance') state.compCache = {};
@@ -18079,11 +18136,12 @@ actions.liveChoose = () => {
       if (!(await confirmBox(`Draft <b>${esc(playerName(p))}</b> at #${o.overall}?`, 'Draft'))) return;
       const cons = boardRank(p);
       makeSelection(live, order, idx, p.id);
+      SFX.play('pick');
       state.pickReveal = [o.overall];
       // The fans read the pick against the consensus board: a slide is a steal, a jump is a reach. They aren't always right.
-      if (cons - o.overall <= -6 && o.overall <= 30) fanEvent(o.owner, o.overall <= 10 ? 6 : 4, `${playerName(p)} fell to #${o.overall}`);
-      else if (cons - o.overall >= 10 && o.overall <= 30) fanEvent(o.owner, o.overall <= 10 ? -6 : -4, `reached for ${playerName(p)} at #${o.overall}`);
-      else if (o.overall <= 3 && (p.pot || 0) >= 9) fanEvent(o.owner, 5, `${playerName(p)} at #${o.overall}`);
+      if (cons - o.overall <= -6 && o.overall <= 30) { fanEvent(o.owner, o.overall <= 10 ? 6 : 4, `${playerName(p)} fell to #${o.overall}`); setTimeout(() => SFX.play('cheer'), 550); }
+      else if (cons - o.overall >= 10 && o.overall <= 30) { fanEvent(o.owner, o.overall <= 10 ? -6 : -4, `reached for ${playerName(p)} at #${o.overall}`); setTimeout(() => SFX.play('boo'), 550); }
+      else if (o.overall <= 3 && (p.pot || 0) >= 9) { fanEvent(o.owner, 5, `${playerName(p)} at #${o.overall}`); setTimeout(() => SFX.play('cheer'), 550); }
     }
     box.remove();
     render();
@@ -25461,3 +25519,28 @@ if (window.__hlcTool) window.hlcTool = {
   // What the app would still flag on this file: jersey clashes, players whose gear needs matching, suits to redo.
   check: () => { const L = league(), g = GEAR.matchLeague(L, APPEARANCE_POOL.tattoos), s = GEAR.matchSuitsLeague(L); const out = { clashes: jerseyClashes(L).map(c => `${c.team.shortName} ${c.p.ln} #${c.p.num}`), gear: new Set(g.map(x => x.p)).size, suits: new Set(s.map(x => x.m)).size }; GEAR.undoMatch(g); GEAR.undoSuits(s); return out; },
 };
+
+// Sound for the big moments: a trade done, your pick in, a file saved. Wraps the actions so each keeps its own logic.
+for (const [act, snd] of [['makeTrade', 'success'], ['liveTradeGo', 'success'], ['liveFinish', 'buzzer'], ['download', 'success'], ['downloadLeague', 'success'], ['labExport', 'success']]) {
+  const fn = actions[act];
+  if (typeof fn !== 'function') continue;
+  actions[act] = function (...a) { SFX.play(snd); return fn.apply(this, a); };
+}
+// The press: the button's edge lights up while a finger (or the mouse) is on it, like the game's selection, and the
+// first touch wakes the sound.
+{
+  const PRESS = '.btn, [data-act], .mvbtn, .gbtn, .info-i, .overlay [data-r]';
+  let pressed = null, since = 0;
+  const lift = () => { const el = pressed; pressed = null; if (!el) return; const wait = Math.max(0, 150 - (Date.now() - since)); setTimeout(() => el.classList.remove('pressing'), wait); };
+  document.addEventListener('pointerdown', e => {
+    SFX.unlock();
+    const el = e.target.closest(PRESS);
+    if (!el || el.disabled) return;
+    pressed?.classList.remove('pressing');
+    pressed = el; since = Date.now(); el.classList.add('pressing');
+  }, { passive: true });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave', 'dragstart']) document.addEventListener(ev, lift, { passive: true });
+  document.addEventListener('scroll', () => { if (pressed) { pressed.classList.remove('pressing'); pressed = null; } }, { passive: true, capture: true });
+  // Overlay answers (confirm, choices) aren't actions: give them their own sounds.
+  document.addEventListener('click', e => { const b = e.target.closest('.overlay [data-r]'); if (b) SFX.play(b.dataset.r === '0' || b.classList.contains('off') ? 'back' : 'tap'); }, true);
+}

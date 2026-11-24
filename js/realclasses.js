@@ -8,6 +8,7 @@
 // The class files are the Draft Class Lab's own format (Export Class), or any JSON holding a list of prospects.
 
 import { tameRatings } from './classtools.js';
+import { fixArcPos } from './arcpos.js';
 
 export const REAL_CLASS_YEARS = [2027, 2028, 2029];
 export const classUrl = yr => `data/classes/${yr}.json`;
@@ -68,6 +69,7 @@ const tendRoll = rng => { const r = rng(); return r < 0.1 ? -2 : r < 0.3 ? -1 : 
 // One varied copy of a class. rng: a seeded random (same seed, same class).
 export function varyClass(prospects, rng, zOf = () => null) {
   const cls = clone(prospects);
+  for (const p of cls) p.arc = fixArcPos(p.arc, p.pos);   // archetype position word matches his position
   const step = (p = 0.35) => (rng() < p ? (rng() < 0.5 ? -1 : 1) : 0);
   for (const p of cls) {
     for (const a of Object.values(p.attributes || {})) {
