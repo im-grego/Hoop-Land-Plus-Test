@@ -9,6 +9,7 @@ import { randomLook } from './recruits.js';
 import { makeNamer, groupFor, lookFor } from './names.js';
 import POOL from './appearance-pool.js';
 import { tameRatings, balancePhysicals } from './classtools.js';
+import { fixArcPos } from './arcpos.js';
 
 export const STRENGTH = { weak: 'Weak', normal: 'Normal', strong: 'Strong', loaded: 'Loaded' };
 export const POLISH = { raw: 'Raw', balanced: 'Balanced', ready: 'NBA-ready' };
@@ -175,6 +176,7 @@ export function makeOne(ctx, spec = {}) {
   ctx.namer.name(p, (abroad && groupFor(p.ctry)) || undefined, spec.batch || []);
   if (spec.fn) p.fn = spec.fn;
   if (spec.ln) p.ln = spec.ln;
+  p.arc = fixArcPos(p.arc, p.pos);   // the donor's archetype name, its position word matched to his position
   return { p, arch };
 }
 

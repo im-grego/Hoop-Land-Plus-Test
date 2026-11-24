@@ -15,7 +15,10 @@ export const DEFAULT_PARAMS = {
   canBeFired: true,
   expPrompt: true,
   realClasses: false, // hand-built draft classes (realclasses.js), set by the realistic NBA setup    // ask at the start of each offseason whether to add expansion teams   // owner ultimatums and firings for your team (false: never fired)
-  pixelIcons: true,   // app look: white pixel icons on buttons (false: emoji)
+  pixelIcons: true,
+  sound: true,   // app sound effects
+  soundVol: 0.5,   // their volume (0.25 low, 0.5 medium, 1 high)
+  layout: 'auto',   // 'auto' (wide when the screen is), 'portrait', 'wide'   // app look: white pixel icons on buttons (false: emoji)
   hidePotential: false,   // app look: hide potential, its ups and downs and regression age (Edit mode still shows them)
   // Upgrade points by age band: [maxAge, minPts, maxPts]. Older players get none.
   ageBands: [
