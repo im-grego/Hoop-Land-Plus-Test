@@ -78,7 +78,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.180';
+const APP_VERSION = '0.365.181';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -967,7 +967,8 @@ function setWide() {
   r.dataset.layout = L;
   if (wide) r.dataset.wide = '1'; else delete r.dataset.wide;
 }
-WIDE_MQ?.addEventListener?.('change', setWide);
+const isWide = () => !!document.documentElement.dataset.wide;
+WIDE_MQ?.addEventListener?.('change', () => { const was = isWide(); setWide(); if (was !== isWide() && state.stack?.length) render(); });
 let lastView = '';
 function render() {
   resumeSoon();
@@ -14490,9 +14491,10 @@ function oldPlayerScreen(args) {
           <button class="btn" data-act="addSkill">＋ Add Skill</button>
         </div></details>
       </fieldset>`;
-  const tabsRow = `<div class="tabs pl-tabs">${[['scout', 'Overview'], ['traits', 'Traits'], ['attributes', 'Attributes'], ['stats', 'Stats']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="plTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+  const wide = isWide();   // wide: his card and ratings stay on the left, the tabs fill the right
+  const tabsRow = `<div class="tabs pl-tabs">${[['scout', 'Overview'], ['traits', 'Traits'], ['attributes', wide ? 'Trainer' : 'Attributes'], ['stats', 'Stats']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="plTab" data-t="${k}">${l}</button>`).join('')}</div>`;
   const personality = traitsBox(p) || '<p class="note muted">Personality isn\'t set for this player yet. Reload the file and it fills in.</p>';
-  const content = tab === 'attributes' ? `${ratings}${trainer}${apCard}`
+  const content = tab === 'attributes' ? `${wide ? '' : ratings}${trainer}${apCard}`
     : tab === 'traits' ? `${personality}${playStyleBox(p)}${skills}`
     : tab === 'stats' ? statsTab(p, args)
     : `${newsBox(p)}${rankBox(p, mpg, true)}<fieldset class="frame"><legend>Scouting Report</legend>
@@ -14503,7 +14505,15 @@ function oldPlayerScreen(args) {
       ${awardsBox(p)}`;
   layout({
     title: 'Player Profile',
-    body: `
+    body: wide ? `<div class="pl-wide"><div class="pl-side">
+      <div>
+        <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
+        <p class="note"><button class="linkish num-chip" data-act="numPick" data-id="${p.id}" title="Change his number">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</button> · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
+        <p class="note small pl-meta"><span class="stars">${potStars(p)}</span>${[archName(p) && `<b class="arch">${esc(archName(p))}</b>`, isAllAmerican(p) && '<span class="gold">⭐ All-American</span>'].filter(Boolean).map(x => ` ${x}`).join(' ·')}</p>
+        ${headStats(p, mpg)}
+      </div>
+      ${ratings}</div>
+      <div class="pl-main">${tabsRow}${content}</div></div>` : `
       <div>
         <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
         <p class="note"><button class="linkish num-chip" data-act="numPick" data-id="${p.id}" title="Change his number">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</button> · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>

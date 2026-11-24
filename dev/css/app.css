@@ -2703,3 +2703,14 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; heig
 }
 .sfx-test { display: flex; flex-wrap: wrap; gap: 6px; }
 .sfx-test .btn.tiny { min-height: 30px; padding: 2px 8px; }
+/* Player profile, wide: his card and ratings on the left (always in view), the tabs on the right. */
+:root[data-wide] main.panel:has(> .pl-wide) { display: block; columns: auto; }
+.pl-wide { display: grid; grid-template-columns: minmax(380px, 1fr) minmax(0, 1.35fr); gap: 16px; align-items: start; }
+.pl-side, .pl-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.pl-side { min-width: 0; }   /* not sticky: the ratings run taller than the screen */
+.pl-main > .tabs { margin: 0; }
+/* With room to spare, the right side's boxes pair up. */
+@media (min-width: 1500px) {
+  .pl-main { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+  .pl-main > .tabs, .pl-main > :only-of-type, .pl-main > fieldset:has(table) { grid-column: 1 / -1; }
+}
