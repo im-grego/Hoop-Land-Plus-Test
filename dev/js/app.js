@@ -78,7 +78,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.181';
+const APP_VERSION = '0.365.182';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -958,23 +958,11 @@ function replace(name, args = {}) {
 }
 // Re-rendering the same screen (a tap that updates it) keeps your place;
 // a new screen, tab or view starts at the top.
-// The wide (landscape) layout: chosen in Settings, or on its own when the screen is wide and sideways.
-const WIDE_MQ = window.matchMedia?.('(orientation: landscape) and (min-width: 900px)');
-function setWide() {
-  const L = state.params.layout || 'auto';
-  const wide = L === 'wide' || (L === 'auto' && !!WIDE_MQ?.matches);
-  const r = document.documentElement;
-  r.dataset.layout = L;
-  if (wide) r.dataset.wide = '1'; else delete r.dataset.wide;
-}
-const isWide = () => !!document.documentElement.dataset.wide;
-WIDE_MQ?.addEventListener?.('change', () => { const was = isWide(); setWide(); if (was !== isWide() && state.stack?.length) render(); });
 let lastView = '';
 function render() {
   resumeSoon();
   loadFaces();
   document.documentElement.dataset.px = state.params.pixelIcons === false ? 'off' : 'on';
-  setWide();
   SFX.setSound(state.params.sound !== false, state.params.soundVol ?? 0.5);
   if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); setSalaryScale(FA.capSystemOn() ? Math.max(0.6, FA.capLines(league()).cap / 165) : 1); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) { fitClassIncoming(); realClassCheck(); } }
   if (state.data && isCollege() && state.cal) { try { localStorage.setItem(collegeCalKey(), JSON.stringify(state.cal)); } catch { /* ignore */ } }
@@ -5354,7 +5342,11 @@ screens.main = () => {
   layout({
     title: 'Main Menu',
     body: `
-      <div class="home-main">
+      ${myTeamCard(L) || `<div class="league-card compact">
+        ${leagueBadge(L)}
+        <div class="grow"><b>${esc(L.leagueName || L.shortName)}</b>
+          <span class="note small">${CAR.isCareer(L) ? 'Career mode' : `Your ${isCollege() || isFranchise() ? (isCollege() ? 'school' : 'team') : 'teams'}: ${esc(yourTeams)}`}</span></div>
+      </div>`}
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
       ${nbaSetupCard()}
       ${nextGameCard()}
@@ -5366,13 +5358,6 @@ screens.main = () => {
       ${retireeCard()}
       ${careerCard()}
       ${expAskCard()}
-      </div>
-      <div class="home-side">
-  <div class="home-team">${myTeamCard(L) || `<div class="league-card compact">
-        ${leagueBadge(L)}
-        <div class="grow"><b>${esc(L.leagueName || L.shortName)}</b>
-          <span class="note small">${CAR.isCareer(L) ? 'Career mode' : `Your ${isCollege() || isFranchise() ? (isCollege() ? 'school' : 'team') : 'teams'}: ${esc(yourTeams)}`}</span></div>
-      </div>`}</div>
       ${(L.teams.some(isUserTeam) && !/data-to="roster"/.test(sCard)) || isCollege() ? `<div class="grid2">
         ${L.teams.some(isUserTeam) && !/data-to="roster"/.test(sCard) ? '<button class="btn left" data-act="nav" data-to="roster"><span class="ico">👥</span> My Team</button>' : ''}
         ${isCollege() ? `<button class="btn left" data-act="nav" data-to="coaching"><span class="ico">🧑‍🏫</span> My Coach</button>` : ''}
@@ -5383,8 +5368,7 @@ screens.main = () => {
         <button class="btn" data-act="${isCollege() ? 'nav' : 'myLeague'}" data-to="${isCollege() ? 'editor' : 'leaders'}"><span class="ico">🏀</span> League</button>
         <button class="btn" data-act="nav" data-to="export"><span class="ico">💾</span> Export</button>
       </div>
-      ${communityRow()}
-      </div>`,
+      ${communityRow()}`,
   });
 };
 
@@ -14491,10 +14475,9 @@ function oldPlayerScreen(args) {
           <button class="btn" data-act="addSkill">＋ Add Skill</button>
         </div></details>
       </fieldset>`;
-  const wide = isWide();   // wide: his card and ratings stay on the left, the tabs fill the right
-  const tabsRow = `<div class="tabs pl-tabs">${[['scout', 'Overview'], ['traits', 'Traits'], ['attributes', wide ? 'Trainer' : 'Attributes'], ['stats', 'Stats']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="plTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+  const tabsRow = `<div class="tabs pl-tabs">${[['scout', 'Overview'], ['traits', 'Traits'], ['attributes', 'Attributes'], ['stats', 'Stats']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="plTab" data-t="${k}">${l}</button>`).join('')}</div>`;
   const personality = traitsBox(p) || '<p class="note muted">Personality isn\'t set for this player yet. Reload the file and it fills in.</p>';
-  const content = tab === 'attributes' ? `${wide ? '' : ratings}${trainer}${apCard}`
+  const content = tab === 'attributes' ? `${ratings}${trainer}${apCard}`
     : tab === 'traits' ? `${personality}${playStyleBox(p)}${skills}`
     : tab === 'stats' ? statsTab(p, args)
     : `${newsBox(p)}${rankBox(p, mpg, true)}<fieldset class="frame"><legend>Scouting Report</legend>
@@ -14505,15 +14488,7 @@ function oldPlayerScreen(args) {
       ${awardsBox(p)}`;
   layout({
     title: 'Player Profile',
-    body: wide ? `<div class="pl-wide"><div class="pl-side">
-      <div>
-        <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
-        <p class="note"><button class="linkish num-chip" data-act="numPick" data-id="${p.id}" title="Change his number">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</button> · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
-        <p class="note small pl-meta"><span class="stars">${potStars(p)}</span>${[archName(p) && `<b class="arch">${esc(archName(p))}</b>`, isAllAmerican(p) && '<span class="gold">⭐ All-American</span>'].filter(Boolean).map(x => ` ${x}`).join(' ·')}</p>
-        ${headStats(p, mpg)}
-      </div>
-      ${ratings}</div>
-      <div class="pl-main">${tabsRow}${content}</div></div>` : `
+    body: `
       <div>
         <h2 class="team-title pl-name">${esc(playerName(p))} ${lvTag(p, 'gold')}</h2>
         <p class="note"><button class="linkish num-chip" data-act="numPick" data-id="${p.id}" title="Change his number">#${p.num === 100 ? '00' : p.num >= 0 ? p.num : '–'}</button> · ${esc(team ? team.shortName : 'Free Agent')} · ${esc(pos)} · ${p.age} · ${heightStr(p.ht)}, ${p.wt} lb${p.season && p.season.morale !== undefined && isComplete() && !isCollege() ? ` · ${moraleTag(p)}` : ''}</p>
@@ -15034,7 +15009,7 @@ const F_INJ = ['injuryMinGames', 'injuryPotPerGame', 'injuryPotMax', 'injuryLowe
 const F_INJC = ['naggingRiskMult', 'naggingPointsMult', 'structuralRiskMult', 'structuralLongevityCut'];
 const F_MIN = ['starterMpg', 'benchMpg', 'starterMult', 'benchMult'];
 const TAB_KEYS = {
-  basics: ['capSystem', 'commissioner', 'tradeValues', 'pixelIcons', 'sound', 'soundVol', 'layout', 'canBeFired', 'realClasses'],
+  basics: ['capSystem', 'commissioner', 'tradeValues', 'pixelIcons', 'sound', 'soundVol', 'canBeFired', 'realClasses'],
   ai: ['liveCpuTradeChance', 'cpuCoachChanges', 'redoOptions', 'faClearCpuOffers', 'spendCpuPoints'],
   draft: ['scoutVariance', 'workoutSlots', 'readiness', 'rookieBands', 'rookieIncludeUndrafted', 'recoveryBands'],
   nba: [],
@@ -15060,7 +15035,7 @@ screens.settings = (args) => {
       ${pro && !CAR.isCareer(league()) ? setGroup('Draft Picks', ['<button class="btn" data-act="resetPicks">↩️ Reset All Picks</button>', '<span class="note muted small">Every pick goes back to its own team, every year: trades, protections and swaps undone, missing picks restored. This year\'s draft order (after the lottery) is kept.</span>', '<button class="btn" data-act="applyRealPicks">🏀 Apply Real Picks</button>', '<span class="note muted small">Then, if you like, the real-world holders (2027-2033) on top.</span>']) : ''}
       ${pro && !CAR.isCareer(league()) ? setGroup('Expansion & Fantasy', [`<button class="btn" data-act="nav" data-to="fantasy">🎲 Fantasy Draft${fanStore()?.status === 'draft' ? ' · in progress' : ''}</button>`, '<span class="note muted small">A start-of-season save: every team drafts its roster from the whole league, 12 rounds, snake order.</span>', `<button class="btn" data-act="nav" data-to="expansion">🏟️ Expansion${(() => { const x = expStore(); return x && x.status && !['none', 'done'].includes(x.status) ? ` · ${x.yr}` : ''; })()}</button>`, '<span class="note muted small">Add two teams: protected lists, a coin flip and an expansion draft after the lottery.</span>', options('Realistic draft classes', 'realClasses', [[true, 'On'], [false, 'Off']], `Hand-built classes for the ${RDC.REAL_CLASS_YEARS.join(', ')} drafts replace the game's, varied a little each save. They go in when the save reaches that offseason, before the draft.`), ...(state.params.realClasses === true ? [`<div class="set-row col"><span class="grow">Which classes</span><div class="seg">${RDC.REAL_CLASS_YEARS.map(y => `<button class="btn small ${realClassYears().includes(y) ? 'on focus' : 'off'}" data-act="setRealYear" data-y="${y}">${y}</button>`).join('')}</div></div>`] : [])]) : ''}
       ${pro ? setGroup('Your Job', [options('You can be fired', 'canBeFired', [[true, 'On'], [false, 'Off']], 'On: two owner meetings under 30 trust bring an ultimatum (make the playoffs), and missing it gets you fired; you pick a new team from the offers. Off: no ultimatums or firings (extensions still come). CPU coach firings are under League AI → Coaching changes.')]) : ''}
-      ${setGroup('Look', [options('Potential', 'hidePotential', [[false, 'Show'], [true, 'Hide']], 'Hide: potential stars, potential up or down and regression age stay out of sight everywhere (scouting reports too), like the game\'s Hide Potential. Edit mode still shows them.'), options('Button icons', 'pixelIcons', [[true, 'Pixel'], [false, 'Emoji']], 'Pixel: white pixel icons like the game\'s. Emoji: the colored emoji.'), options('Sound effects', 'sound', [[true, 'On'], [false, 'Off']], 'Retro blips on taps, tabs and pop-ups, and a bigger sound for the big moments (a trade, your draft pick, a saved file).'), state.params.sound !== false ? options('Volume', 'soundVol', [[0.25, 'Low'], [0.5, 'Medium'], [1, 'High']]) + `<div class="set-row col"><span class="grow">Hear them</span><div class="sfx-test">${[['tap', 'Tap'], ['nav', 'Forward'], ['back', 'Back'], ['toggle', 'Switch'], ['open', 'Pop-up'], ['notify', 'Notice'], ['success', 'Success'], ['error', 'No'], ['pick', 'Draft pick'], ['swish', 'Swish'], ['buzzer', 'Buzzer'], ['crowd', 'Crowd'], ['cheer', 'Cheers'], ['boo', 'Boos']].map(([k, l]) => `<button class="btn tiny" data-act="sfxTest" data-sfx="${k}">${l}</button>`).join('')}</div></div>` : '', options('Layout', 'layout', [['auto', 'Auto'], ['portrait', 'Portrait'], ['wide', 'Wide']], 'Wide: a landscape layout that puts boxes side by side, for a tablet, a computer or a phone turned sideways. Auto turns it on when the screen is wide enough.'), state.data ? `<button class="btn" data-act="nav" data-to="faces">🙂 Player Faces${state.faces?.size ? ` · ${state.faces.size}` : ''}</button><span class="note muted small">Cut players' faces from screenshots of the game's roster screen.</span>` : ''])}`;
+      ${setGroup('Look', [options('Potential', 'hidePotential', [[false, 'Show'], [true, 'Hide']], 'Hide: potential stars, potential up or down and regression age stay out of sight everywhere (scouting reports too), like the game\'s Hide Potential. Edit mode still shows them.'), options('Button icons', 'pixelIcons', [[true, 'Pixel'], [false, 'Emoji']], 'Pixel: white pixel icons like the game\'s. Emoji: the colored emoji.'), options('Sound effects', 'sound', [[true, 'On'], [false, 'Off']], 'Retro blips on taps, tabs and pop-ups, and a bigger sound for the big moments (a trade, your draft pick, a saved file).'), state.params.sound !== false ? options('Volume', 'soundVol', [[0.25, 'Low'], [0.5, 'Medium'], [1, 'High']]) + `<div class="set-row col"><span class="grow">Hear them</span><div class="sfx-test">${[['tap', 'Tap'], ['nav', 'Forward'], ['back', 'Back'], ['toggle', 'Switch'], ['open', 'Pop-up'], ['notify', 'Notice'], ['success', 'Success'], ['error', 'No'], ['pick', 'Draft pick'], ['swish', 'Swish'], ['buzzer', 'Buzzer'], ['crowd', 'Crowd'], ['cheer', 'Cheers'], ['boo', 'Boos']].map(([k, l]) => `<button class="btn tiny" data-act="sfxTest" data-sfx="${k}">${l}</button>`).join('')}</div></div>` : '', state.data ? `<button class="btn" data-act="nav" data-to="faces">🙂 Player Faces${state.faces?.size ? ` · ${state.faces.size}` : ''}</button><span class="note muted small">Cut players' faces from screenshots of the game's roster screen.</span>` : ''])}`;
   } else if (tab === 'ai') {
     body = setGroup('CPU Teams', [
       options('Draft-day trades', 'liveCpuTradeChance', [[0, 'Off'], [5, 'Rare'], [10, 'Normal'], [20, 'Busy']], 'How often CPU teams trade picks around each CPU pick in the live draft.'),
