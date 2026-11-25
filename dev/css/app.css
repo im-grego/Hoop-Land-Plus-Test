@@ -150,7 +150,8 @@ fieldset.frame > legend {
 .btn.left { justify-content: flex-start; padding-left: 16px; }
 .btn.off { color: var(--dim); }
 .btn.on { color: var(--text); }
-.btn.focus, .btn:focus-visible { border-color: var(--cyan); outline: none; }
+/* Every button looks the same until it's pressed or selected: "focus" alone (a suggested choice) no longer lights it. */
+.btn.on.focus, .btn:focus-visible { border-color: var(--cyan); outline: none; }
 .btn:disabled { opacity: .45; }
 .btn.small { min-height: 40px; padding: 6px 10px; font-size: 15px; }
 .btn.square { width: 48px; min-height: 48px; padding: 0; font-size: 24px; flex: none; }
@@ -164,7 +165,6 @@ label.btn input[type=file] { display: none; }
 .bottom { display: flex; justify-content: space-between; gap: 12px; }
 .bottom .back {
   width: 76px; min-height: 64px; font-size: 34px;
-  border-color: var(--cyan);
 }
 .bottom .action { min-width: 150px; font-size: 20px; text-transform: uppercase; letter-spacing: .5px; }
 
@@ -1745,8 +1745,8 @@ fieldset.frame { position: relative; }
   border-radius: 0;
   clip-path: polygon(0 6px, 6px 6px, 6px 0, calc(100% - 6px) 0, calc(100% - 6px) 6px, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 6px calc(100% - 6px), 0 calc(100% - 6px));
 }
-.header .btn.back, .bottom .btn.back, .bottom .btn.action:not(.alt), .header .btn.focus, .bottom .btn.focus { --ring: #82ecf9; border-color: #162f68; }
-.header .btn:active, .bottom .btn:active { transform: translateY(2px); box-shadow: inset 0 0 0 4px var(--ring); filter: brightness(1.1); }
+.header .btn.on.focus, .bottom .btn.on.focus { --ring: var(--cyan); }
+.header .btn:active, .bottom .btn:active, .header .btn.pressing, .bottom .btn.pressing { transform: translateY(2px); --ring: var(--cyan); box-shadow: inset 0 0 0 4px var(--ring); filter: brightness(1.1); }
 /* The real-trade ? on a Draft Capital row sits beside the pick, not in the frame's corner. */
 .cap-row .info-i { position: static; display: inline-flex; vertical-align: middle; width: 22px; height: 22px; font-size: 13px; margin-left: 6px; box-shadow: 0 2px 0 var(--btn-shadow); }
 /* Install card on the first screen. */
@@ -2067,7 +2067,7 @@ legend .oly-logo, .btn .oly-logo { margin-right: 4px; }
 .rec-tri.open { transform: rotate(180deg); }
 
 .start-card { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; padding: 12px 14px; background: var(--btn); border: 4px solid var(--btn-edge); box-shadow: 0 4px 0 var(--btn-shadow); color: var(--text); font: inherit; cursor: pointer; }
-.start-card.focus { border-color: var(--cyan); }
+.start-card.pressing { border-color: var(--cyan); }
 .start-date { font-family: var(--game); font-weight: 700; font-size: 18px; white-space: nowrap; }
 .start-sub { display: block; font-size: 15px; color: var(--dim, #b9c8e8); margin-top: 2px; }
 .start-snap { display: flex; flex-direction: column; gap: 2px; font-size: 14px; color: var(--dim, #b9c8e8); }
@@ -2636,16 +2636,15 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; heig
 /* ---------- The press: the button's edge lights up while it's held, like the game's selected button ---------- */
 .btn { transition: border-color .08s, filter .08s; }
 .btn.pressing, .btn:active {
-  border-color: #fff;
+  border-color: var(--cyan);
   box-shadow: inset 0 0 0 2px var(--cyan), 0 2px 0 var(--btn-shadow);
   transform: translateY(2px);
   filter: brightness(1.15);
 }
 .btn.pressing.off { color: var(--text); }
-[data-act]:not(.btn).pressing, .mvbtn.pressing, .gbtn.pressing, .info-i.pressing { outline: 3px solid #fff; outline-offset: -3px; filter: brightness(1.15); }
+[data-act]:not(.btn).pressing, .mvbtn.pressing, .gbtn.pressing, .info-i.pressing { outline: 3px solid var(--cyan); outline-offset: -3px; filter: brightness(1.15); }
 @media (hover: hover) and (pointer: fine) {
   .btn:hover { border-color: #8fd8ff; }
-  .btn.focus:hover { border-color: #fff; }
 }
 
 .sfx-test { display: flex; flex-wrap: wrap; gap: 6px; }

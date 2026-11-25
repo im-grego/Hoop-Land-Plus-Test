@@ -81,7 +81,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.194';
+const APP_VERSION = '0.365.195';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.1';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -12851,7 +12851,7 @@ function labProspects(prev) {
   return `<details class="frame" ${edit || state.labListOpen ? 'open' : ''}><summary>All ${prev.length} prospects</summary><div class="stack">${rows.map(p => {
     const m = meta[p.id] || {}, tags = (m.tags || []).map(t => CG.STORY_LABEL[t] || t);
     return `<div class="drill-row"><span class="grow"><b>${esc(playerName(p))}</b> <span class="gold small">${labStars(p)}</span>${tags.length ? ` <span class="small up">${esc(tags.join(' · '))}</span>` : ''}<br><span class="small muted">${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)} · Lv ${shownLevel(p)}${m.arch ? ` · ${esc(fixArcPos(CG.ARCHETYPES[m.arch]?.label || '', p.pos))}` : ''}${p.ctry && p.ctry !== 'US' ? ` · ${esc(p.ctry)}` : ''} · ${esc(CG.schoolOf(D, p) || 'no school')}</span></span>
-      <button class="btn tiny ${locked.has(p.id) ? 'focus' : 'off'}" data-act="labLock" data-id="${p.id}" title="Keep when you regenerate">${locked.has(p.id) ? '🔒' : '🔓'}</button><button class="btn tiny off" data-act="labReroll" data-id="${p.id}" title="Reroll">🎲</button><button class="btn tiny off" data-act="labEditOpen" data-id="${p.id}" title="Edit">✏️</button></div>
+      <button class="btn tiny ${locked.has(p.id) ? 'on focus' : 'off'}" data-act="labLock" data-id="${p.id}" title="Keep when you regenerate">${locked.has(p.id) ? '🔒' : '🔓'}</button><button class="btn tiny off" data-act="labReroll" data-id="${p.id}" title="Reroll">🎲</button><button class="btn tiny off" data-act="labEditOpen" data-id="${p.id}" title="Edit">✏️</button></div>
       ${edit === p ? labEditForm(p) : ''}`;
   }).join('')}</div></details>`;
 }
