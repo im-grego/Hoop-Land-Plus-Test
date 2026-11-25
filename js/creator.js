@@ -93,16 +93,23 @@ export function build(data, o) {
   const cap = Object.fromEntries(RATINGS.map(k => [k, sizeCap(k, o.ht)]));
   // Floors for what his position needs at any archetype: a guard handles it, a big blocks and rebounds.
   const NEED = { 1: { DRB: 12, PAS: 9 }, 2: { DRB: 10 }, 3: {}, 4: { BLK: 8, DRE: 11, ORE: 7, INS: 9 }, 5: { BLK: 9, DRE: 12, ORE: 8, INS: 10, DNK: 9 } }[slot];
-  const ceil = spread(w, TIERS[o.pot].cap, cap, Object.fromEntries(RATINGS.map(k => [k, Math.min(cap[k], NEED[k] ?? 3)])));
-  // Where he starts: his pedigree's level, the same shape, never above a ceiling.
-  const startLv = Math.min(PEDIGREE[o.pedigree].lv + (o.pot - 9), lvOf(TIERS[o.pot].cap) - 10);
-  const now = spread(w, totalFor(startLv), ceil);
+  // Ceiling: his ceiling level (the potential's by default; you can set it anywhere, up to every rating at 20).
+  const ceilLv = o.ceilLv ?? lvOf(TIERS[o.pot].cap);
+  let ceilT = clamp(totalFor(ceilLv), 24, 240);
+  const roomAll = RATINGS.reduce((s, k) => s + cap[k], 0);
+  const cap2 = ceilT > roomAll ? Object.fromEntries(RATINGS.map(k => [k, 20])) : cap;   // past what his size allows: the size caps lift
+  const ceil = spread(w, ceilT, cap2, Object.fromEntries(RATINGS.map(k => [k, Math.min(cap2[k], NEED[k] ?? 3)])));
+  // Floor: where he starts (his pedigree's level by default; you can set it), never above a ceiling.
+  const floorLv = o.floorLv ?? Math.min(PEDIGREE[o.pedigree].lv + (o.pot - 9), lvOf(TIERS[o.pot].cap) - 10);
+  const now = spread(w, Math.min(clamp(totalFor(floorLv), 12, 240), RATINGS.reduce((s, k) => s + ceil[k], 0)), ceil);
   // Body: strength from his weight against his position, speed the other way; stamina high (he's 17).
   const ph = B.phys, wtD = (o.wt - B.wt);
   const athletic = (o.addons || []).includes('athletic') ? 1.5 : 0;
   const STR = clamp(Math.round(ph.STR - 2 + wtD / 10), 3, 20), SPD = clamp(Math.round(ph.SPD - 0.5 - wtD / 14 + athletic), 3, 20), STM = clamp(Math.round(ph.STM), 10, 20);
   const attributes = Object.fromEntries(RATINGS.map(k => [k, [now[k], ceil[k]]]));
   Object.assign(attributes, { STR: [STR, STR], SPD: [SPD, SPD], STM: [STM, STM] });
+  // Your own edits on top, rating by rating (now, ceiling): anything from 1 to 20, a ceiling never under now.
+  for (const [k, [n, c]] of Object.entries(o.edits || {})) if (attributes[k]) { const nn = clamp(n, 1, 20); attributes[k] = [nn, clamp(Math.max(c, nn), 1, 20)]; }
   // Habits: his position's, bent by what his archetypes do more (or less) than the position does.
   const tend = {};
   for (const k of data.tendKeys) {
@@ -110,10 +117,12 @@ export function build(data, o) {
       + ((o.addons || []).includes('range') && k === 'threePoint' ? 1 : 0) + ((o.addons || []).includes('athletic') && /dunk|lob/.test(k) ? 1 : 0) + ((o.addons || []).includes('glass') && /Reb/.test(k) ? 1 : 0);
     tend[k] = clamp(Math.round(v), -5, 5);
   }
-  const sum = x => RATINGS.reduce((s, k) => s + x[k], 0);
+  const nowT = RATINGS.reduce((s, k) => s + attributes[k][0], 0), ceilSum = RATINGS.reduce((s, k) => s + attributes[k][1], 0), potCap = TIERS[o.pot].cap;
   return {
-    attributes, tendencies: tend, pos: gamePos(slot, slot2), lvNow: lvOf(sum(now)), lvCeil: lvOf(sum(ceil)),
-    name: archName(data, o), shades: shadesFor(data, o),
+    attributes, tendencies: tend, pos: gamePos(slot, slot2), lvNow: lvOf(nowT), lvCeil: lvOf(ceilSum), lvPot: lvOf(potCap),
+    pastPot: ceilSum > potCap,             // his ceilings run past what his potential allows
+    noRoom: nowT >= ceilSum,               // he starts at his ceiling: nothing left to grow into
+    room: ceilSum - nowT, name: archName(data, o), shades: shadesFor(data, o),
   };
 }
 // The archetype's name: "2-Way 3-Level Scorer", "Crafty Playmaking Big" (2-Way always leads).
@@ -151,5 +160,7 @@ export function applyBuild(p, o, b) {
   Object.assign(p, { ht: o.ht, wt: o.wt, pos: b.pos, teamPos: b.pos, pot: o.pot, arc: b.name });
   for (const [k, v] of Object.entries(b.attributes)) p.attributes[k] = [...v];
   Object.assign(p.tendencies, b.tendencies);
+  // Skills: the ones you picked, at their levels (the simple ones have none), all equipped.
+  if (Array.isArray(o.skills)) p.skills = o.skills.map(x => ({ id: x.id, xp: 0, level: x.level ?? 1, equipped: true }));
   return p;
 }
