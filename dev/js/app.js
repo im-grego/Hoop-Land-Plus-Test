@@ -83,7 +83,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.199';
+const APP_VERSION = '0.365.200';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.1';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5600,12 +5600,15 @@ async function careerProLeague() {
   const season = [...idx.seasons].sort((a, b) => String(b.id).localeCompare(String(a.id)))[0];
   const start = [...(season?.starts || [])].sort((a, b) => b.date.localeCompare(a.date))[0];
   if (!start) throw new Error('No NBA file on the site');
-  const r = await fetchData(start.file);
-  let text;
-  if (/\.gz$/.test(start.file) && typeof DecompressionStream !== 'undefined' && !(r.headers.get('content-encoding') || '').includes('gzip')) text = await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text();
-  else text = await r.text();
-  const P = parseSave(text).seasonLeagues.find(L => L.leagueType === 0);
+  const read = async file => { const r = await fetchData(file); return /\.gz$/.test(file) && typeof DecompressionStream !== 'undefined' && !(r.headers.get('content-encoding') || '').includes('gzip') ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text() : r.text(); };
+  const P = parseSave(await read(start.file)).seasonLeagues.find(L => L.leagueType === 0);
   if (!P) throw new Error('The NBA file has no pro league');
+  // Back to Opening Night: today's league, the season from its first day (no scores, no stats, 0-0).
+  const open = (season.starts || []).find(x => x.opening);
+  if (open && open.file !== start.file) {
+    const O = parseSave(await read(open.file)).seasonLeagues.find(L => L.leagueType === 0);
+    if (O) return { league: CS.openingPro(P, O), label: `${season.label} · rosters as of ${fmtDay(start.date)}, from Opening Night` };
+  }
   return { league: P, label: `${season.label} · ${fmtDay(start.date)}` };
 }
 // His hometown on the map: a player from the same place (either league) lends his spot, so offers can say how far.

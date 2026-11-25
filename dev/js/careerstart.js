@@ -91,6 +91,39 @@ export function offers(save, li, p, pedigree = 4) {
   return picked.map(x => ({ ...x, homeRank: homeRank.get(x.t.id) ?? null })).sort((a, b) => a.prestigeRank - b.prestigeRank);
 }
 
+// The pro league at Opening Night with today's league: everything from the newest NBA file (rosters, trades, ratings,
+// contracts, picks, staff, injuries, morale) with the season itself from Opening Night's file (the schedule with no
+// results, day 0, the records at 0-0, no stats or game logs). The game plays the season from the start.
+export function openingPro(now, opening) {
+  const P = JSON.parse(JSON.stringify(now)), O = opening, yr = P.season.currentYear;
+  for (const k of ['currentDay', 'currentRound', 'allStarWeekend', 'news', 'schedule', 'playoffs']) if (k in O.season) P.season[k] = clone(O.season[k]);
+  const ot = new Map(O.teams.map(t => [t.id, t]));
+  for (const t of P.teams) { const o = ot.get(t.id); if (o) t.season = clone(o.season); }
+  const op = new Map([...O.teams.flatMap(t => t.roster), ...(O.freeAgents || [])].map(p => [p.id, p]));
+  for (const p of [...P.teams.flatMap(t => t.roster), ...(P.freeAgents || [])]) {
+    const q = op.get(p.id), cur = (p.stats || []).find(x => x.yr === yr);
+    if (q) {
+      p.careerStats = clone(q.careerStats); p.gameStats = clone(q.gameStats);
+      if (p.season && q.season?.gameHistory) p.season.gameHistory = clone(q.season.gameHistory);
+      p.stats = clone(q.stats);
+    } else {   // not in Opening Night's file: this season's games come off his totals
+      const tot = p.careerStats?.season;
+      if (tot && cur) for (const r of cur.season || []) for (const [k, v] of Object.entries(r)) if (typeof v === 'number' && typeof tot[k] === 'number' && k !== 'tid' && k !== 'num') tot[k] -= v;
+      if (p.gameStats) p.gameStats = { ...zero(p.gameStats), num: -1 };
+      if (p.season?.gameHistory) p.season.gameHistory = zero(p.season.gameHistory);
+    }
+    // This season's row: one, all zeros, for the team he's on now (a trade since Opening Night moves it).
+    const row = (p.stats || []).find(x => x.yr === yr);
+    if (row) {
+      const base = row.season?.[0] ? zero(row.season[0]) : { GP: 0, MIN: [0, 0, 0, 0, 0, 0] };
+      const last = row.season?.[row.season.length - 1];
+      if (!last || last.tid !== (p.tid ?? last.tid) || (row.season || []).some(r => r.GP > 0)) row.season = [{ ...base, tid: p.tid ?? base.tid, num: p.num ?? base.num }];
+      row.playoffs = []; row.finals = [];
+    }
+  }
+  return P;
+}
+
 // The pro league comes from another file (the newest NBA start): in, as the league the college one feeds, set the
 // way the game sets the pro league of a career (mode 2, no team or player, no team flagged, the career block at 0).
 export function swapPro(save, pro) {
