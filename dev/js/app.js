@@ -1,6 +1,7 @@
 import * as TRN from './training.js';
 import * as ACH from './achievements.js';
 import * as CS from './careerstart.js';
+import * as FOL from './followers.js';
 import * as CR from './creator.js';
 import * as SFX from './sfx.js';
 import {
@@ -82,7 +83,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.196';
+const APP_VERSION = '0.365.197';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.1';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -862,7 +863,7 @@ function gramBox() {
   try {
     if (!state.data || isCollege() || CAR.isCareer(league())) return '';
     const cur = state.stack[state.stack.length - 1]?.name;
-    return `<span class="gram-wrap"><button class="btn gram-box ${['rumors', 'news', 'gramMine', 'transactions'].includes(cur) ? 'focus' : ''}" data-act="gramBox" aria-label="Hoop Gram"><i class="px px-gram" aria-hidden="true"></i></button>${ndot(rumorUnread())}</span>`;
+    return `<span class="gram-wrap"><button class="btn gram-box ${['gramProfile', 'rumors', 'news', 'gramMine', 'transactions'].includes(cur) ? 'on focus' : ''}" data-act="gramBox" aria-label="Hoop Gram"><i class="px px-gram" aria-hidden="true"></i></button>${ndot(rumorUnread())}</span>`;
   } catch { return ''; }
 }
 // My League: the league's numbers in one place, a tab row on top of each of its screens.
@@ -13375,12 +13376,12 @@ actions.medPick = d => {
 };
 
 // ---- League News: rumors, transactions, coaching moves, CPU trades and (at Opening Night) the report card, as tabs.
-const NEWS_TABS = [['rumors', 'Feed'], ['team', 'Team'], ['mentions', 'Mentions'], ['report', 'Report Card']];
+const NEWS_TABS = [['profile', 'Profile'], ['rumors', 'Feed'], ['team', 'Team'], ['mentions', 'Mentions'], ['report', 'Report Card']];
 const newsTabs = cur => { const u = gramUnseen(); return `<div class="tabs fa-tabs news-tabs">${NEWS_TABS.filter(([k]) => k !== 'report' || league().season.phase === 6).map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="newsTab" data-t="${k}">${l}${k !== cur && u[k] ? '<span class="tab-dot"></span>' : ''}</button>`).join('')}</div>`; };
 actions.gramBox = () => {
-  if (['rumors', 'news', 'gramMine', 'transactions'].includes(state.stack[state.stack.length - 1]?.name)) return;
-  // Straight to Mentions when something new is said about you, else the Feed.
-  const to = rumorUnread() ? ['gramMine', { tab: 'mentions' }] : ['rumors', {}];
+  if (['gramProfile', 'rumors', 'news', 'gramMine', 'transactions'].includes(state.stack[state.stack.length - 1]?.name)) return;
+  // Your profile, like Instagram's home: a red dot on Mentions when something new is said about you.
+  const to = gramSubject() ? ['gramProfile', {}] : rumorUnread() ? ['gramMine', { tab: 'mentions' }] : ['rumors', {}];
   if (state.stack.length === 1) go(...to); else { state.stack[state.stack.length - 1].y = window.scrollY; state.stack.push({ name: to[0], args: to[1] }); history.pushState({ depth: state.stack.length }, ''); render(); }
 };
 // Back to the title screen (the save closes; export first to keep today's changes).
@@ -13389,7 +13390,7 @@ actions.toTitle = async () => {
   state.data = null; state.dirty = false; state.stack = [{ name: 'main', args: {} }];
   window.scrollTo(0, 0); render();
 };
-actions.newsTab = d => (d.t === 'rumors' ? replace('rumors', {}) : d.t === 'block' ? replace('transactions', { tab: 'block', only: true }) : d.t === 'team' || d.t === 'mentions' ? replace('gramMine', { tab: d.t }) : replace('news', { tab: d.t }));
+actions.newsTab = d => (d.t === 'profile' ? replace('gramProfile', {}) : d.t === 'moves' ? replace('transactions', { tab: 'sign' }) : d.t === 'rumors' ? replace('rumors', {}) : d.t === 'block' ? replace('transactions', { tab: 'block', only: true }) : d.t === 'team' || d.t === 'mentions' ? replace('gramMine', { tab: d.t }) : replace('news', { tab: d.t }));
 
 // The injury report: everyone in the league who's out right now, on one sheet. Tap a column to sort by it, tap it
 // again to flip it. Out: the longest first (major injuries ahead of minor ones at the same length).
@@ -13816,6 +13817,74 @@ function syncMentions() {
   offSet('hgMentions', { list: list.slice(-300) });
   return [...list].sort((a, b) => b.d - a.d);
 }
+// ---------------------------------------------------------------------------
+// Hoop Gram profile (js/followers.js): your page, set up like an Instagram profile. A franchise's team page, or the
+// career player's own. Followers move with winning, titles, stars and awards; the app logs them day by day.
+function gramSubject() {
+  if (!state.data) return null;
+  const L = league();
+  if (CAR.isCareer(L)) {
+    const me = CAR.careerPlayer(L); if (!me) return null;
+    const lv = shownLevel(me.p), college = isCollege();
+    return { kind: 'player', id: me.p.id, p: me.p, team: me.team, name: playerName(me.p), handle: pTag(me.p), av: faceImg(me.p, 'face') || (me.team ? logoImg(me.team, 'logo') : ''),
+      cat: college ? 'Student athlete' : 'Athlete', followers: FOL.playerFollowers(me.p, { level: lv, college, career: L.career, li: state.leagueIdx }), following: FOL.following(me.p.id), posts: me.team ? teamPostsOf(me.team) : [] };
+  }
+  const t = myTeam(); if (!t) return null;
+  const college = isCollege(), levels = t.roster.map(shownLevel);
+  return { kind: 'team', id: t.id, t, team: t, name: `${t.city} ${t.name}`, handle: tTag(t), av: logoImg(t, 'logo'), cat: college ? 'College athletics' : 'Sports team',
+    followers: FOL.teamFollowers(t, { college, yr: L.season.currentYear, levels }), following: FOL.following(t.id), posts: teamPostsOf(t) };
+}
+const GRAM_BIO_KEY = () => `hlc:gramBio:${saveTag()}`;
+function gramDefaultBio(S) {
+  const L = league(), yr = L.season.currentYear;
+  if (S.kind === 'team') {
+    const r = S.t.season?.find(x => x.yr === yr)?.seasonStats || {}, titles = (S.t.championships?.yearsWon || []).length;
+    return [`🏀 ${r.W || 0}-${r.L || 0} this season`, S.t.arenaName ? `🏟️ ${S.t.arenaName}` : '', titles ? `🏆 ${titles}× champions` : '', `📍 ${S.t.city}`].filter(Boolean).join('\n');
+  }
+  const tro = CAR.trophies(S.p);
+  return [`${posName(S.p)}${S.team ? ` · ${S.team.city} ${S.team.name} #${S.p.num}` : ' · Free agent'}`, [tro.rings && `🏆 ${tro.rings}×`, tro.mvp && `🏅 ${tro.mvp}× MVP`, tro.allStar && `🌟 ${tro.allStar}× All-Star`].filter(Boolean).join(' · '), S.p.home ? `📍 ${S.p.home}` : ''].filter(Boolean).join('\n');
+}
+const gramTileText = html => (/<span class="hg-text">([\s\S]*?)<\/span>(?:<span class="hg-foot">|<\/span>)/.exec(html)?.[1] || '').replace(/<br\s*\/?>/g, ' · ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
+screens.gramProfile = () => {
+  const S = gramSubject();
+  if (!S) { replace('rumors', {}); return; }
+  const L = league(), s = L.season, ph = { 9: 0, 11: 1, 2: 2, 4: 3, 5: 4, 6: 5 }[s.phase] ?? 0, day = s.currentYear * 1000 + ph * 150 + (s.currentDay || 0);
+  const logK = `hlc:gramFol:${saveTag()}:${S.kind}${S.id}`, log = lsGet(logK, {}), moved = FOL.track(log, day, S.followers); lsSet(logK, log);
+  let bio = null; try { bio = localStorage.getItem(GRAM_BIO_KEY()); } catch { /* none */ }
+  bio = bio ?? gramDefaultBio(S);
+  const posts = [...S.posts].sort((a, b) => b.d - a.d), u = gramUnseen();
+  state.gramTiles = posts.map(x => x.html);
+  const color = S.team?.teamColors?.[0] ? `#${String(S.team.teamColors[0]).replace(/^#/, '')}` : '';
+  const tile = (x, i) => `<button class="ig-tile" data-act="gramTile" data-i="${i}" ${color ? `style="--tc:${esc(color)}"` : ''}><span class="ig-tile-t">${esc(gramTileText(x.html).slice(0, 90))}</span></button>`;
+  const hl = [['rumors', 'Feed', '📰'], ['team', 'Team', '🏀'], ['mentions', 'Mentions', '💬'], ['transactions', 'Moves', '🔁']];
+  layout({ title: 'Hoop Gram', body: `${newsTabs('profile')}<div class="ig-prof">
+      <div class="ig-handle">@${esc(S.handle)} <i class="hg-ver" aria-hidden="true"></i></div>
+      <div class="ig-top"><span class="ig-av ${u.team || u.mentions ? 'ring' : ''}">${S.av || '<i class="px px-gram" aria-hidden="true"></i>'}</span>
+        <div class="ig-stats"><span><b>${FOL.fmt(posts.length)}</b>posts</span><span><b>${FOL.fmt(S.followers)}</b>followers</span><span><b>${FOL.fmt(S.following)}</b>following</span></div></div>
+      <div class="ig-name"><b>${esc(S.name)}</b></div><div class="ig-cat">${esc(S.cat)}</div>
+      <div class="ig-bio">${esc(bio).replace(/\n/g, '<br>')}</div>
+      ${moved ? `<div class="ig-insight ${moved > 0 ? 'up' : 'down'}">${moved > 0 ? '▲' : '▼'} ${FOL.fmt(Math.abs(moved))} followers this week</div>` : ''}
+      <div class="ig-btns"><button class="btn small" data-act="gramBio">Edit bio</button><button class="btn small" data-act="newsTab" data-t="mentions">Mentions${u.mentions ? '<span class="tab-dot"></span>' : ''}</button></div>
+      <div class="ig-hl">${hl.map(([k, l, ic]) => `<button class="ig-hl-b" data-act="newsTab" data-t="${k === 'transactions' ? 'moves' : k}"><span class="ig-hl-c">${ic}</span><span class="small">${l}</span></button>`).join('')}</div>
+      <div class="ig-tabbar"><span class="on">▦ Posts</span></div>
+      ${posts.length ? `<div class="ig-grid">${posts.map(tile).join('')}</div>` : '<p class="note small muted center">No posts yet. Finals and moves show up here.</p>'}
+    </div>` });
+};
+actions.gramTile = d => {
+  const html = (state.gramTiles || [])[+d.i]; if (!html) return;
+  const o = overlay(`<div class="stack hg-list">${html}</div><button class="btn" data-close>Close</button>`);
+  o.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === o) o.remove(); });
+};
+actions.gramBio = () => {
+  const S = gramSubject(); if (!S) return;
+  let cur = null; try { cur = localStorage.getItem(GRAM_BIO_KEY()); } catch { /* none */ }
+  askValues('Edit bio', [{ k: 'b', label: 'Bio (use | for a new line; empty for the default)', value: (cur ?? gramDefaultBio(S)).replace(/\n/g, ' | '), type: 'text' }], v => {
+    const b = v.b.split('|').map(x => x.trim()).filter(Boolean).join('\n').slice(0, 300);
+    try { if (b) localStorage.setItem(GRAM_BIO_KEY(), b); else localStorage.removeItem(GRAM_BIO_KEY()); } catch { /* storage off */ }
+    render(); return '';
+  });
+};
+
 screens.gramMine = (args = {}) => {
   const tab = args.tab === 'team' ? 'team' : 'mentions', me = myTeam();
   const posts = tab === 'team' ? teamPostsOf(me) : syncMentions();
