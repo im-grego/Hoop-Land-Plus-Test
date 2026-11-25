@@ -106,6 +106,49 @@ export const ARCH_DESC = {
 export const skillStars = id => (['HIG', 'SPA', 'DIM', 'CLA'].includes(id) ? 1 : ['BUL', 'DUN', 'LIM', 'UNF', 'FOO', 'HOT', 'BAL', 'SNA'].includes(id) ? 3 : 2);
 export const CAREER_ELITE_MIN = 8;
 export const PER_CATEGORY = 4;
+// Skills that fit a style, and why: the primary archetype's, then the secondary trait's.
+const ARCH_RECS = {
+  '3lvl': [['UNF', 'Tough mid-range looks are his bread and butter'], ['CRA', 'Finishes through contact at the rim'], ['VOL', 'Takes a lot of jumpers and never tires of it']],
+  creator: [['STE', 'Step-backs and side-steps are how he gets his shot off'], ['UNF', 'Hits contested pull-ups'], ['FOO', 'Puts defenders on the floor off the dribble']],
+  midrange: [['UNF', 'Lives on contested mid-range shots'], ['STE', 'Creates space with his footwork'], ['CLU', 'The ball is in his hands late']],
+  insideout: [['BUL', 'Backs smaller players down'], ['SPO', 'Punishes help with the catch-and-shoot']],
+  slasher: [['CRA', 'Reverse and contact layups'], ['TEA', 'The floater over the big'], ['DUN', 'Finishes above the rim when he gets there']],
+  flyer: [['DUN', 'Acrobatic dunks'], ['HIG', 'Dunks all game without tiring']],
+  sharp: [['SPO', 'Lethal off the catch'], ['LIM', 'Range past 25 feet'], ['VOL', 'Shoots a lot and stays fresh']],
+  spot: [['SPO', 'Lives off the catch-and-shoot'], ['VOL', 'Lots of threes, no fatigue']],
+  general: [['HOT', 'Keeps a hot hand burning with his passes'], ['DIM', 'Teammates shoot better off his passes'], ['CHE', 'Catches fire when he sets others up']],
+  playscorer: [['CHE', 'His assists light him up too'], ['STE', 'Scores off his own footwork'], ['UNF', 'Hits the tough ones']],
+  pointfwd: [['DIM', 'A forward who makes everyone better'], ['HOT', 'Moves the fire around the floor'], ['CRA', 'Finishes his own drives']],
+  playbig: [['DIM', 'Offense runs through his passes'], ['HOT', 'Keeps hot hands going from the post'], ['SOF', 'The hook when he keeps it']],
+  post: [['SOF', 'Hook shots on the block'], ['BUL', 'Defenders go down when he backs them in']],
+  glass: [['CLE', 'Scores off his own offensive boards'], ['MAG', 'Wins contested rebounds']],
+  runner: [['DUN', 'Lobs and putback dunks'], ['CLE', 'Cleans up misses'], ['HIG', 'Dunks all game long']],
+  stretch: [['SPO', 'Pick-and-pop threes off the catch'], ['LIM', 'Range a big shouldn\'t have']],
+  anchor: [['SNA', 'Blocks that turn into possessions'], ['CLA', 'Contests everything at the rim'], ['MAG', 'Ends the possession with the board']],
+  lockdown: [['BAL', 'Jumps the passing lanes'], ['CLA', 'Contests every shot'], ['LOC', 'At his best late in games']],
+  switch: [['CLA', 'Contests one through five'], ['TWO', 'Steals the other team\'s fire'], ['LOC', 'Locks in when it matters']],
+  unicorn: [['LIM', 'Deep range at his size'], ['SNA', 'Protects the rim on the other end']],
+};
+const SEC_RECS = {
+  flyer: [['DUN', 'High-Flying: acrobatic finishes'], ['HIG', 'High-Flying: dunks without the fatigue']],
+  twoway: [['TWO', '2-Way: catches and steals fire on defense'], ['CLA', '2-Way: stronger contests']],
+  crafty: [['CRA', 'Crafty: reverse and contact layups'], ['TEA', 'Crafty: the floater']],
+  sniper: [['SPO', 'Sharpshooting: catch-and-shoot accuracy'], ['LIM', 'Sharpshooting: deep range']],
+  handles: [['FOO', 'Playmaking: ankle breakers'], ['DIM', 'Playmaking: better shots for teammates']],
+  glass: [['CLE', 'Glass-Cleaning: putbacks'], ['MAG', 'Glass-Cleaning: contested boards']],
+  power: [['BUL', 'Bruiser: knocks defenders down'], ['SOF', 'Bruiser: the hook']],
+  lockdown: [['BAL', 'Lockdown: interceptions'], ['LOC', 'Lockdown: clutch defense']],
+};
+// The recommended skills for a build: [{ id, why }], the secondary's first when both name one (it's the combination).
+export function skillRecs(o) {
+  // Taken in turns (the trait's best, the style's best, ...), so both halves of the build are in the top four.
+  const out = new Map(), a = ARCH_RECS[o.arch] || [], b = SEC_RECS[o.sec] || [];
+  for (let i = 0; i < 3; i++) for (const [id, why] of [b[i], a[i]].filter(Boolean)) out.set(id, out.has(id) ? `${out.get(id)}; ${why.charAt(0).toLowerCase()}${why.slice(1)}` : why);
+  return [...out].map(([id, why]) => ({ id, why })).slice(0, 4);
+}
+// Where he starts, in stars (the same scale as potential: each half star is 7 levels, 5 stars Lv 100).
+export const START_STARS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+export const startLvFor = half => 100 - 7 * (10 - half);
 export const archById = (data, id) => data.archetypes.find(a => a.id === id);
 // Archetypes that fit a position (bigs' styles at PF and C, and so on).
 export const archsFor = (data, slot) => data.archetypes.filter(a => a.slots[slot]);
@@ -135,7 +178,7 @@ export function build(data, o) {
   // The base every recruit starts from, and the points on top.
   const base = spread(w, totalFor(BASE_LV), ceil);
   const ALL = [...RATINGS, 'SPD', 'STR', 'STM'];
-  const pool = POINTS(o.pedigree);
+  const pool = o.start === 'free' ? 999 : Math.max(0, totalFor(startLvFor(o.start ?? 4)) - totalFor(BASE_LV));
   const spent = o.spent || autoSpend(w, base, ceil, pool);
   const used = ALL.reduce((n, k) => n + (spent[k] || 0), 0);
   const now = Object.fromEntries(RATINGS.map(k => [k, clamp(base[k] + (spent[k] || 0), 1, 20)]));

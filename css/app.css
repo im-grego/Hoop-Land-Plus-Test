@@ -2738,3 +2738,13 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; heig
 .cp-skcat, .cp-icons, .cp-ico { min-width: 0; }
 .cp-ico { padding: 5px; }
 @media (max-width: 380px) { .cp-skgrid { grid-template-columns: minmax(0, 1fr); } }
+/* Recommended skills */
+.cp-recs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; padding: 10px; border: 2px dashed var(--gold); }
+.cp-rec { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: center; text-align: left; padding: 6px 8px; background: var(--btn); border: 2px solid var(--btn-edge); color: var(--text); }
+.cp-rec.on { border-color: var(--cyan); }
+.cp-rec img { width: 30px; height: 30px; object-fit: contain; image-rendering: pixelated; }
+.cp-ico.rec { border-color: var(--gold); }
+.cp-ico.rec.on { border-color: var(--gc); box-shadow: inset 0 0 0 2px var(--gold), 0 3px 0 var(--btn-shadow); }
+.cp-ico u { position: absolute; left: 3px; top: 0; text-decoration: none; color: var(--gold); font-size: 12px; font-weight: 800; }
+.cp-startseg .seg { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.cp-startseg .btn { min-width: 0; padding: 6px 2px; }

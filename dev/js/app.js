@@ -79,7 +79,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.189';
+const APP_VERSION = '0.365.190';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5424,7 +5424,7 @@ function creatorCard() {
 function crDefaults(p) {
   const slot = { 0: 1, 1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 4, 7: 4, 8: 5 }[p.pos] ?? 3;
   const arch = { 1: 'general', 2: 'sharp', 3: '3lvl', 4: 'stretch', 5: 'anchor' }[slot];
-  return { v: 2, fn: p.fn, ln: p.ln, home: p.home || '', num: p.num ?? 0, school: CR.HIGH_SCHOOLS[0], slot, slot2: null, ht: p.ht, wt: p.wt, arch, sec: null, pot: Math.max(8, Math.min(10, p.pot || 9)), pedigree: 5, spent: null, skills: [], skillSel: null };
+  return { v: 2, fn: p.fn, ln: p.ln, home: p.home || '', num: p.num ?? 0, school: CR.HIGH_SCHOOLS[0], slot, slot2: null, ht: p.ht, wt: p.wt, arch, sec: null, pot: Math.max(8, Math.min(10, p.pot || 9)), start: 4, pedigree: 5, spent: null, skills: [], skillSel: null };
 }
 const crO = () => (state.cp ||= {});
 const CR_GRP = { LAY: 'fin', DNK: 'fin', INS: 'fin', MID: 'sho', TPT: 'sho', FTS: 'sho', DRB: 'pla', PAS: 'pla', ORE: 'pla', DRE: 'def', STL: 'def', BLK: 'def', SPD: 'phy', STR: 'phy', STM: 'phy' };
@@ -5457,13 +5457,15 @@ screens.creator = () => {
   const have = new Map((o.skills || []).map(x => [x.id, x]));
   const RNAME = { INS: 'Inside Shooting', DNK: 'Dunking', TPT: 'Three Point Shooting', MID: 'Mid Range Shooting', DRB: 'Dribbling', PAS: 'Passing', STL: 'Stealing', BLK: 'Blocking' };
   const sel = o.skillSel;
+  const recs = CR.skillRecs(o), recWhy = new Map(recs.map(x => [x.id, x.why]));
+  const recBox = recs.length ? `<div class="cp-recs"><p class="note small"><b class="gold">★ Recommended</b> for a ${esc(b.name)}</p>${recs.map(x => `<button class="cp-rec ${have.has(x.id) ? 'on' : ''}" data-act="cpSkillSel" data-id="${x.id}"><img src="img/skills/${x.id}.png" alt=""><span><b>${esc(skillName(x.id))}</b>${have.has(x.id) ? ' <span class="cp-on">✓</span>' : ''}<br><span class="small">${esc(x.why)}</span></span></button>`).join('')}</div>` : '';
   const skillGrid = SKILL_CATEGORIES.map(c => { const g = SKILL_GROUP[c.name], n = c.skills.filter(id => have.has(id)).length;
-    return `<div class="cp-skcat g-${g}"><p class="cp-grp g-${g}">${c.name} <span class="muted">${n}/${CR.PER_CATEGORY}</span></p><div class="cp-icons">${c.skills.map(id => `<button class="cp-ico ${have.has(id) ? 'on' : ''} ${sel === id ? 'sel' : ''}" data-act="cpSkillSel" data-id="${id}" aria-label="${esc(skillName(id))}"><img src="img/skills/${id}.png" alt="">${have.has(id) ? '<i>✓</i>' : ''}</button>`).join('')}</div></div>`; }).join('');
+    return `<div class="cp-skcat g-${g}"><p class="cp-grp g-${g}">${c.name} <span class="muted">${n}/${CR.PER_CATEGORY}</span></p><div class="cp-icons">${c.skills.map(id => `<button class="cp-ico ${have.has(id) ? 'on' : ''} ${sel === id ? 'sel' : ''} ${recWhy.has(id) ? 'rec' : ''}" data-act="cpSkillSel" data-id="${id}" aria-label="${esc(skillName(id))}"><img src="img/skills/${id}.png" alt="">${have.has(id) ? '<i>✓</i>' : ''}${recWhy.has(id) ? '<u>★</u>' : ''}</button>`).join('')}</div></div>`; }).join('');
   const skillCard = (() => {
     if (!sel) return '<p class="note small muted cp-skhint">Tap a skill to see what it does and equip it.</p>';
     const h = have.get(sel), st = CR.skillStars(sel), need = ELITE_REQUIREMENTS[sel], v = need ? b.attributes[need][0] : 0, locked = need && v < CR.CAREER_ELITE_MIN, cat = SKILL_CATEGORIES.find(c => c.skills.includes(sel));
     return `<div class="cp-skcard g-${SKILL_GROUP[cat.name]}"><img src="img/skills/${sel}.png" alt=""><div class="cp-skt"><span><b>${esc(skillName(sel).toUpperCase())}</b> <span class="cp-stars">${'★'.repeat(st)}</span> <span class="small muted">${esc(cat.name)} · Cost: ${st} SP</span></span>
-      <span>${esc(skillDoes(sel))}</span>${locked ? `<span class="small down">Minimum ${CR.CAREER_ELITE_MIN} ${RNAME[need] || need} Required (${v / 2})</span>` : ''}
+      <span>${esc(skillDoes(sel))}</span>${recWhy.has(sel) ? `<span class="small gold">★ Recommended: ${esc(recWhy.get(sel))}</span>` : ''}${locked ? `<span class="small down">Minimum ${CR.CAREER_ELITE_MIN} ${RNAME[need] || need} Required (${v / 2})</span>` : ''}
       <div class="row cp-skbtns"><button class="btn small ${h ? 'off' : 'focus'}" data-act="cpSkill" data-id="${sel}">${h ? 'Unequip' : 'Equip'}</button>${h && isLeveled(sel) ? `<span class="cp-ed">Level ${['−', '+'].map((x, i) => `<button class="btn tiny" data-act="cpSkillLv" data-id="${sel}" data-d="${i ? 1 : -1}">${x}</button>`).join(`<b>${h.level}</b>`)}</span>` : ''}</div></div></div>`;
   })();
   const ped = CR.PEDIGREE[o.pedigree];
@@ -5479,17 +5481,19 @@ screens.creator = () => {
       <fieldset class="frame"><legend>2 · Primary Archetype</legend><p class="note small muted">His style sets his ceilings: where the potential goes, rating by rating.</p>${families.map(f => `<p class="note small muted cp-fam">${esc(f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(archCard).join('')}</div>`).join('')}</fieldset>
       <fieldset class="frame"><legend>3 · Secondary</legend><p class="note small muted">What he adds on top: it bends his ceilings toward it. Tap again to clear.</p><div class="cp-acards">${Object.entries(CR.SECONDARY).map(secCard).join('')}</div></fieldset>
       <fieldset class="frame"><legend>4 · Upgrade Points</legend>
-        <div class="cp-pool"><span>Points left</span><b class="${b.left ? 'gold' : ''}">${o.pedigree === 9 ? '∞' : b.left}</b><span class="muted small">of ${o.pedigree === 9 ? 'unlimited' : b.pool}</span></div>
+        <span class="note small">Where he starts <span class="muted">(set your own difficulty: a 5★ potential can start at 1½★, or start at 4★ right away)</span></span>
+        <div class="cp-startseg">${seg('start', [...CR.START_STARS.map(h => [h, `${Math.floor(h / 2)}${h % 2 ? '½' : ''}★`]), ['free', 'No limit']])}</div>
+        <div class="cp-pool"><span>Points left</span><b class="${b.left ? 'gold' : ''}">${o.start === 'free' ? '∞' : b.left}</b><span class="muted small">${o.start === 'free' ? 'no limit' : `of ${b.pool} · starts him at Lv ${CR.startLvFor(o.start)}`}</span></div>
         <p class="note small muted">Put them anywhere: all of them into the three if you want. A rating can go past its ceiling, but past his potential he has no room left to grow there. Bright: now · faded: ceiling · green: your points.</p>
         <div class="cp-bars">${bars}</div>
         <div class="grid2"><button class="btn small" data-act="cpAuto">✨ Spend for Me</button><button class="btn small off" data-act="cpClear">↺ Take All Back</button></div>
       </fieldset>
-      <fieldset class="frame"><legend>5 · Skills (${have.size})</legend><div class="cp-skgrid">${skillGrid}</div>${skillCard}</fieldset>
+      <fieldset class="frame"><legend>5 · Skills (${have.size})</legend>${recBox}<div class="cp-skgrid">${skillGrid}</div>${skillCard}</fieldset>
       <fieldset class="frame"><legend>Who He Is</legend><div class="stack">
         <div class="grid2"><label class="field"><span>First name</span><input data-cp="fn" value="${esc(o.fn)}" maxlength="20"></label><label class="field"><span>Last name</span><input data-cp="ln" value="${esc(o.ln)}" maxlength="24"></label></div>
         <div class="grid2"><label class="field"><span>Hometown</span><input data-cp="home" value="${esc(o.home)}" placeholder="City, ST" maxlength="32"></label><label class="field"><span>Number</span><input data-cp="num" value="${esc(o.num)}" inputmode="numeric" maxlength="2"></label></div>
         <label class="field"><span>High school</span><select data-cp="school">${CR.HIGH_SCHOOLS.map(h => `<option ${h === o.school ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select></label>
-        <span class="note small">Pedigree <span class="muted">(how many upgrade points he gets)</span></span>${seg('pedigree', [[3, '3★'], [4, '4★'], [5, '5★'], [6, 'Top 10'], [9, 'Sandbox']])}
+        <span class="note small">Recruiting pedigree <span class="muted">(his story: how highly ranked he was)</span></span>${seg('pedigree', [[3, '3★'], [4, '4★'], [5, '5★'], [6, 'Top 10']])}
       </div></fieldset>
       <fieldset class="frame"><legend>Position & Body</legend><div class="stack">
         <span class="note small">Primary position</span>${seg('slot', [1, 2, 3, 4, 5].map(s => [s, CR.SLOT_SHORT[s]]))}
@@ -5502,7 +5506,7 @@ screens.creator = () => {
 };
 // Anything that reshapes the build (potential, style, secondary, position, body, pedigree) starts the points over,
 // spent for you; your own spending stays only while the build stays the same.
-const CR_RESHAPE = new Set(['pot', 'arch', 'sec', 'slot', 'slot2', 'pedigree']);
+const CR_RESHAPE = new Set(['pot', 'arch', 'sec', 'slot', 'slot2', 'start']);
 actions.cpSet = d => { const o = crO(); o[d.k] = JSON.parse(d.v); if (d.k === 'slot' && o.slot2 === o.slot) o.slot2 = null; if (d.k === 'slot') { o.ht = { 1: 75, 2: 77, 3: 80, 4: 82, 5: 84 }[o.slot]; o.wt = { 1: 190, 2: 205, 3: 220, 4: 235, 5: 250 }[o.slot]; } if (CR_RESHAPE.has(d.k)) o.spent = null; render(); cpWarn(); };
 actions.cpStep = d => { const o = crO(); if (d.k === 'ht') o.ht = Math.max(68, Math.min(90, o.ht + +d.d)); else o.wt = Math.max(160, Math.min(320, o.wt + 5 * +d.d)); o.spent = null; render(); };
 // A point on (or off) one rating, from the one pool.
