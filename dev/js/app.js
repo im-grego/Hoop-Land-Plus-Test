@@ -79,7 +79,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.190';
+const APP_VERSION = '0.365.191';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5441,7 +5441,8 @@ screens.creator = () => {
   const step = (k, label, val) => `<div class="pts-row"><span class="grow">${label}</span><button class="btn square" data-act="cpStep" data-k="${k}" data-d="-1" aria-label="Less">−</button><span class="pts-val">${val}</span><button class="btn square" data-act="cpStep" data-k="${k}" data-d="1" aria-label="More">+</button></div>`;
   const ft = h => `${Math.floor(h / 12)}'${h % 12}"`;
   const stars = v => `${'★'.repeat(Math.floor(v / 2))}${v % 2 ? '½' : ''}`;
-  const families = [...new Set(fits.map(a => a.family))];
+  const POSFAM = { 1: 'Point Guard', 2: 'Wing', 3: 'Wing', 4: 'Forward', 5: 'Center' }[o.slot];
+  const families = [...new Set([POSFAM, ...fits.map(a => a.family)])].filter(f => fits.some(a => a.family === f));
   // 1. Potential, 2. primary archetype (sets the ceilings), 3. secondary trait (bends them).
   const shadesAt = a => { const d = a.slots[o.slot] || {}, lg = (d.legends || []).slice(0, 2); return CR.shadesLine({ legends: lg, today: (d.shades || []).filter(n => !lg.includes(n)).slice(0, 2) }); };
   const archCard = a => `<button class="cp-acard ${o.arch === a.id ? 'sel' : ''}" data-act="cpSet" data-k="arch" data-v='"${a.id}"'><b>${esc(a.name)}</b><span class="small">${esc(CR.ARCH_DESC[a.id] || '')}</span>${shadesAt(a) ? `<span class="small muted">Shades of ${esc(shadesAt(a))}</span>` : ''}</button>`;
@@ -5478,7 +5479,7 @@ screens.creator = () => {
           <span class="small muted">${esc(ped.name)} out of ${esc(o.school)}${b.shades.legends.length || b.shades.today.length ? ` · Shades of <b>${esc(CR.shadesLine(b.shades))}</b>` : ''}</span></div>
       </fieldset>
       <fieldset class="frame"><legend>1 · Potential</legend>${seg('pot', [[8, '4★ · Lv 86'], [9, '4.5★ · Lv 93'], [10, '5★ · Lv 100']])}<p class="note small muted">How good he can get: his ceilings add up to it.</p></fieldset>
-      <fieldset class="frame"><legend>2 · Primary Archetype</legend><p class="note small muted">His style sets his ceilings: where the potential goes, rating by rating.</p>${families.map(f => `<p class="note small muted cp-fam">${esc(f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(archCard).join('')}</div>`).join('')}</fieldset>
+      <fieldset class="frame"><legend>2 · Primary Archetype</legend><p class="note small muted">His style sets his ceilings: where the potential goes, rating by rating.</p>${families.map(f => `<p class="note small muted cp-fam">${esc(['Point Guard', 'Wing', 'Forward', 'Center'].includes(f) ? `${f} styles` : f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(archCard).join('')}</div>`).join('')}</fieldset>
       <fieldset class="frame"><legend>3 · Secondary</legend><p class="note small muted">What he adds on top: it bends his ceilings toward it. Tap again to clear.</p><div class="cp-acards">${Object.entries(CR.SECONDARY).map(secCard).join('')}</div></fieldset>
       <fieldset class="frame"><legend>4 · Upgrade Points</legend>
         <span class="note small">Where he starts <span class="muted">(set your own difficulty: a 5★ potential can start at 1½★, or start at 4★ right away)</span></span>

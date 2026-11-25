@@ -2748,3 +2748,11 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; heig
 .cp-ico u { position: absolute; left: 3px; top: 0; text-decoration: none; color: var(--gold); font-size: 12px; font-weight: 800; }
 .cp-startseg .seg { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .cp-startseg .btn { min-width: 0; padding: 6px 2px; }
+/* Skill icons: one square size, every icon drawn on the same canvas so they sit at the same scale */
+.cp-icons { grid-template-columns: repeat(6, minmax(0, 48px)); justify-content: space-between; gap: 6px; }
+.cp-ico { width: 100%; aspect-ratio: 1; padding: 4px; }
+.cp-ico img { width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; }
+.cp-rec { grid-template-columns: 30px 1fr; }
+.cp-rec img { width: 30px; height: 30px; }
+.cp-skcard { grid-template-columns: 40px 1fr; }
+.cp-skcard > img { width: 40px; height: 40px; }

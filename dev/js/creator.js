@@ -100,6 +100,24 @@ export const ARCH_DESC = {
   lockdown: 'Takes the other team\'s best perimeter scorer',
   switch: 'Guards one through five',
   unicorn: 'A big with a guard\'s skill set: shoots, handles, blocks',
+  pnr: 'Runs the pick-and-roll: the pocket pass, the pull-up, the lob',
+  scoringpg: 'A point guard who looks for his own shot first',
+  pest: 'Picks up full court and lives in the passing lanes',
+  jitterbug: 'Small, quick and slippery: a handle nobody can stay in front of',
+  tempo: 'Pushes the pace: rebound, outlet, gone',
+  movement: 'Never stops moving off screens, shoots on the catch',
+  microwave: 'Instant offense off the bench: gets hot in a hurry',
+  '3andd': 'Hits the corner three and guards the other team\'s best wing',
+  swingman: 'Plays both wing spots: a little of everything',
+  athwing: 'Explosive wing: transition dunks, chase-down blocks',
+  twowaywing: 'Scores and stops: a wing who can do both every night',
+  stretch4: 'A four who pulls the big out to the three-point line',
+  faceup: 'Faces up from the elbow: jab, jumper, drive',
+  smallball5: 'An undersized five who switches, passes and defends',
+  energy: 'Hustle, boards and blocks: does the dirty work',
+  paintbeast: 'Overpowers everyone in the paint',
+  stretch5: 'A center who spaces the floor to the arc',
+  backtobasket: 'A post-up center: drop steps, hooks and passes out of the double',
 };
 // The game's skill rules in a career: stars (simple 1, regular 2, elite 3), their cost in skill points, 4 a category,
 // and an elite skill needs 8 in its rating.
@@ -129,6 +147,26 @@ const ARCH_RECS = {
   switch: [['CLA', 'Contests one through five'], ['TWO', 'Steals the other team\'s fire'], ['LOC', 'Locks in when it matters']],
   unicorn: [['LIM', 'Deep range at his size'], ['SNA', 'Protects the rim on the other end']],
 };
+Object.assign(ARCH_RECS, {
+  pnr: [['DIM', 'His pocket passes set up easy shots'], ['STE', 'Snakes and steps back off the screen'], ['HOT', 'Keeps the fire going with the ball']],
+  scoringpg: [['VOL', 'Lots of jumpers, never tired'], ['STE', 'Creates his own space'], ['CLU', 'Wants the last shot']],
+  pest: [['BAL', 'Picks off passes'], ['CLA', 'Bothers every shot'], ['LOC', 'Locks in late']],
+  jitterbug: [['FOO', 'Ankle breakers'], ['TEA', 'The floater over the bigs'], ['STE', 'Stop-and-go footwork']],
+  tempo: [['HIG', 'Dunks in transition without tiring'], ['DIM', 'Hits runners in stride'], ['CRA', 'Finishes in traffic at speed']],
+  movement: [['SPO', 'Lethal off the catch'], ['VOL', 'Runs and shoots all game'], ['LIM', 'Deep range']],
+  microwave: [['SPA', 'Catches fire coming off the bench'], ['UNF', 'Tough shots don\'t bother him'], ['VOL', 'Shoots it a lot']],
+  '3andd': [['SPO', 'The corner three off the catch'], ['CLA', 'Contests everything'], ['TWO', 'Steals the other team\'s fire']],
+  swingman: [['STE', 'Footwork to score from anywhere'], ['SPO', 'Hits the open three'], ['CRA', 'Finishes his drives']],
+  athwing: [['DUN', 'Acrobatic dunks'], ['HIG', 'Dunks without the fatigue'], ['BAL', 'Gets out on breaks off steals']],
+  twowaywing: [['TWO', 'Steals the other team\'s fire'], ['UNF', 'Hits contested jumpers'], ['CLA', 'Stronger contests']],
+  stretch4: [['SPO', 'Pick-and-pop threes'], ['LIM', 'Range a four shouldn\'t have'], ['MAG', 'Still wins the board']],
+  faceup: [['UNF', 'The elbow jumper over a hand'], ['STE', 'Jab-step footwork'], ['SOF', 'Touch around the rim']],
+  smallball5: [['DIM', 'Makes plays out of the short roll'], ['CLA', 'Switches and contests'], ['SNA', 'Blocks that start the break']],
+  energy: [['CLE', 'Putbacks'], ['MAG', 'Contested boards'], ['SNA', 'Blocks that keep the ball']],
+  paintbeast: [['BUL', 'Knocks defenders down in the post'], ['DUN', 'Finishes with force'], ['CLE', 'Second-chance points']],
+  stretch5: [['SPO', 'Trail threes off the catch'], ['LIM', 'Range from deep'], ['SNA', 'Still protects the rim']],
+  backtobasket: [['SOF', 'The hook shot'], ['BUL', 'Backs everyone down'], ['DIM', 'Passes out of the double team']],
+});
 const SEC_RECS = {
   flyer: [['DUN', 'High-Flying: acrobatic finishes'], ['HIG', 'High-Flying: dunks without the fatigue']],
   twoway: [['TWO', '2-Way: catches and steals fire on defense'], ['CLA', '2-Way: stronger contests']],
@@ -143,7 +181,7 @@ const SEC_RECS = {
 export function skillRecs(o) {
   // Taken in turns (the trait's best, the style's best, ...), so both halves of the build are in the top four.
   const out = new Map(), a = ARCH_RECS[o.arch] || [], b = SEC_RECS[o.sec] || [];
-  for (let i = 0; i < 3; i++) for (const [id, why] of [b[i], a[i]].filter(Boolean)) out.set(id, out.has(id) ? `${out.get(id)}; ${why.charAt(0).toLowerCase()}${why.slice(1)}` : why);
+  for (let i = 0; i < 3; i++) for (const [id, why] of [b[i], a[i]].filter(Boolean)) if (!out.has(id)) out.set(id, why);
   return [...out].map(([id, why]) => ({ id, why })).slice(0, 4);
 }
 // Where he starts, in stars (the same scale as potential: each half star is 7 levels, 5 stars Lv 100).
@@ -174,7 +212,8 @@ export function build(data, o) {
   const ceil = spread(w, TIERS[o.pot].cap, cap, Object.fromEntries(RATINGS.map(k => [k, Math.min(cap[k], NEED[k] ?? 3)])));
   // Body: strength from his weight against his position, speed the other way; stamina high (he's 17).
   const ph = B.phys, wtD = (o.wt - B.wt);
-  const body = { STR: clamp(Math.round(ph.STR - 2 + wtD / 10 + (S?.body?.STR || 0)), 3, 20), SPD: clamp(Math.round(ph.SPD - 0.5 - wtD / 14 + (S?.body?.SPD || 0)), 3, 20), STM: clamp(Math.round(ph.STM), 10, 20) };
+  const ab = a1.body || {};
+  const body = { STR: clamp(Math.round(ph.STR - 2 + wtD / 10 + (S?.body?.STR || 0) + (ab.STR || 0)), 3, 20), SPD: clamp(Math.round(ph.SPD - 0.5 - wtD / 14 + (S?.body?.SPD || 0) + (ab.SPD || 0)), 3, 20), STM: clamp(Math.round(ph.STM + (ab.STM || 0)), 10, 20) };
   // The base every recruit starts from, and the points on top.
   const base = spread(w, totalFor(BASE_LV), ceil);
   const ALL = [...RATINGS, 'SPD', 'STR', 'STM'];
