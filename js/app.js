@@ -1,4 +1,5 @@
 import * as TRN from './training.js';
+import * as ACH from './achievements.js';
 import * as CR from './creator.js';
 import * as SFX from './sfx.js';
 import {
@@ -80,9 +81,9 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.193';
+const APP_VERSION = '0.365.194';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
-const SHOWN_VERSION = APP_VERSION;
+const SHOWN_VERSION = 'Beta 0.2.1';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
 // the player hasn't looked at yet.
 const DEVLOG = [
@@ -966,7 +967,7 @@ function render() {
   loadFaces();
   document.documentElement.dataset.px = state.params.pixelIcons === false ? 'off' : 'on';
   SFX.setSound(state.params.sound !== false, state.params.soundVol ?? 0.5);
-  if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); setSalaryScale(FA.capSystemOn() ? Math.max(0.6, FA.capLines(league()).cap / 165) : 1); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) { fitClassIncoming(); realClassCheck(); } }
+  if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); setSalaryScale(FA.capSystemOn() ? Math.max(0.6, FA.capLines(league()).cap / 165) : 1); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) { fitClassIncoming(); realClassCheck(); } if (CAR.isCareer(league())) careerTokSync(); }
   if (state.data && isCollege() && state.cal) { try { localStorage.setItem(collegeCalKey(), JSON.stringify(state.cal)); } catch { /* ignore */ } }
   if (state.data && !isCollege()) { seasonDrift(); cpuComebacks(); cpuNumbers(); cpuJerseys(); realAllStarHost(); if (state.retFixed !== saveTag()) { state.retFixed = saveTag(); fixRetiredNumbers(); } if (state.awFixed !== saveTag()) { state.awFixed = saveTag(); if (PO.dedupeAwards(league())) state.dirty = true; const r = PO.repairSave(league()); if (r.contracts || r.ceilings || r.coaches) state.dirty = true; if (otherCoachFix()) state.dirty = true; } glSettle(); taxSettle(); cpuShifts(); }   // once an offseason each (the G League once a season)
   if (state.data && !isCollege()) { careerSync(); syncScarcity(); poSettle(); campAuto(); }
@@ -2151,7 +2152,7 @@ actions.share = async () => {
 // Checkpoints before big moves: the last three are kept (each is a full copy of the save, so no more than that on a
 // phone), and Settings → Data can go back to any of them.
 function checkpoint(label) {
-  state.undo = { label, text: serializeSave(state.data), dirty: state.dirty, at: Date.now(), cal: JSON.stringify(state.cal || {}), ledgerN: ledgerLen() };
+  state.undo = { label, text: serializeSave(state.data), dirty: state.dirty, at: Date.now(), cal: JSON.stringify(state.cal || {}), ledgerN: ledgerLen(), buysN: state.data && CAR.isCareer(league()) ? careerBuys().length : null };
   state.undoList = [state.undo, ...(state.undoList || [])].slice(0, 3);
 }
 function undoHistoryBox() {
@@ -2166,7 +2167,7 @@ actions.undoTo = async d => {
   const o = overlay('<div class="spinner"></div><p class="note">Restoring…</p>');
   await nextFrame();
   installData(parseSave(u.text), true);
-  ledgerRewind(u.ledgerN);   // coins and fans go back with the save
+  ledgerRewind(u.ledgerN); buysRewind(u.buysN);   // coins and fans go back with the save
   try { state.cal = JSON.parse(u.cal || '{}'); } catch { /* keep */ }
   if (!isCollege()) { saveDrift(); saveTraitStore(); saveComeback(); saveJersey(); }
   state.undoList = state.undoList.slice(+d.i + 1);
@@ -4035,7 +4036,7 @@ actions.undoAdvance = async () => {
   const o = overlay('<div class="spinner"></div><p class="note">Restoring…</p>');
   await nextFrame();
   installData(parseSave(u.text), true);
-  ledgerRewind(u.ledgerN);
+  ledgerRewind(u.ledgerN); buysRewind(u.buysN);
   state.undo = null;
   state.dirty = u.dirty;
   o.remove();
@@ -5551,8 +5552,9 @@ screens.career = (args = {}) => {
   const L = league(), me = CAR.careerPlayer(L);
   if (!me) { layout({ title: 'My Career', body: '<p class="note">This save has no career player.</p>' }); return; }
   const tab = args.tab || 'hub';
-  const tabs = `<div class="tabs fa-tabs">${[['hub', 'Me'], ['train', 'Training'], ['moves', 'Moves'], ['story', 'Story'], ['legacy', 'Legacy']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="careerTab" data-t="${k}">${l}</button>`).join('')}</div>`;
-  if (tab !== 'hub') { layout({ title: 'My Career', body: tabs + ({ train: careerTrainTab, moves: careerMovesTab, story: careerStoryTab, legacy: careerLegacyTab }[tab])(L, me.p, me.team) }); return; }
+  const tabs = `<div class="tabs fa-tabs">${[['hub', 'Me'], ['train', 'Training'], ['ach', 'Achievements'], ['moves', 'Moves'], ['story', 'Story'], ['legacy', 'Legacy']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="careerTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+  careerTokSync();
+  if (tab !== 'hub') { layout({ title: 'My Career', body: tabs + ({ train: careerTrainTab, ach: careerAchTab, moves: careerMovesTab, story: careerStoryTab, legacy: careerLegacyTab }[tab])(L, me.p, me.team) }); return; }
   const { p, team } = me, cr = L.career || {}, r = CAR.rankIdx(p), tro = CAR.trophies(p);
   const st = CAR.standing(L, p, team, valueOf), fo = CAR.frontOffice(L, p, team), room = CAR.lockerRoom(L, p, team);
   const c = p.contract || {};
@@ -5596,38 +5598,81 @@ screens.career = (args = {}) => {
   });
 };
 
-// The Training Center: programs bought with career coins (js/training.js), on top of the game's Practice Facility.
+// Career Tokens (js/achievements.js): earned by achievements, spent in the Training Center. Like Franchise Tokens they
+// live only in the app (this browser, per save), never in the file. careerStore().ach is the book of what's been earned,
+// careerStore().buys the purchases ({ id, yr, tok }), so an undo can drop a purchase with the save.
+const careerDone = () => { const s = league().season; return y => y < s.currentYear || (y === s.currentYear && s.phase === 11); };   // 11: champion crowned, the season's done
+function careerTokSync(quiet = false) {
+  const L = league(); if (!CAR.isCareer(L)) return [];
+  const me = CAR.careerPlayer(L); if (!me) return [];
+  const st = careerStore(), book = (st.ach ||= {}), flags = (book.flags ||= {}), yr = L.season.currentYear;
+  // Lines the game doesn't count (a quadruple-double, a 5x5): his last game's box and the app's game log.
+  const lines = me.p.gameStats?.GP > 0 ? [me.p.gameStats] : [];
+  if (me.team) for (const e of Object.values(lsGet(`hlc:gameLog:${saveTag()}:${yr}:${me.team.id}`, {}))) { const r = e.rows?.[me.p.id]; if (r) lines.push({ PTS: r[0], REB: r[1], AST: r[2], STL: r[3], BLK: r[4] }); }
+  for (const r of lines) { if (!flags.qd && ACH.isQuad(r)) flags.qd = yr; if (!flags.five && ACH.isFive(r)) flags.five = yr; }
+  const got = ACH.settle(book, ACH.context(me.p, state.leagueIdx, careerDone(), flags), yr);
+  if (!got.length) return got;
+  careerSave(st);
+  if (!quiet) {
+    const n = got.reduce((a, g) => a + g.tok, 0), shown = got.slice(0, 3).map(g => `${g.icon} ${g.name}`).join(' · ');
+    SFX.play('coin');
+    toast(got.length === 1 ? `${got[0].icon} ${got[0].name}` : `${got.length} achievements`, `${got.length === 1 ? '' : `${shown}${got.length > 3 ? ` · +${got.length - 3} more` : ''} · `}+${n} Career Token${n === 1 ? '' : 's'}`, 4200);
+  }
+  return got;
+}
+const careerBuys = () => careerStore().buys || [];
+const careerTokens = () => ACH.earned(careerStore().ach || {}) - careerBuys().reduce((a, b) => a + b.tok, 0);
+const CAREER_TOK = '<img class="coin-ico" src="icons/credit.png" alt="" title="Career Tokens">';
+const careerTokTag = n => `<span class="coin-tag">${n}${CAREER_TOK}</span>`;
+
+// The Training Center: programs bought with Career Tokens (js/training.js), on top of the game's Practice Facility.
 function trainCtx(L, p, team) {
   const coach = (team?.frontOffice?.staff || []).find(x => x.pos === 1) || null;
   const r = CAR.rankIdx(p);
-  return { career: L.career, coach, mates: team ? team.roster.filter(m => m.id !== p.id) : [], rank: r, rankName: CAR.RANKS[Math.max(0, r)] };
+  return { career: L.career, tokens: careerTokens(), coach, mates: team ? team.roster.filter(m => m.id !== p.id) : [], rank: r, rankName: CAR.RANKS[Math.max(0, r)] };
 }
-function trainUsed() { const { st, cy } = careerYear(); return { season: cy.train || {}, life: st.trainLife || {} }; }
-const COIN = '<img class="coin-ico" src="img/coin.png" alt="coins">';
+function trainUsed() {
+  const yr = league().season.currentYear, season = {}, life = {};
+  for (const b of careerBuys()) { life[b.id] = (life[b.id] || 0) + 1; if (b.yr === yr) season[b.id] = (season[b.id] || 0) + 1; }
+  return { season, life };
+}
 function careerTrainTab(L, p, team) {
   const x = trainCtx(L, p, team), used = trainUsed();
   const row = pg => { const c = TRN.check(pg, p, x, used), times = used.season[pg.id] || 0;
     return `<div class="tr-row ${c.ok ? '' : 'off'}"><span class="tr-ico">${pg.icon}</span><span class="grow"><b>${esc(pg.name)}</b>${pg.rank != null ? ` <span class="small muted">· ${esc(CAR.RANKS[pg.rank])}+</span>` : ''}<br><span class="small">${esc(pg.says)}</span>${(pg.per || 1) > 1 ? `<br><span class="small muted">${times}/${pg.per} this season</span>` : ''}${c.ok ? '' : `<br><span class="small down">${esc(c.why)}</span>`}</span>
-      <button class="btn small ${c.ok ? 'focus' : 'off'}" data-act="trainBuy" data-id="${pg.id}" ${c.ok ? '' : 'disabled'}>${pg.cost} ${COIN}</button></div>`; };
-  return `<fieldset class="frame"><legend>Training Center</legend><p class="note small">Programs the game's Practice Facility doesn't have, paid for with his coins. They go into the save as soon as you buy them: export and load it in Hoop Land.</p>
-      <div class="cp-pool"><span>Coins</span><b class="gold">${(L.career?.coins || 0).toLocaleString()}</b><span class="muted small">${COIN} · ${esc(CAR.RANKS[x.rank])}</span></div></fieldset>
+      <button class="btn small ${c.ok ? 'focus' : 'off'}" data-act="trainBuy" data-id="${pg.id}" ${c.ok ? '' : 'disabled'}>${careerTokTag(pg.cost)}</button></div>`; };
+  return `<fieldset class="frame"><legend>Training Center</legend><p class="note small">Programs the game's Practice Facility doesn't have, paid for with Career Tokens. You earn tokens by hitting achievements: big nights, big seasons, career milestones. They stay in the app; the programs go into the save as soon as you buy them: export and load it in Hoop Land.</p>
+      <div class="cp-pool"><span>Career Tokens</span><b class="gold">${x.tokens.toLocaleString()}</b><span class="muted small">${CAREER_TOK} · ${esc(CAR.RANKS[x.rank])}</span></div>
+      <button class="btn small" data-act="careerTab" data-t="ach">🏆 Achievements ›</button></fieldset>
     ${TRN.GROUPS.map(g => `<fieldset class="frame"><legend>${g}</legend><div class="stack">${TRN.PROGRAMS.filter(pg => pg.group === g).map(row).join('')}</div></fieldset>`).join('')}`;
+}
+// Achievements: every badge, locked or earned (and when), what pays every season, and the token totals.
+function careerAchTab(L, p) {
+  const book = careerStore().ach || {}, b = book.badges || {}, have = ACH.BADGES.filter(x => b[x.id]).length;
+  const spent = careerBuys().reduce((a, x) => a + x.tok, 0), earned = ACH.earned(book);
+  const tile = x => { const e = b[x.id];
+    return `<div class="ach-tile ${e ? 'on' : 'off'}"><span class="ach-ico">${e ? x.icon : '🔒'}</span><b>${esc(x.name)}</b><span class="small">${esc(x.says)}</span><span class="small ${e ? 'up' : 'muted'}">${e ? `${careerTokTag(`+${x.tok}`)} · ${e.yr}` : careerTokTag(x.tok)}</span></div>`; };
+  const marks = Object.entries(book.marks || {}).map(([k, n]) => { const [id, y] = k.split(':'), m = ACH.MARKS.find(z => z.id === id); return m ? { y: +y, t: `${m.icon} ${m.name}`, n } : null; }).filter(Boolean).sort((a, z) => z.y - a.y);
+  return `<fieldset class="frame"><legend>Achievements</legend>
+      <div class="cp-pool"><span>Career Tokens</span><b class="gold">${careerTokens().toLocaleString()}</b><span class="muted small">${CAREER_TOK} · ${earned} earned · ${spent} spent</span></div>
+      <p class="note small">${have} of ${ACH.BADGES.length} unlocked. Each badge pays once. Some marks pay every season they happen: ${ACH.MARKS.map(m => `${m.name} ${m.tok}`).join(', ')}. Every triple-double and every game-winner pays a token. Tokens stay in the app: spend them in the <button class="btn tiny" data-act="careerTab" data-t="train">Training Center</button>.</p>
+      <p class="note small muted">Checked against the save each time you open it: his career highs, totals, season lines and awards. A quadruple-double or a 5x5 shows up once the app sees that game's box score.</p></fieldset>
+    ${ACH.GROUPS.map(g => `<fieldset class="frame"><legend>${g}</legend><div class="ach-grid">${ACH.BADGES.filter(x => x.group === g).map(tile).join('')}</div></fieldset>`).join('')}
+    ${marks.length ? `<fieldset class="frame"><legend>Every Season</legend><div class="stack">${marks.map(m => `<div class="set-row"><span class="grow small">${esc(m.t)} <span class="muted">· ${m.y}</span></span>${careerTokTag(`+${m.n}`)}</div>`).join('')}</div></fieldset>` : ''}`;
 }
 actions.trainBuy = async d => {
   const L = league(), me = CAR.careerPlayer(L); if (!me) return;
   const pg = TRN.PROGRAMS.find(x => x.id === d.id), x = trainCtx(L, me.p, me.team), used = trainUsed();
   if (!pg || !TRN.check(pg, me.p, x, used).ok) return;
-  if (!(await confirmBox(`${pg.icon} <b>${esc(pg.name)}</b> for <b>${pg.cost}</b> coins? ${esc(pg.says)}.`, `Buy · ${pg.cost} coins`))) return;
+  if (!(await confirmBox(`${pg.icon} <b>${esc(pg.name)}</b> for <b>${pg.cost}</b> Career Token${pg.cost === 1 ? '' : 's'}? ${esc(pg.says)}.`, `Buy · ${pg.cost} tokens`))) return;
   checkpoint(`Training: ${pg.name}`);
-  L.career.coins -= pg.cost;
   const what = pg.run(me.p, x);
-  const { st, cy } = careerYear();
-  (cy.train ||= {})[pg.id] = (cy.train[pg.id] || 0) + 1;
-  (st.trainLife ||= {})[pg.id] = (st.trainLife[pg.id] || 0) + 1;
+  const st = careerStore();
+  (st.buys ||= []).push({ id: pg.id, yr: L.season.currentYear, tok: pg.cost });
   careerSave(st);
   state.dirty = true;
   SFX.play('coin');
-  toast(`${pg.name}`, `${what}. ${L.career.coins} coins left.`);
+  toast(`${pg.name}`, `${what}. ${careerTokens()} Career Tokens left.`);
   render();
 };
 
@@ -6381,6 +6426,8 @@ function writeLedger() {
   for (const k of Object.keys(LEDGER)) ledgerSet(k, Math.max(0, state.ledgerIn[k] + ledgerNet(k)));
 }
 const ledgerLen = () => Object.fromEntries(Object.keys(LEDGER).map(k => [k, (state.ledger?.[k] || []).length]));
+// Training Center purchases made after a checkpoint go back with the save (their tokens come back).
+function buysRewind(n) { if (n == null) return; const st = careerStore(); if ((st.buys || []).length > n) { st.buys = st.buys.slice(0, n); careerSave(st); } }
 function ledgerRewind(lens) { if (state.ledger && lens) for (const k of Object.keys(LEDGER)) state.ledger[k] = (state.ledger[k] || []).slice(0, lens[k] ?? state.ledger[k]?.length); }
 function careerChips() {
   if (!state.data) return '';
@@ -6393,7 +6440,7 @@ function careerChips() {
   }
   const on = state.stack[state.stack.length - 1]?.name === 'ledger';
   const chip = k => { const net = ledgerNet(k); return `<button class="btn tiny coin-chip" data-act="nav"${on ? ' data-replace="1"' : ''} data-to="ledger" data-arg="${k}" aria-label="${LEDGER[k].label}">${LEDGER[k].icon} ${ledgerGet(k).toLocaleString()}${net ? ` <span class="${net > 0 ? 'up' : 'down'}">${net > 0 ? '+' : ''}${net.toLocaleString()}</span>` : ''}</button>`; };
-  return `<div class="career-chips">${chip('coins')}${chip('fans')}</div>`;
+  return `<div class="career-chips">${chip('coins')}${chip('fans')}<button class="btn tiny coin-chip" data-act="careerTab" data-t="ach" aria-label="Career Tokens: achievements">${careerTokTag(careerTokens())}</button></div>`;
 }
 // Chemistry: the locker room's mood (average morale) and how each player's moved since the offseason began.
 function chemOf(t) {

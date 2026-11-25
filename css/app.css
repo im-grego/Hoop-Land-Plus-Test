@@ -2762,3 +2762,9 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; heig
 .tr-ico { font-size: 22px; width: 30px; text-align: center; flex: none; }
 .tr-row .btn { min-width: 86px; flex: none; }
 .coin-ico { width: 1.1em; height: 1.1em; vertical-align: -0.18em; image-rendering: pixelated; margin-left: 2px; }
+/* Career achievements: a grid of badges, locked ones dimmed. */
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.ach-tile { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px; padding: 10px 8px; background: var(--btn); border: 3px solid var(--btn-edge); clip-path: var(--notch); --nt: 3px; }
+.ach-tile.off { opacity: .55; }
+.ach-tile.on { border-color: var(--gold, #e8b84a); }
+.ach-ico { font-size: 26px; line-height: 1.1; }
