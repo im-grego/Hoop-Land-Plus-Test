@@ -4,7 +4,7 @@
 //   league: teamId 0, playerId 0; no team flagged isPlayer; the career block (coins, fans, fame, games) starts at 0.
 //   him: on the school's roster, yrs 0 (a freshman), contract all zeros with canExt true, a stats row for this season
 //   (sal 0), and a "commits" news item (type 14). meta.uPID covers his id.
-// The steps in between are the app's: Create Your Player (js/creator.js) on a blank recruit, then his school.
+// The steps in between are the app's: Create Your Player (js/creator.js) on a blank recruit, then his offers.
 // Nothing else in the league changes: only his team's minutes are worked out again with him in the rotation.
 
 const RATINGS = ['LAY', 'DNK', 'INS', 'MID', 'TPT', 'FTS', 'DRB', 'PAS', 'ORE', 'DRE', 'STL', 'BLK'];
@@ -72,6 +72,33 @@ export function schools(save, li, p) {
     return { t, prestigeRank: pr.get(t.id), strengthRank: sr.get(t.id), role, minutes: role === 'Starter' ? '28-32' : role === 'Rotation' ? '14-20' : '0-10',
       ahead, best: at[0] || null, conf: div?.name || div?.shortName || '', full: t.roster.length >= ROSTER_MAX, of: L.teams.length };
   });
+}
+
+// Small seeded random, so the same recruit sees the same offers.
+function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const hash = s => [...s].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619), 2166136261);
+// How many offers a recruit draws, and which slice of the prestige ladder (0 the top) they come from.
+const PULL = { 3: { n: 5, from: 0.35, to: 1 }, 4: { n: 6, from: 0.15, to: 0.8 }, 5: { n: 7, from: 0, to: 0.6 }, 6: { n: 8, from: 0, to: 0.4 } };
+// His scholarship offers: schools() entries plus homeRank (1 the closest school to his hometown, when it's known),
+// best programs first. Programs thin at his spot are keener; a little luck on top. Nothing about the schools changes.
+export function offers(save, li, p, pedigree = 4) {
+  const all = schools(save, li, p), N = all.length, pull = PULL[pedigree] || PULL[4];
+  const lo = Math.floor(pull.from * N), hi = Math.max(lo + pull.n, Math.ceil(pull.to * N));
+  const rand = rng(hash(`${p.fn} ${p.ln} ${p.id}`));
+  const picked = all.filter(x => !x.full && x.prestigeRank > lo && x.prestigeRank <= hi).map(x => ({ x, w: rand() + 0.35 / (1 + x.ahead) })).sort((a, b) => b.w - a.w).slice(0, pull.n).map(y => y.x);
+  const dist = t => (p.loc && t.location ? Math.hypot((p.loc.x || 0) - (t.location.x || 0), (p.loc.y || 0) - (t.location.y || 0)) : null);
+  const near = all.map(x => ({ id: x.t.id, d: dist(x.t) })).filter(x => x.d != null).sort((a, b) => a.d - b.d), homeRank = new Map(near.map((x, i) => [x.id, i + 1]));
+  return picked.map(x => ({ ...x, homeRank: homeRank.get(x.t.id) ?? null })).sort((a, b) => a.prestigeRank - b.prestigeRank);
+}
+
+// The pro league comes from another file (the newest NBA start): in, as the league the college one feeds, set the
+// way the game sets the pro league of a career (mode 2, no team or player, no team flagged, the career block at 0).
+export function swapPro(save, pro) {
+  const i = save.seasonLeagues.findIndex(L => L.leagueType === 0), P = JSON.parse(JSON.stringify(pro));
+  Object.assign(P.season, { mode: 2, teamId: 0, playerId: 0 });
+  for (const t of P.teams) t.isPlayer = false;
+  if (P.career) Object.assign(P.career, { gamesPlayed: 0, gamesSimulated: 0, coins: 0, fans: 0, fame: 0, inbox: [] });
+  if (i >= 0) save.seasonLeagues[i] = P; else save.seasonLeagues.unshift(P);
 }
 
 // His team's minutes, with him in: apply(team, gameMinutes) plans and writes them (the app's lineups.js). The game

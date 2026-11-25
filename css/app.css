@@ -2797,4 +2797,3 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; heig
   background: linear-gradient(160deg, var(--tc, var(--btn-edge)), var(--bg-dark)); }
 .ig-tile-t { font-size: 11px; line-height: 1.25; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; text-shadow: 0 1px 2px #000a; }
 .ig-tile.pressing, .ig-tile:active { outline: 3px solid var(--cyan); outline-offset: -3px; }
-.cs-grid .team-tile.sel::after { content: none; }   /* Pick Your School: the picked school, not "you" */
