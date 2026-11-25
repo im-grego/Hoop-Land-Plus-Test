@@ -80,7 +80,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.192';
+const APP_VERSION = '0.365.193';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5603,20 +5603,21 @@ function trainCtx(L, p, team) {
   return { career: L.career, coach, mates: team ? team.roster.filter(m => m.id !== p.id) : [], rank: r, rankName: CAR.RANKS[Math.max(0, r)] };
 }
 function trainUsed() { const { st, cy } = careerYear(); return { season: cy.train || {}, life: st.trainLife || {} }; }
+const COIN = '<img class="coin-ico" src="img/coin.png" alt="coins">';
 function careerTrainTab(L, p, team) {
   const x = trainCtx(L, p, team), used = trainUsed();
   const row = pg => { const c = TRN.check(pg, p, x, used), times = used.season[pg.id] || 0;
     return `<div class="tr-row ${c.ok ? '' : 'off'}"><span class="tr-ico">${pg.icon}</span><span class="grow"><b>${esc(pg.name)}</b>${pg.rank != null ? ` <span class="small muted">· ${esc(CAR.RANKS[pg.rank])}+</span>` : ''}<br><span class="small">${esc(pg.says)}</span>${(pg.per || 1) > 1 ? `<br><span class="small muted">${times}/${pg.per} this season</span>` : ''}${c.ok ? '' : `<br><span class="small down">${esc(c.why)}</span>`}</span>
-      <button class="btn small ${c.ok ? 'focus' : 'off'}" data-act="trainBuy" data-id="${pg.id}" ${c.ok ? '' : 'disabled'}>${pg.cost} 🪙</button></div>`; };
+      <button class="btn small ${c.ok ? 'focus' : 'off'}" data-act="trainBuy" data-id="${pg.id}" ${c.ok ? '' : 'disabled'}>${pg.cost} ${COIN}</button></div>`; };
   return `<fieldset class="frame"><legend>Training Center</legend><p class="note small">Programs the game's Practice Facility doesn't have, paid for with his coins. They go into the save as soon as you buy them: export and load it in Hoop Land.</p>
-      <div class="cp-pool"><span>Coins</span><b class="gold">${(L.career?.coins || 0).toLocaleString()}</b><span class="muted small">🪙 · ${esc(CAR.RANKS[x.rank])}</span></div></fieldset>
+      <div class="cp-pool"><span>Coins</span><b class="gold">${(L.career?.coins || 0).toLocaleString()}</b><span class="muted small">${COIN} · ${esc(CAR.RANKS[x.rank])}</span></div></fieldset>
     ${TRN.GROUPS.map(g => `<fieldset class="frame"><legend>${g}</legend><div class="stack">${TRN.PROGRAMS.filter(pg => pg.group === g).map(row).join('')}</div></fieldset>`).join('')}`;
 }
 actions.trainBuy = async d => {
   const L = league(), me = CAR.careerPlayer(L); if (!me) return;
   const pg = TRN.PROGRAMS.find(x => x.id === d.id), x = trainCtx(L, me.p, me.team), used = trainUsed();
   if (!pg || !TRN.check(pg, me.p, x, used).ok) return;
-  if (!(await confirmBox(`${pg.icon} <b>${esc(pg.name)}</b> for <b>${pg.cost}</b> coins? ${esc(pg.says)}.`, `Buy · ${pg.cost} 🪙`))) return;
+  if (!(await confirmBox(`${pg.icon} <b>${esc(pg.name)}</b> for <b>${pg.cost}</b> coins? ${esc(pg.says)}.`, `Buy · ${pg.cost} coins`))) return;
   checkpoint(`Training: ${pg.name}`);
   L.career.coins -= pg.cost;
   const what = pg.run(me.p, x);

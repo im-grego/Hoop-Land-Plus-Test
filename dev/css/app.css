@@ -2761,3 +2761,4 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; heig
 .tr-row.off { opacity: .7; }
 .tr-ico { font-size: 22px; width: 30px; text-align: center; flex: none; }
 .tr-row .btn { min-width: 86px; flex: none; }
+.coin-ico { width: 1.1em; height: 1.1em; vertical-align: -0.18em; image-rendering: pixelated; margin-left: 2px; }
