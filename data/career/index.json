@@ -1,0 +1,3 @@
+{
+  "college": { "file": "data/career/ncaa-2027.txt.gz", "label": "Men's College Basketball 2027", "note": "A Campus save of NCAA_2027_32 at the start of the 2027 season (day 0, before the first game). Its pro league's schedule is what a career's NBA season plays on." }
+}

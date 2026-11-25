@@ -124,6 +124,18 @@ export function openingPro(now, opening) {
   return P;
 }
 
+// The pro league's calendar from the save the college league came with: the game made both schedules together, so
+// they run on the same days. The rosters stay the newest NBA file's (openingPro); the games, the All-Star break and
+// the trade deadline come from the base save. Team ids must match (the NBA's 30, 1 to 30).
+export function baseSchedule(P, base) {
+  if (!base?.season?.schedule?.length) return P;
+  const ids = L => L.teams.map(t => t.id).sort((a, b) => a - b).join(',');
+  if (ids(P) !== ids(base)) return P;
+  for (const k of ['schedule', 'currentDay', 'currentRound', 'allStarWeekend', 'tradeDeadline', 'playoffs']) if (k in base.season) P.season[k] = clone(base.season[k]);
+  if (P.meta && base.meta) P.meta.uGID = Math.max(P.meta.uGID || 0, base.meta.uGID || 0);
+  return P;
+}
+
 // The pro league comes from another file (the newest NBA start): in, as the league the college one feeds, set the
 // way the game sets the pro league of a career (mode 2, no team or player, no team flagged, the career block at 0).
 export function swapPro(save, pro) {

@@ -83,7 +83,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.200';
+const APP_VERSION = '0.365.201';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.1';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5567,12 +5567,25 @@ actions.cpApply = async () => {
 // then his school. The file that comes out is the one you loaded with only him added: on that school's roster, the
 // save set to Career, and that team's minutes worked out with him in the rotation. Nothing else in the league changes,
 // and the app's own passes never touch it: it goes straight to you.
+// The college league for a new career: the site's (data/career/index.json), a Campus save at the start of a season.
+async function careerCollegeBase() {
+  const idx = await (await fetchData('data/career/index.json', { cache: 'no-cache' })).json(), c = idx.college;
+  const r = await fetchData(c.file);
+  const text = /\.gz$/.test(c.file) && typeof DecompressionStream !== 'undefined' && !(r.headers.get('content-encoding') || '').includes('gzip') ? await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text() : await r.text();
+  return { save: parseSave(text), label: c.label };
+}
 screens.careerStart = () => {
   layout({ title: 'Start a Career', body: `<fieldset class="frame"><legend>🎓 Start a Career</legend><div class="stack">
-      <p class="note">Create your player, weigh his scholarship offers and commit, then start his freshman season. You get back the same college league with him added: every other roster stays exactly as it is. The pro league is your newest NBA file.</p>
-      <p class="note small">Load a <b>college (Campus) save</b> from the start of a season, before the first game. Your own college league works.</p>
-      <label class="btn big"><span class="ico">📂</span> Load a College Save<input type="file" id="careerBaseInput"></label>
+      <p class="note">Create your player, weigh his scholarship offers and commit, then start his freshman season. The college league is the site's, as it stands; only your player joins it. The pro league is the newest NBA rosters at Opening Night.</p>
+      <button class="btn big focus" data-act="careerSite"><span class="ico">🎓</span> Start</button>
+      <details class="start-older"><summary class="small link">Use my own college save instead</summary><div class="stack">
+        <p class="note small">A college (Campus) save from the start of a season, before the first game.</p>
+        <label class="btn"><span class="ico">📂</span> Load a College Save<input type="file" id="careerBaseInput"></label></div></details>
     </div></fieldset>` });
+};
+actions.careerSite = async () => {
+  const o = overlay('<div class="spinner"></div><p class="note">Getting the college league…</p>');
+  try { const b = await careerCollegeBase(); o.remove(); careerBegin(b.save, b.label); } catch (e) { o.remove(); toast('Couldn’t get the college league', e.message, 4200, true); }
 };
 function careerBegin(save, fileName) {
   const c = CS.checkBase(save);
@@ -5645,7 +5658,7 @@ actions.careerCommit = async d => {
   const N = state.newCareer; if (!N) return;
   const t = N.save.seasonLeagues[N.li].teams.find(x => x.id === +d.id); if (!t) return;
   if (!(await confirmBox(`Commit to <b>${esc(`${t.city || ''} ${t.name || ''}`.trim())}</b>? ${esc(playerName(N.p))} joins their roster for his freshman season. Every other roster stays as it is.`, 'Commit'))) return;
-  if (N.pro) { CS.swapPro(N.save, N.pro.league); N.li = N.save.seasonLeagues.findIndex(L => L.leagueType === 1); }
+  if (N.pro) { const basePro = N.save.seasonLeagues.find(L => L.leagueType === 0); CS.swapPro(N.save, CS.baseSchedule(N.pro.league, basePro)); N.li = N.save.seasonLeagues.findIndex(L => L.leagueType === 1); }
   CS.commit(N.save, N.li, N.p, t.id, N.num);
   // His team's minutes, with him in the rotation (the only other change to the file).
   try { CS.teamMinutes(N.save.seasonLeagues[N.li], t, (team, game) => { const plan = LU.planLineup(team, { mode: 'normal', game }); LU.applyLineup(team, plan); }); } catch { /* the game sets them */ }
