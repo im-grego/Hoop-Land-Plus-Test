@@ -83,7 +83,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.202';
+const APP_VERSION = '0.365.203';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.1';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5348,7 +5348,7 @@ screens.main = () => {
           <div class="stack">
             <p class="note">Load a <b>Franchise</b> save from the end of the playoffs (Pre-Lottery) and run the whole offseason here: the lottery, the draft, free agency and player development. Export once at the end and load it back into Hoop Land. A save from later in the offseason picks up where it left off.</p>
             <button class="btn big focus" data-act="nav" data-to="start"><span class="ico">🏀</span> Start a Franchise</button>
-            ${careerOn() ? '<button class="btn big" data-act="nav" data-to="careerStart"><span class="ico">🎓</span> Start a Career</button>' : ''}
+            ${careerOn() ? '<button class="btn big" data-act="nav" data-to="careerStart"><span class="ico">👤</span> Start a Career</button>' : ''}
             <label class="btn big"><span class="ico">📂</span> Load Season File
               <input type="file" id="fileInput"></label>
             ${dbxOn() ? linkLoadBox() : ''}
@@ -5576,9 +5576,9 @@ async function careerCollegeBase() {
   return { save: parseSave(text), label: c.label };
 }
 screens.careerStart = () => {
-  layout({ title: 'Start a Career', body: `<fieldset class="frame"><legend>🎓 Start a Career</legend><div class="stack">
+  layout({ title: 'Start a Career', body: `<fieldset class="frame"><legend>👤 Start a Career</legend><div class="stack">
       <p class="note">Create your player, weigh his scholarship offers and commit, then start his freshman season. The college league is the site's, as it stands; only your player joins it. The pro league is the newest NBA rosters at Opening Night.</p>
-      <button class="btn big focus" data-act="careerSite"><span class="ico">🎓</span> Start</button>
+      <button class="btn big focus" data-act="careerSite"><span class="ico">👤</span> Start</button>
       <details class="start-older"><summary class="small link">Use my own college save instead</summary><div class="stack">
         <p class="note small">A college (Campus) save from the start of a season, before the first game.</p>
         <label class="btn"><span class="ico">📂</span> Load a College Save<input type="file" id="careerBaseInput"></label></div></details>
@@ -5673,7 +5673,7 @@ actions.careerCommit = async d => {
 screens.careerDone = () => {
   const N = state.newCareer;
   if (!N?.out) { goHome(); return; }
-  layout({ title: 'Career Ready', body: `<fieldset class="frame"><legend>🎓 ${esc(playerName(N.p))} · ${esc(N.school.city || N.school.name)}</legend><div class="stack">
+  layout({ title: 'Career Ready', body: `<fieldset class="frame"><legend>👤 ${esc(playerName(N.p))} · ${esc(N.school.city || N.school.name)}</legend><div class="stack">
       <p class="note">Your career save is ready: <b>${esc(N.out.name)}</b>. Load it in Hoop Land to start his freshman season. It's the college league you loaded with only him added and his team's minutes set${N.pro ? `, and your newest NBA file (${esc(N.pro.label)}) as the pro league` : ''}.</p>
       <button class="btn big focus" data-act="careerGive"><span class="ico">💾</span> Save the File Again</button>
       <button class="btn" data-act="careerOpen"><span class="ico">📂</span> Open It in the App</button>
