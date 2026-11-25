@@ -79,7 +79,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.185';
+const APP_VERSION = '0.365.186';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5441,7 +5441,10 @@ screens.creator = () => {
   const step = (k, label, val) => `<div class="pts-row"><span class="grow">${label}</span><button class="btn square" data-act="cpStep" data-k="${k}" data-d="-1" aria-label="Less">−</button><span class="pts-val">${val}</span><button class="btn square" data-act="cpStep" data-k="${k}" data-d="1" aria-label="More">+</button></div>`;
   const ft = h => `${Math.floor(h / 12)}'${h % 12}"`;
   const families = [...new Set(fits.map(a => a.family))];
-  const archList = (k, allowNone) => `${allowNone ? `<button class="btn small ${!o[k] ? 'on focus' : 'off'}" data-act="cpSet" data-k="${k}" data-v='null'>None</button>` : ''}${families.map(f => `<p class="note small muted cp-fam">${esc(f)}</p><div class="cp-arch">${fits.filter(a => a.family === f).map(a => `<button class="btn small ${o[k] === a.id ? 'on focus' : 'off'}" data-act="cpSet" data-k="${k}" data-v='"${a.id}"'>${esc(a.name)}</button>`).join('')}</div>`).join('')}`;
+  // Archetype cards: the style, how it plays, and who plays it at his position.
+  const shadesAt = a => (a.slots[o.slot] || {}).shades || [];
+  const archCard = (k, a) => `<button class="cp-acard ${o[k] === a.id ? 'sel' : ''}" data-act="cpSet" data-k="${k}" data-v='"${a.id}"'><b>${esc(a.name)}</b><span class="small">${esc(CR.ARCH_DESC[a.id] || '')}</span>${shadesAt(a).length ? `<span class="small muted">Shades of ${esc(shadesAt(a).slice(0, 2).join(', '))}</span>` : ''}</button>`;
+  const archList = (k, allowNone) => `${allowNone ? `<button class="btn small ${!o[k] ? 'on focus' : 'off'}" data-act="cpSet" data-k="${k}" data-v='null'>No secondary</button>` : ''}${families.map(f => `<p class="note small muted cp-fam">${esc(f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(a => archCard(k, a)).join('')}</div>`).join('')}`;
   // Each rating in the game's colors (finishing blue, shooting green, creating orange, defense red, physicals purple),
   // with its own − and + for where he starts and how far he can grow.
   const GRP = { LAY: 'fin', DNK: 'fin', INS: 'fin', MID: 'sho', TPT: 'sho', FTS: 'sho', DRB: 'pla', PAS: 'pla', ORE: 'pla', DRE: 'def', STL: 'def', BLK: 'def', SPD: 'phy', STR: 'phy', STM: 'phy' };
@@ -5454,8 +5457,12 @@ screens.creator = () => {
   const lvStep = (k, label, val, note) => `<div class="pts-row"><span class="grow">${label}<br><span class="muted small">${note}</span></span><button class="btn square" data-act="cpLv" data-k="${k}" data-d="-1" data-repeat="1" aria-label="Lower">−</button><span class="pts-val">${val}</span><button class="btn square" data-act="cpLv" data-k="${k}" data-d="1" data-repeat="1" aria-label="Raise">+</button></div>`;
   // Skills: every skill in the game, by category, in its color; leveled skills get a level.
   const have = new Map((o.skills || []).map(x => [x.id, x]));
-  const skillsBox = SKILL_CATEGORIES.map(c => `<p class="cp-grp g-${SKILL_GROUP[c.name]}">${c.name}</p><div class="cp-skills">${c.skills.map(id => { const h = have.get(id), lev = isLeveled(id), need = ELITE_REQUIREMENTS[id], short = need && b.attributes[need][0] < ELITE_MIN;
-    return `<div class="cp-sk g-${SKILL_GROUP[c.name]} ${h ? 'on' : ''}"><button class="btn small ${h ? 'on focus' : 'off'}" data-act="cpSkill" data-id="${id}" title="${esc(skillDoes(id))}">${h ? '✓ ' : ''}${esc(skillName(id))}${isEliteSkill(id) ? ' <span class="cp-elite">★</span>' : ''}</button>${h && lev ? `<span class="cp-ed">${['−', '+'].map((x, i) => `<button class="btn tiny" data-act="cpSkillLv" data-id="${id}" data-d="${i ? 1 : -1}">${x}</button>`).join(`<b>${h.level}</b>`)}</span>` : ''}${h && short ? `<span class="small down">needs ${need} ${ELITE_MIN}</span>` : ''}</div>`; }).join('')}</div>`).join('');
+  const RNAME = { INS: 'Inside Shooting', DNK: 'Dunking', TPT: 'Three Point Shooting', MID: 'Mid Range Shooting', DRB: 'Dribbling', PAS: 'Passing', STL: 'Stealing', BLK: 'Blocking' };
+  const spUsed = [...have.keys()].reduce((n, id) => n + CR.skillStars(id), 0);
+  // The game's skill screen: icon, stars, what it does, its cost; elite skills want 8 in their rating, 4 a category.
+  const skillsBox = SKILL_CATEGORIES.map(c => { const g = SKILL_GROUP[c.name], n = c.skills.filter(id => have.has(id)).length;
+    return `<p class="cp-grp g-${g}">${c.name} <span class="muted">${n}/${CR.PER_CATEGORY} Skills</span></p><div class="cp-sklist">${c.skills.map(id => { const h = have.get(id), lev = isLeveled(id), need = ELITE_REQUIREMENTS[id], v = need ? b.attributes[need][0] : 0, locked = need && v < CR.CAREER_ELITE_MIN, st = CR.skillStars(id);
+      return `<div class="cp-sk g-${g} ${h ? 'on' : ''} ${locked ? 'locked' : ''}"><button class="cp-skrow" data-act="cpSkill" data-id="${id}"><img class="sk-ico" src="img/skills/${id}.png" alt=""><span class="cp-skt"><span><b>${esc(skillName(id).toUpperCase())}</b> <span class="cp-stars">${'★'.repeat(st)}</span>${locked ? ' <span class="small muted">LOCKED</span>' : ''}${h ? ' <span class="cp-on">✓</span>' : ''}</span><span class="small">${esc(skillDoes(id))}</span>${locked ? `<span class="small down">Minimum ${CR.CAREER_ELITE_MIN} ${RNAME[need] || need} Required (${v / 2})</span>` : ''}</span><span class="cp-cost">Cost: ${st} SP</span></button>${h && lev ? `<span class="cp-ed cp-lv">Level ${['−', '+'].map((x, i) => `<button class="btn tiny" data-act="cpSkillLv" data-id="${id}" data-d="${i ? 1 : -1}">${x}</button>`).join(`<b>${h.level}</b>`)}</span>` : ''}</div>`; }).join('')}</div>`; }).join('');
   const ped = CR.PEDIGREE[o.pedigree];
   layout({
     title: 'Create Your Player',
@@ -5488,7 +5495,7 @@ screens.creator = () => {
         <span class="note small">Add-ons <span class="muted">(they move points, they don't add them)</span></span>
         <div class="cp-arch">${Object.entries(CR.ADDONS).map(([id, a]) => `<button class="btn small ${o.addons.includes(id) ? 'on focus' : 'off'}" data-act="cpAddon" data-id="${id}" title="${esc(a.note)}">${esc(a.name)}</button>`).join('')}</div>
       </div></fieldset>
-      <fieldset class="frame"><legend>Skills (${have.size})</legend><p class="note small muted">Every skill in the game. Tap to add or remove; the leveled ones take a level. ★ Elite: normally needs 16 in its rating.</p>${skillsBox}</fieldset>
+      <fieldset class="frame"><legend>Skills (${have.size})</legend><p class="note small muted">Every skill in the game, as its skill screen shows it. Tap to add or remove (up to ${CR.PER_CATEGORY} a category); the 2- and 3-star ones take a level. ${spUsed} skill point${spUsed === 1 ? '' : 's'} worth picked.</p>${skillsBox}</fieldset>
       <fieldset class="frame"><legend>Potential</legend>${seg('pot', [[8, '4★ · Lv 86'], [9, '4.5★ · Lv 93'], [10, '5★ · Lv 100']])}</fieldset>`,
     action: { act: 'cpApply', label: 'Create Him' },
   });
@@ -5524,7 +5531,7 @@ actions.cpRate = d => {
 };
 actions.cpMax = () => { const o = crO(); o.edits = Object.fromEntries([...CR.RATINGS, 'SPD', 'STR', 'STM'].map(k => [k, [20, 20]])); render(); cpWarn(); };
 actions.cpReset = () => { const o = crO(); o.edits = {}; delete o.floorLv; delete o.ceilLv; render(); cpWarn(); };
-actions.cpSkill = d => { const o = crO(); o.skills ||= []; const i = o.skills.findIndex(x => x.id === d.id); if (i >= 0) o.skills.splice(i, 1); else o.skills.push({ id: d.id, level: isLeveled(d.id) ? 1 : 1 }); render(); };
+actions.cpSkill = d => { const o = crO(); o.skills ||= []; const i = o.skills.findIndex(x => x.id === d.id); if (i >= 0) o.skills.splice(i, 1); else { const cat = SKILL_CATEGORIES.find(c => c.skills.includes(d.id)); if (o.skills.filter(x => cat.skills.includes(x.id)).length >= CR.PER_CATEGORY) { toast(`${cat.name} is full`, `${CR.PER_CATEGORY} skills a category, as in the game. Drop one to add ${skillName(d.id)}.`, 3200, true); return; } o.skills.push({ id: d.id, level: 1 }); } render(); };
 actions.cpSkillLv = d => { const o = crO(), x = (o.skills || []).find(y => y.id === d.id); if (x) x.level = Math.max(1, Math.min(SKILL_MAX_LEVEL, x.level + +d.d)); render(); };
 actions.cpAddon = d => { const o = crO(); o.addons = o.addons.includes(d.id) ? o.addons.filter(x => x !== d.id) : o.addons.length >= 2 ? [...o.addons.slice(1), d.id] : [...o.addons, d.id]; render(); };
 $app.addEventListener('change', e => { const k = e.target.dataset?.cp; if (!k || !state.cp) return; state.cp[k] = e.target.value; render(); });

@@ -2681,3 +2681,31 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; heig
 .cp-elite { color: var(--gold); font-size: .85em; }
 .cp-grp.g-fin, .cp-grp.g-sho, .cp-grp.g-pla, .cp-grp.g-def { color: var(--gc); }
 .g-pla { --gc: #ffb43a; }
+/* Create Your Player: archetype cards */
+.cp-acards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cp-acard {
+  display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 10px 10px 9px;
+  background: var(--btn); border: 3px solid var(--btn-edge); box-shadow: 0 3px 0 var(--btn-shadow); color: var(--text); clip-path: var(--notch-drop); --nt: 3px;
+}
+.cp-acard b { font-size: 15px; }
+.cp-acard .small { line-height: 1.25; }
+.cp-acard.sel { border-color: var(--cyan); background: #1660bf; }
+.cp-acard.sel b::before { content: '✓ '; color: var(--cyan); }
+/* Skills, as the game's skill screen lays them out */
+.cp-sklist { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.cp-sk { display: flex; flex-direction: column; gap: 4px; }
+.cp-skrow {
+  display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 10px; text-align: left; width: 100%;
+  padding: 8px 10px; background: var(--btn); border: 3px solid var(--btn-edge); color: var(--text); clip-path: var(--notch); --nt: 3px;
+}
+.cp-sk.on .cp-skrow { border-color: var(--cyan); background: #1660bf; }
+.cp-skt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cp-skt b { letter-spacing: .3px; }
+.cp-sk.locked .cp-skt b { color: var(--gc); opacity: .75; }
+.cp-stars { color: var(--gold); font-size: 12px; letter-spacing: -1px; }
+.cp-on { color: var(--cyan); font-weight: 800; }
+.cp-cost { font-size: 12px; font-weight: 800; white-space: nowrap; align-self: start; }
+.sk-ico { width: 32px; height: 32px; object-fit: contain; image-rendering: pixelated; }
+.cp-lv { justify-content: flex-end; font-size: 13px; }
+.cp-grp .muted { font-weight: 600; text-transform: none; letter-spacing: 0; margin-left: 6px; }
+@media (max-width: 380px) { .cp-acards { grid-template-columns: 1fr; } }

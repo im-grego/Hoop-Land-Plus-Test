@@ -69,6 +69,34 @@ function spread(w, T, cap, floor = {}) {
   return r;
 }
 
+// One line on how each style plays.
+export const ARCH_DESC = {
+  '3lvl': 'Scores from all three levels: at the rim, the mid-range and three',
+  creator: 'Makes his own shot off the dribble, late clock or not',
+  midrange: 'Lives in the mid-range: pull-ups, fadeaways, the elbow',
+  insideout: 'Bully-ball inside, the jumper outside: a matchup problem',
+  slasher: 'Downhill: gets to the rim and finishes through contact',
+  flyer: 'Above the rim: lobs, putbacks, transition dunks',
+  sharp: 'A knockdown shooter off the catch and the move',
+  spot: 'Spaces the floor and punishes help',
+  general: 'Runs the offense: sets the table, controls tempo',
+  playscorer: 'Scores and creates in the same possession',
+  pointfwd: 'A forward who runs the offense',
+  playbig: 'Offense runs through him at the elbow and the block',
+  post: 'Back-to-the-basket scoring: hooks, drop steps, power',
+  glass: 'Owns the boards on both ends',
+  runner: 'Rolls hard, catches lobs, runs the floor',
+  stretch: 'A big who spaces the floor',
+  anchor: 'Protects the rim and anchors the defense',
+  lockdown: 'Takes the other team\'s best perimeter scorer',
+  switch: 'Guards one through five',
+  unicorn: 'A big with a guard\'s skill set: shoots, handles, blocks',
+};
+// The game's skill rules in a career: stars (simple 1, regular 2, elite 3), their cost in skill points, 4 a category,
+// and an elite skill needs 8 in its rating.
+export const skillStars = id => (['HIG', 'SPA', 'DIM', 'CLA'].includes(id) ? 1 : ['BUL', 'DUN', 'LIM', 'UNF', 'FOO', 'HOT', 'BAL', 'SNA'].includes(id) ? 3 : 2);
+export const CAREER_ELITE_MIN = 8;
+export const PER_CATEGORY = 4;
 export const archById = (data, id) => data.archetypes.find(a => a.id === id);
 // Archetypes that fit a position (bigs' styles at PF and C, and so on).
 export const archsFor = (data, slot) => data.archetypes.filter(a => a.slots[slot]);
