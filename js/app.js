@@ -83,7 +83,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.201';
+const APP_VERSION = '0.365.202';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.1';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5486,10 +5486,16 @@ screens.creator = () => {
           <span class="small">${esc(CR.posLabel(o.slot, o.slot2))} · ${ft(o.ht)} · ${o.wt} lb · <span class="stars">${stars(o.pot)}</span></span><br>
           <span class="small muted">${esc(ped.name)} out of ${esc(o.school)}${b.shades.legends.length || b.shades.today.length ? ` · Shades of <b>${esc(CR.shadesLine(b.shades))}</b>` : ''}</span></div>
       </fieldset>
-      <fieldset class="frame"><legend>1 · Potential</legend>${seg('pot', [[8, '4★ · Lv 86'], [9, '4.5★ · Lv 93'], [10, '5★ · Lv 100']])}<p class="note small muted">How good he can get: his ceilings add up to it.</p></fieldset>
-      <fieldset class="frame"><legend>2 · Primary Archetype</legend><p class="note small muted">His style sets his ceilings: where the potential goes, rating by rating.</p>${families.map(f => `<p class="note small muted cp-fam">${esc(['Point Guard', 'Wing', 'Forward', 'Center'].includes(f) ? `${f} styles` : f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(archCard).join('')}</div>`).join('')}</fieldset>
-      <fieldset class="frame"><legend>3 · Secondary</legend><p class="note small muted">What he adds on top: it bends his ceilings toward it. Tap again to clear.</p><div class="cp-acards">${Object.entries(CR.SECONDARY).map(secCard).join('')}</div></fieldset>
-      <fieldset class="frame"><legend>4 · Upgrade Points</legend>
+      <fieldset class="frame"><legend>1 · Position & Body</legend><div class="stack">
+        <span class="note small">Primary position</span>${seg('slot', [1, 2, 3, 4, 5].map(s => [s, CR.SLOT_SHORT[s]]))}
+        <span class="note small">Secondary position</span>${seg('slot2', [[null, 'None'], ...[1, 2, 3, 4, 5].filter(s => s !== o.slot).map(s => [s, CR.SLOT_SHORT[s]])])}
+        <span class="note small muted">${esc(CR.posLabel(o.slot, o.slot2))}: the game plays him at ${esc(POSITIONS[b.pos] ?? '')}; the app keeps both for lineups and minutes.</span>
+        ${step('ht', 'Height', ft(o.ht))}${step('wt', 'Weight', `${o.wt} lb`)}
+      </div></fieldset>
+      <fieldset class="frame"><legend>2 · Potential</legend>${seg('pot', [[8, '4★ · Lv 86'], [9, '4.5★ · Lv 93'], [10, '5★ · Lv 100']])}<p class="note small muted">How good he can get: his ceilings add up to it.</p></fieldset>
+      <fieldset class="frame"><legend>3 · Primary Archetype</legend><p class="note small muted">His style sets his ceilings: where the potential goes, rating by rating.</p>${families.map(f => `<p class="note small muted cp-fam">${esc(['Point Guard', 'Wing', 'Forward', 'Center'].includes(f) ? `${f} styles` : f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(archCard).join('')}</div>`).join('')}</fieldset>
+      <fieldset class="frame"><legend>4 · Secondary</legend><p class="note small muted">What he adds on top: it bends his ceilings toward it. Tap again to clear.</p><div class="cp-acards">${Object.entries(CR.SECONDARY).map(secCard).join('')}</div></fieldset>
+      <fieldset class="frame"><legend>5 · Upgrade Points</legend>
         <span class="note small">Where he starts <span class="muted">(set your own difficulty: a 5★ potential can start at 1½★, or start at 4★ right away)</span></span>
         <div class="cp-startseg">${seg('start', [...CR.START_STARS.map(h => [h, `${Math.floor(h / 2)}${h % 2 ? '½' : ''}★`]), ['free', 'No limit']])}</div>
         <div class="cp-pool"><span>Points left</span><b class="${b.left ? 'gold' : ''}">${o.start === 'free' ? '∞' : b.left}</b><span class="muted small">${o.start === 'free' ? 'no limit' : `of ${b.pool} · starts him at Lv ${CR.startLvFor(o.start)}`}</span></div>
@@ -5497,19 +5503,14 @@ screens.creator = () => {
         <div class="cp-bars">${bars}</div>
         <div class="grid2"><button class="btn small" data-act="cpAuto">✨ Spend for Me</button><button class="btn small off" data-act="cpClear">↺ Take All Back</button></div>
       </fieldset>
-      <fieldset class="frame"><legend>5 · Skills (${have.size})</legend>${recBox}<div class="cp-skgrid">${skillGrid}</div>${skillCard}</fieldset>
+      <fieldset class="frame"><legend>6 · Skills (${have.size})</legend>${recBox}<div class="cp-skgrid">${skillGrid}</div>${skillCard}</fieldset>
       <fieldset class="frame"><legend>Who He Is</legend><div class="stack">
         <div class="grid2"><label class="field"><span>First name</span><input data-cp="fn" value="${esc(o.fn)}" maxlength="20"></label><label class="field"><span>Last name</span><input data-cp="ln" value="${esc(o.ln)}" maxlength="24"></label></div>
         <div class="grid2"><label class="field"><span>Hometown</span><input data-cp="home" value="${esc(o.home)}" placeholder="City, ST" maxlength="32"></label><label class="field"><span>Number</span><input data-cp="num" value="${esc(o.num)}" inputmode="numeric" maxlength="2"></label></div>
         <label class="field"><span>High school</span><select data-cp="school">${CR.HIGH_SCHOOLS.map(h => `<option ${h === o.school ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select></label>
         <span class="note small">Recruiting pedigree <span class="muted">(his story: how highly ranked he was)</span></span>${seg('pedigree', [[3, '3★'], [4, '4★'], [5, '5★'], [6, 'Top 10']])}
       </div></fieldset>
-      <fieldset class="frame"><legend>Position & Body</legend><div class="stack">
-        <span class="note small">Primary position</span>${seg('slot', [1, 2, 3, 4, 5].map(s => [s, CR.SLOT_SHORT[s]]))}
-        <span class="note small">Secondary position</span>${seg('slot2', [[null, 'None'], ...[1, 2, 3, 4, 5].filter(s => s !== o.slot).map(s => [s, CR.SLOT_SHORT[s]])])}
-        <span class="note small muted">${esc(CR.posLabel(o.slot, o.slot2))}: the game plays him at ${esc(POSITIONS[b.pos] ?? '')}; the app keeps both for lineups and minutes.</span>
-        ${step('ht', 'Height', ft(o.ht))}${step('wt', 'Weight', `${o.wt} lb`)}
-      </div></fieldset>`,
+      `,
     action: { act: 'cpApply', label: 'Create Him' },
   });
 };
