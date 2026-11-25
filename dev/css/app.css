@@ -2650,3 +2650,18 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; heig
 
 .sfx-test { display: flex; flex-wrap: wrap; gap: 6px; }
 .sfx-test .btn.tiny { min-height: 30px; padding: 2px 8px; }
+/* Create Your Player */
+.cp-head { line-height: 1.5; margin-bottom: 8px; }
+.cp-head b { font-size: 18px; }
+.cp-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; }
+.cp-row { display: grid; grid-template-columns: 34px 1fr 44px; align-items: center; gap: 6px; font-size: 13px; }
+.cp-k { font-weight: 800; }
+.cp-v { text-align: right; font-variant-numeric: tabular-nums; }
+.cp-bar { position: relative; height: 10px; background: var(--bg-dark); border: 2px solid var(--btn-edge); }
+.cp-bar i { position: absolute; left: 0; top: 0; bottom: 0; }
+.cp-bar .cp-c { background: rgba(62, 230, 242, .28); }
+.cp-bar .cp-n { background: var(--cyan); }
+.cp-arch { display: flex; flex-wrap: wrap; gap: 6px; }
+.cp-arch .btn { flex: 1 1 auto; min-width: 0; }
+.cp-fam { margin: 4px 0 -2px; }
+@media (max-width: 380px) { .cp-bars { grid-template-columns: 1fr; } }

@@ -1,3 +1,4 @@
+import * as CR from './creator.js';
 import * as SFX from './sfx.js';
 import {
   parseSave, serializeSave, FT_MAX, attrCap, injuryHistory, ATTRS, ATTR_NAMES, PHYSICAL, attrMin, skillName, skillCategory, sortSkills, isEliteSkill, isFreeSkill, ELITE_REQUIREMENTS, ELITE_MIN, ATTR_MAX, activeSkills, isLeveled, CATEGORIES, SKILL_MAX_LEVEL, SKILL_CATEGORIES, POSITIONS, MODE_NAMES, phaseName, BUMP_PHASES, BUMP_DAY, POT_MIN, POT_MAX, POT_EDIT_MAX, regressionYear, injuryName, injuryPart, PHASE_POST_DRAFT, PHASE_PRE_DRAFT, PHASE_PRE_LOTTERY, PHASE_FREE_AGENCY, leagueRookies, draftYear, jerseyNumber,
@@ -78,7 +79,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.183';
+const APP_VERSION = '0.365.184';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5367,6 +5368,7 @@ screens.main = () => {
         <div class="grow"><b>${esc(L.leagueName || L.shortName)}</b>
           <span class="note small">${CAR.isCareer(L) ? 'Career mode' : `Your ${isCollege() || isFranchise() ? (isCollege() ? 'school' : 'team') : 'teams'}: ${esc(yourTeams)}`}</span></div>
       </div>`}
+      ${creatorCard()}
       ${FRANCHISE_ONLY() ? '' : fileCheckCard()}
       ${nbaSetupCard()}
       ${nextGameCard()}
@@ -5403,6 +5405,94 @@ function careerCard() {
   const { p, team } = me, r = CAR.rankIdx(p);
   return `<button class="btn big left focus" data-act="nav" data-to="career"><span class="ico">${CAR.RANK_ICONS[r]}</span> My Career <span class="note small">${esc(playerName(p))} · ${esc(CAR.RANKS[r])} · ${esc(team ? team.shortName : 'FA')}</span></button>`;
 }
+
+// ---- Create Your Player (career saves at their start: the recruit on the showcase team, before the college offers).
+// The game's creator has eight archetypes that add up to a 4-star player; this one builds from the real NBA file's
+// styles at each position, a primary and a secondary position, add-ons, a 4-to-5-star potential and a pedigree.
+let crData = null, crLoading = false;
+function crLoad() {
+  if (crData || crLoading) return;
+  crLoading = true;
+  fetchData('data/creator/archetypes.json').then(r => r.json()).then(d => { crData = d; crLoading = false; render(); }).catch(() => { crLoading = false; toast('Couldn’t load the archetypes', 'Check your connection and try again.', 4000, true); });
+}
+const creatorOn = () => careerOn() && !!CR.careerRecruit(state.data);
+function creatorCard() {
+  if (!state.data || !creatorOn()) return '';
+  const r = CR.careerRecruit(state.data);
+  return `<button class="btn big left focus" data-act="nav" data-to="creator"><span class="ico">🧬</span> Create Your Player <span class="note small">${esc(playerName(r.p))} · ${r.stage === 'showcase' ? 'before the showcase game' : 'just committed'}</span></button>`;
+}
+function crDefaults(p) {
+  const slot = { 0: 1, 1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 4, 7: 4, 8: 5 }[p.pos] ?? 3;
+  const arch = { 1: 'general', 2: 'sharp', 3: '3lvl', 4: 'stretch', 5: 'anchor' }[slot];
+  return { fn: p.fn, ln: p.ln, home: p.home || '', num: p.num ?? 0, school: CR.HIGH_SCHOOLS[0], slot, slot2: null, ht: p.ht, wt: p.wt, arch, arch2: null, addons: [], pot: Math.max(8, Math.min(10, p.pot || 9)), pedigree: 5 };
+}
+const crO = () => (state.cp ||= {});
+screens.creator = () => {
+  const r = CR.careerRecruit(state.data);
+  if (!r) { goHome(); return; }
+  if (!crData) { crLoad(); layout({ title: 'Create Your Player', body: '<div class="spinner"></div><p class="note center">Getting the archetypes…</p>' }); return; }
+  const o = state.cp?.pid === r.p.id ? state.cp : (state.cp = { pid: r.p.id, ...crDefaults(r.p) });
+  // An archetype that doesn't fit the position falls back to the position's first.
+  const fits = CR.archsFor(crData, o.slot);
+  if (!fits.some(a => a.id === o.arch)) o.arch = fits[0].id;
+  if (o.arch2 && !fits.some(a => a.id === o.arch2)) o.arch2 = null;
+  const b = CR.build(crData, o);
+  const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="btn small ${o[k] === v ? 'on focus' : 'off'}" data-act="cpSet" data-k="${k}" data-v='${JSON.stringify(v)}'>${esc(l)}</button>`).join('')}</div>`;
+  const step = (k, label, val) => `<div class="pts-row"><span class="grow">${label}</span><button class="btn square" data-act="cpStep" data-k="${k}" data-d="-1" aria-label="Less">−</button><span class="pts-val">${val}</span><button class="btn square" data-act="cpStep" data-k="${k}" data-d="1" aria-label="More">+</button></div>`;
+  const ft = h => `${Math.floor(h / 12)}'${h % 12}"`;
+  const families = [...new Set(fits.map(a => a.family))];
+  const archList = (k, allowNone) => `${allowNone ? `<button class="btn small ${!o[k] ? 'on focus' : 'off'}" data-act="cpSet" data-k="${k}" data-v='null'>None</button>` : ''}${families.map(f => `<p class="note small muted cp-fam">${esc(f)}</p><div class="cp-arch">${fits.filter(a => a.family === f).map(a => `<button class="btn small ${o[k] === a.id ? 'on focus' : 'off'}" data-act="cpSet" data-k="${k}" data-v='"${a.id}"'>${esc(a.name)}</button>`).join('')}</div>`).join('')}`;
+  const bars = CR.RATINGS.map(k => { const [n, c] = b.attributes[k]; return `<div class="cp-row"><span class="cp-k">${k}</span><span class="cp-bar"><i class="cp-c" style="width:${c * 5}%"></i><i class="cp-n" style="width:${n * 5}%"></i></span><span class="cp-v">${n}<span class="muted">/${c}</span></span></div>`; }).join('');
+  const ped = CR.PEDIGREE[o.pedigree];
+  layout({
+    title: 'Create Your Player',
+    body: `
+      <fieldset class="frame cp-preview"><legend>${esc(b.name)}</legend>
+        <div class="cp-head"><b>${esc(`${o.fn} ${o.ln}`.trim() || 'Your player')}</b> <span class="gold">Lv ${b.lvNow}</span> <span class="muted small">→ ${b.lvCeil} ceiling</span><br>
+          <span class="small">${esc(CR.posLabel(o.slot, o.slot2))} · ${ft(o.ht)} · ${o.wt} lb · <span class="stars">${'★'.repeat(Math.floor(o.pot / 2))}${o.pot % 2 ? '½' : ''}</span></span><br>
+          <span class="small muted">${esc(ped.name)} out of ${esc(o.school)}${b.shades.length ? ` · Shades of <b>${esc(b.shades.join(', '))}</b>` : ''}</span></div>
+        <div class="cp-bars">${bars}</div>
+        <p class="note small muted">Bright: where he starts. Faded: how far he can grow. STR ${b.attributes.STR[0]} · SPD ${b.attributes.SPD[0]} · STM ${b.attributes.STM[0]}</p>
+      </fieldset>
+      <fieldset class="frame"><legend>Who He Is</legend><div class="stack">
+        <div class="grid2"><label class="field"><span>First name</span><input data-cp="fn" value="${esc(o.fn)}" maxlength="20"></label><label class="field"><span>Last name</span><input data-cp="ln" value="${esc(o.ln)}" maxlength="24"></label></div>
+        <div class="grid2"><label class="field"><span>Hometown</span><input data-cp="home" value="${esc(o.home)}" placeholder="City, ST" maxlength="32"></label><label class="field"><span>Number</span><input data-cp="num" value="${esc(o.num)}" inputmode="numeric" maxlength="2"></label></div>
+        <label class="field"><span>High school</span><select data-cp="school">${CR.HIGH_SCHOOLS.map(h => `<option ${h === o.school ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select></label>
+        <span class="note small">Pedigree</span>${seg('pedigree', [[3, '3★'], [4, '4★'], [5, '5★'], [6, 'Top 10']])}
+        <span class="note small muted">How highly he's recruited sets where his ratings start, not how good he can get.</span>
+      </div></fieldset>
+      <fieldset class="frame"><legend>Position & Body</legend><div class="stack">
+        <span class="note small">Primary position</span>${seg('slot', [1, 2, 3, 4, 5].map(s => [s, CR.SLOT_SHORT[s]]))}
+        <span class="note small">Secondary position</span>${seg('slot2', [[null, 'None'], ...[1, 2, 3, 4, 5].filter(s => s !== o.slot).map(s => [s, CR.SLOT_SHORT[s]])])}
+        <span class="note small muted">${esc(CR.posLabel(o.slot, o.slot2))}: the game plays him at ${esc(POSITIONS[b.pos] ?? '')}; the app keeps both for lineups and minutes.</span>
+        ${step('ht', 'Height', ft(o.ht))}${step('wt', 'Weight', `${o.wt} lb`)}
+      </div></fieldset>
+      <fieldset class="frame"><legend>Archetype</legend><div class="stack">
+        <span class="note small">Primary</span>${archList('arch', false)}
+        <span class="note small">Secondary</span>${archList('arch2', true)}
+        <span class="note small">Add-ons <span class="muted">(they move points, they don't add them)</span></span>
+        <div class="cp-arch">${Object.entries(CR.ADDONS).map(([id, a]) => `<button class="btn small ${o.addons.includes(id) ? 'on focus' : 'off'}" data-act="cpAddon" data-id="${id}" title="${esc(a.note)}">${esc(a.name)}</button>`).join('')}</div>
+      </div></fieldset>
+      <fieldset class="frame"><legend>Potential</legend>${seg('pot', [[8, '4★ · Lv 86'], [9, '4.5★ · Lv 93'], [10, '5★ · Lv 100']])}</fieldset>`,
+    action: { act: 'cpApply', label: 'Create Him' },
+  });
+};
+actions.cpSet = d => { const o = crO(); o[d.k] = JSON.parse(d.v); if (d.k === 'slot' && o.slot2 === o.slot) o.slot2 = null; if (d.k === 'slot') { const H = { 1: 75, 2: 77, 3: 80, 4: 82, 5: 84 }[o.slot], W = { 1: 190, 2: 205, 3: 220, 4: 235, 5: 250 }[o.slot]; o.ht = H; o.wt = W; } render(); };
+actions.cpStep = d => { const o = crO(); if (d.k === 'ht') o.ht = Math.max(68, Math.min(90, o.ht + +d.d)); else o.wt = Math.max(160, Math.min(320, o.wt + 5 * +d.d)); render(); };
+actions.cpAddon = d => { const o = crO(); o.addons = o.addons.includes(d.id) ? o.addons.filter(x => x !== d.id) : o.addons.length >= 2 ? [...o.addons.slice(1), d.id] : [...o.addons, d.id]; render(); };
+$app.addEventListener('change', e => { const k = e.target.dataset?.cp; if (!k || !state.cp) return; state.cp[k] = e.target.value; render(); });
+actions.cpApply = async () => {
+  const r = CR.careerRecruit(state.data), o = state.cp;
+  if (!r || !o || !crData) return;
+  const b = CR.build(crData, o);
+  if (!(await confirmBox(`Create <b>${esc(`${o.fn} ${o.ln}`)}</b>, a ${esc(b.name)} (Lv ${b.lvNow}, ceiling ${b.lvCeil})? His ratings, potential, position and body replace the ones from the game's creator.`, 'Create Him'))) return;
+  checkpoint('Create your player');
+  CR.applyBuild(r.p, o, b);
+  state.dirty = true;
+  SFX.play('success');
+  toast(`${o.fn} ${o.ln} is ready`, 'Export the save and load it in Hoop Land to play the showcase.');
+  goHome();
+};
 
 screens.career = (args = {}) => {
   if (!careerOn()) { goHome(); return; }
