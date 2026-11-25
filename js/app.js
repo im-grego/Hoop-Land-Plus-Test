@@ -79,7 +79,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.187';
+const APP_VERSION = '0.365.188';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5442,7 +5442,7 @@ screens.creator = () => {
   const ft = h => `${Math.floor(h / 12)}'${h % 12}"`;
   const families = [...new Set(fits.map(a => a.family))];
   // Archetype cards: the style, how it plays, and who plays it at his position.
-  const shadesAt = a => { const d = a.slots[o.slot] || {}; return CR.shadesLine({ legends: (d.legends || []).slice(0, 2), today: (d.shades || []).slice(0, 2) }); };
+  const shadesAt = a => { const d = a.slots[o.slot] || {}, lg = (d.legends || []).slice(0, 2); return CR.shadesLine({ legends: lg, today: (d.shades || []).filter(n => !lg.includes(n)).slice(0, 2) }); };
   const archCard = (k, a) => `<button class="cp-acard ${o[k] === a.id ? 'sel' : ''}" data-act="cpSet" data-k="${k}" data-v='"${a.id}"'><b>${esc(a.name)}</b><span class="small">${esc(CR.ARCH_DESC[a.id] || '')}</span>${shadesAt(a) ? `<span class="small muted">Shades of ${esc(shadesAt(a))}</span>` : ''}</button>`;
   const archList = (k, allowNone) => `${allowNone ? `<button class="btn small ${!o[k] ? 'on focus' : 'off'}" data-act="cpSet" data-k="${k}" data-v='null'>No secondary</button>` : ''}${families.map(f => `<p class="note small muted cp-fam">${esc(f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(a => archCard(k, a)).join('')}</div>`).join('')}`;
   // Each rating in the game's colors (finishing blue, shooting green, creating orange, defense red, physicals purple),

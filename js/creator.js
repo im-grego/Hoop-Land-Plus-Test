@@ -167,7 +167,8 @@ export function shadesFor(data, o) {
   const a1 = archById(data, o.arch), a2 = o.arch2 && o.arch2 !== o.arch ? archById(data, o.arch2) : null;
   const d1 = slotData(a1, o.slot) || {}, d2 = a2 ? (slotData(a2, o.slot) || {}) : {};
   const pick = (x, y, n) => { const both = (x || []).filter(v => (y || []).includes(v)); return [...new Set([...both, ...(x || []), ...(y || [])])].slice(0, n); };
-  return { legends: pick(d1.legends, d2.legends, 2), today: pick(d1.shades, d2.shades, 2) };
+  const legends = pick(d1.legends, d2.legends, 2);
+  return { legends, today: pick(d1.shades, d2.shades, 4).filter(n => !legends.includes(n)).slice(0, 2) };
 }
 // "Shades of Kobe Bryant, Dwyane Wade · today: Devin Booker"
 export const shadesLine = sh => [sh.legends.length ? sh.legends.join(', ') : '', sh.today.length ? `today: ${sh.today.join(', ')}` : ''].filter(Boolean).join(' · ');
