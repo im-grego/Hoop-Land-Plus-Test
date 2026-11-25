@@ -1,3 +1,4 @@
+import * as TRN from './training.js';
 import * as CR from './creator.js';
 import * as SFX from './sfx.js';
 import {
@@ -79,7 +80,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.191';
+const APP_VERSION = '0.365.192';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5550,8 +5551,8 @@ screens.career = (args = {}) => {
   const L = league(), me = CAR.careerPlayer(L);
   if (!me) { layout({ title: 'My Career', body: '<p class="note">This save has no career player.</p>' }); return; }
   const tab = args.tab || 'hub';
-  const tabs = `<div class="tabs fa-tabs">${[['hub', 'Me'], ['moves', 'Moves'], ['story', 'Story'], ['legacy', 'Legacy']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="careerTab" data-t="${k}">${l}</button>`).join('')}</div>`;
-  if (tab !== 'hub') { layout({ title: 'My Career', body: tabs + ({ moves: careerMovesTab, story: careerStoryTab, legacy: careerLegacyTab }[tab])(L, me.p, me.team) }); return; }
+  const tabs = `<div class="tabs fa-tabs">${[['hub', 'Me'], ['train', 'Training'], ['moves', 'Moves'], ['story', 'Story'], ['legacy', 'Legacy']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="careerTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+  if (tab !== 'hub') { layout({ title: 'My Career', body: tabs + ({ train: careerTrainTab, moves: careerMovesTab, story: careerStoryTab, legacy: careerLegacyTab }[tab])(L, me.p, me.team) }); return; }
   const { p, team } = me, cr = L.career || {}, r = CAR.rankIdx(p), tro = CAR.trophies(p);
   const st = CAR.standing(L, p, team, valueOf), fo = CAR.frontOffice(L, p, team), room = CAR.lockerRoom(L, p, team);
   const c = p.contract || {};
@@ -5593,6 +5594,40 @@ screens.career = (args = {}) => {
       ${traitsBox(p)}
       ${log.length ? `<fieldset class="frame"><legend>Career</legend><div class="stack">${log.map(({ y, l }) => { const t = L.teams.find(x => x.id === l.tid); return `<p class="small"><b>${y}</b> ${esc(t?.shortName || '')} · ${l.gp} GP · ${l.ppg.toFixed(1)} / ${l.rpg.toFixed(1)} / ${l.apg.toFixed(1)} <span class="muted">${l.mpg.toFixed(0)} min</span></p>`; }).join('')}</div></fieldset>` : ''}`,
   });
+};
+
+// The Training Center: programs bought with career coins (js/training.js), on top of the game's Practice Facility.
+function trainCtx(L, p, team) {
+  const coach = (team?.frontOffice?.staff || []).find(x => x.pos === 1) || null;
+  const r = CAR.rankIdx(p);
+  return { career: L.career, coach, mates: team ? team.roster.filter(m => m.id !== p.id) : [], rank: r, rankName: CAR.RANKS[Math.max(0, r)] };
+}
+function trainUsed() { const { st, cy } = careerYear(); return { season: cy.train || {}, life: st.trainLife || {} }; }
+function careerTrainTab(L, p, team) {
+  const x = trainCtx(L, p, team), used = trainUsed();
+  const row = pg => { const c = TRN.check(pg, p, x, used), times = used.season[pg.id] || 0;
+    return `<div class="tr-row ${c.ok ? '' : 'off'}"><span class="tr-ico">${pg.icon}</span><span class="grow"><b>${esc(pg.name)}</b>${pg.rank != null ? ` <span class="small muted">· ${esc(CAR.RANKS[pg.rank])}+</span>` : ''}<br><span class="small">${esc(pg.says)}</span>${(pg.per || 1) > 1 ? `<br><span class="small muted">${times}/${pg.per} this season</span>` : ''}${c.ok ? '' : `<br><span class="small down">${esc(c.why)}</span>`}</span>
+      <button class="btn small ${c.ok ? 'focus' : 'off'}" data-act="trainBuy" data-id="${pg.id}" ${c.ok ? '' : 'disabled'}>${pg.cost} 🪙</button></div>`; };
+  return `<fieldset class="frame"><legend>Training Center</legend><p class="note small">Programs the game's Practice Facility doesn't have, paid for with his coins. They go into the save as soon as you buy them: export and load it in Hoop Land.</p>
+      <div class="cp-pool"><span>Coins</span><b class="gold">${(L.career?.coins || 0).toLocaleString()}</b><span class="muted small">🪙 · ${esc(CAR.RANKS[x.rank])}</span></div></fieldset>
+    ${TRN.GROUPS.map(g => `<fieldset class="frame"><legend>${g}</legend><div class="stack">${TRN.PROGRAMS.filter(pg => pg.group === g).map(row).join('')}</div></fieldset>`).join('')}`;
+}
+actions.trainBuy = async d => {
+  const L = league(), me = CAR.careerPlayer(L); if (!me) return;
+  const pg = TRN.PROGRAMS.find(x => x.id === d.id), x = trainCtx(L, me.p, me.team), used = trainUsed();
+  if (!pg || !TRN.check(pg, me.p, x, used).ok) return;
+  if (!(await confirmBox(`${pg.icon} <b>${esc(pg.name)}</b> for <b>${pg.cost}</b> coins? ${esc(pg.says)}.`, `Buy · ${pg.cost} 🪙`))) return;
+  checkpoint(`Training: ${pg.name}`);
+  L.career.coins -= pg.cost;
+  const what = pg.run(me.p, x);
+  const { st, cy } = careerYear();
+  (cy.train ||= {})[pg.id] = (cy.train[pg.id] || 0) + 1;
+  (st.trainLife ||= {})[pg.id] = (st.trainLife[pg.id] || 0) + 1;
+  careerSave(st);
+  state.dirty = true;
+  SFX.play('coin');
+  toast(`${pg.name}`, `${what}. ${L.career.coins} coins left.`);
+  render();
 };
 
 // Right now: every decision waiting on the other tabs (a box there with a career button in it), so the hub says
