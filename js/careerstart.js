@@ -4,7 +4,8 @@
 //   league: teamId 0, playerId 0; no team flagged isPlayer; the career block (coins, fans, fame, games) starts at 0.
 //   him: on the school's roster, yrs 0 (a freshman), contract all zeros with canExt true, a stats row for this season
 //   (sal 0), and a "commits" news item (type 14). meta.uPID covers his id.
-// The steps in between are the app's: Create Your Player (js/creator.js) on a blank recruit, then his offers.
+// The steps in between are the app's: Create Your Player (js/creator.js) on a blank recruit, then his school.
+// Nothing else in the league changes: only his team's minutes are worked out again with him in the rotation.
 
 const RATINGS = ['LAY', 'DNK', 'INS', 'MID', 'TPT', 'FTS', 'DRB', 'PAS', 'ORE', 'DRE', 'STL', 'BLK'];
 export const levelOf = p => 100 - Math.floor((168 - RATINGS.reduce((a, k) => a + (p.attributes?.[k]?.[0] || 0), 0)) / 2);
@@ -52,41 +53,35 @@ export function blankRecruit(save, li) {
   return p;
 }
 
-// Small seeded random, so the same recruit sees the same offers.
-function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-const hash = s => [...s].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619), 2166136261);
-const group = pos => (pos <= 2 ? 0 : pos <= 5 ? 1 : 2);   // guards, wings, bigs
+export const group = pos => (pos <= 2 ? 0 : pos <= 5 ? 1 : 2);   // guards, wings, bigs
 export const GROUP_NAMES = ['guards', 'wings', 'bigs'];
-// How many offers a recruit draws, and which slice of the prestige ladder (0 the top) they come from.
-const PULL = { 3: { n: 5, from: 0.35, to: 1 }, 4: { n: 6, from: 0.15, to: 0.8 }, 5: { n: 7, from: 0, to: 0.6 }, 6: { n: 8, from: 0, to: 0.4 } };
 
-// His offers: [{ t, prestigeRank, strengthRank, role, ahead, minutes, conf, homeRank }], best programs first.
-export function offers(save, li, p, pedigree = 4) {
-  const L = save.seasonLeagues[li], teams = L.teams.filter(t => t.roster.length < ROSTER_MAX);
+// Every school with what he'd walk into: [{ t, prestigeRank, strengthRank, role, minutes, ahead, best, conf, full, of }].
+export function schools(save, li, p) {
+  const L = save.seasonLeagues[li];
   const top8 = t => { const l = t.roster.map(levelOf).sort((a, b) => b - a).slice(0, 8); return l.reduce((a, b) => a + b, 0) / Math.max(1, l.length); };
   const byPrestige = [...L.teams].sort((a, b) => (b.prestigePoints || 0) - (a.prestigePoints || 0) || top8(b) - top8(a));
   const byStrength = [...L.teams].sort((a, b) => top8(b) - top8(a));
   const pr = new Map(byPrestige.map((t, i) => [t.id, i + 1])), sr = new Map(byStrength.map((t, i) => [t.id, i + 1]));
-  const pull = PULL[pedigree] || PULL[4], N = L.teams.length;
-  const lo = Math.floor(pull.from * N), hi = Math.max(lo + pull.n, Math.ceil(pull.to * N));
   const lv = levelOf(p), g = group(p.pos);
-  const need = t => { const at = t.roster.filter(x => group(x.pos) === g); return at.filter(x => levelOf(x) >= lv).length; };   // players at his spot as good or better
-  const pool = teams.filter(t => { const r = pr.get(t.id); return r > lo && r <= hi; });
-  const rand = rng(hash(`${p.fn} ${p.ln} ${p.id}`));
-  // Programs short at his spot are keener; a little luck on top.
-  const picked = pool.map(t => ({ t, w: rand() + 0.35 / (1 + need(t)) })).sort((a, b) => b.w - a.w).slice(0, pull.n).map(x => x.t);
-  const dist = t => (p.loc && t.location ? Math.hypot((p.loc.x || 0) - (t.location.x || 0), (p.loc.y || 0) - (t.location.y || 0)) : null);
-  const near = [...L.teams].map(t => ({ t, d: dist(t) })).filter(x => x.d != null).sort((a, b) => a.d - b.d);
-  const homeRank = new Map(near.map((x, i) => [x.t.id, i + 1]));
-  return picked.map(t => {
-    const ahead = need(t), at = t.roster.filter(x => group(x.pos) === g).sort((a, b) => levelOf(b) - levelOf(a));
-    // Starters by group: 2 guards, 2 wings, 1 big is the usual floor; behind them, the rotation.
-    const starts = [2, 2, 1][g];
+  return L.teams.map(t => {
+    const at = t.roster.filter(x => group(x.pos) === g).sort((a, b) => levelOf(b) - levelOf(a)), ahead = at.filter(x => levelOf(x) >= lv).length;
+    const starts = [2, 2, 1][g];   // starters by group: two guards, two wings, a big
     const role = ahead < starts ? 'Starter' : ahead < starts + 2 ? 'Rotation' : 'Bench to start';
-    const minutes = role === 'Starter' ? '28-32' : role === 'Rotation' ? '14-20' : '0-10';
     const div = L.divisions?.[t.division];
-    return { t, prestigeRank: pr.get(t.id), strengthRank: sr.get(t.id), role, minutes, ahead, best: at[0] || null, conf: div?.name || div?.shortName || '', homeRank: homeRank.get(t.id) ?? null, of: N };
-  }).sort((a, b) => a.prestigeRank - b.prestigeRank);
+    return { t, prestigeRank: pr.get(t.id), strengthRank: sr.get(t.id), role, minutes: role === 'Starter' ? '28-32' : role === 'Rotation' ? '14-20' : '0-10',
+      ahead, best: at[0] || null, conf: div?.name || div?.shortName || '', full: t.roster.length >= ROSTER_MAX, of: L.teams.length };
+  });
+}
+
+// His team's minutes, with him in: apply(team, gameMinutes) plans and writes them (the app's lineups.js). The game
+// length comes from the team's own minutes as the file has them (five spots). Players the planner skips for their
+// status (a college league can leave everyone at 0) count as available for the plan, then get their status back.
+export function teamMinutes(L, t, apply) {
+  const total = t.roster.reduce((a, p) => a + (p.minutes?.[0] || 0), 0), game = Math.round(total / 5) || 40;
+  const kept = t.roster.map(p => [p, p.status]);
+  for (const p of t.roster) if (p.status !== 2 && p.status !== 3) p.status = 3;
+  try { apply(t, game); } finally { for (const [p, st] of kept) p.status = st; }
 }
 
 // He commits: onto the roster, and the save becomes a Career save.

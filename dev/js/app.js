@@ -83,7 +83,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.197';
+const APP_VERSION = '0.365.198';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.1';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5545,12 +5545,11 @@ actions.cpApply = async () => {
   if (!r || !o || !crData) return;
   const b = CR.build(crData, o);
   if (r.stage === 'new') {   // Start a Career: build him, then his offers
-    if (!(await confirmBox(`Create <b>${esc(`${o.fn} ${o.ln}`)}</b>, a ${esc(b.name)} (Lv ${b.lvNow}, ceiling ${b.lvCeil})? Next: his scholarship offers.`, 'Create Him'))) return;
+    if (!(await confirmBox(`Create <b>${esc(`${o.fn} ${o.ln}`)}</b>, a ${esc(b.name)} (Lv ${b.lvNow}, ceiling ${b.lvCeil})? Next: pick his school.`, 'Create Him'))) return;
     CR.applyBuild(r.p, o, b);
-    careerHome(r.p);
-    state.newCareer.pedigree = +o.pedigree || 4; state.newCareer.num = o.num;
+    state.newCareer.num = o.num; state.newCareer.info = null;
     SFX.play('success');
-    go('careerOffers');
+    go('careerSchool');
     return;
   }
   if (!(await confirmBox(`Create <b>${esc(`${o.fn} ${o.ln}`)}</b>, a ${esc(b.name)} (Lv ${b.lvNow}, ceiling ${b.lvCeil})? His ratings, potential, position and body replace the ones from the game's creator.`, 'Create Him'))) return;
@@ -5564,72 +5563,83 @@ actions.cpApply = async () => {
 
 // ---------------------------------------------------------------------------
 // Start a Career (js/careerstart.js): a college save at the start of a season, Create Your Player on a blank recruit,
-// his scholarship offers, and the commit. The save that comes out is a Career save, his freshman season up next.
+// then his school. The file that comes out is the one you loaded with only him added: on that school's roster, the
+// save set to Career, and that team's minutes worked out with him in the rotation. Nothing else in the league changes,
+// and the app's own passes never touch it: it goes straight to you.
 screens.careerStart = () => {
-  const here = state.data && !state.leagueFile ? CS.checkBase(state.data) : null;
   layout({ title: 'Start a Career', body: `<fieldset class="frame"><legend>🎓 Start a Career</legend><div class="stack">
-      <p class="note">Build your player, weigh his scholarship offers and commit. He starts as a freshman at the school you pick, and the save is a <b>Career</b> save: export it and play his first college season in Hoop Land.</p>
-      <p class="note small">You need a <b>college (Campus) save</b> from the start of a season, before the first game: the league he'll play in. Your own college league works.</p>
-      ${here?.ok ? `<button class="btn big focus" data-act="careerUseLoaded"><span class="ico">🏫</span> Use the loaded save</button>` : ''}
+      <p class="note">Create your player, pick his school, and start his freshman season. You get back the same file with him added: every other roster stays exactly as it is.</p>
+      <p class="note small">Load a <b>college (Campus) save</b> from the start of a season, before the first game. Your own college league works.</p>
       <label class="btn big"><span class="ico">📂</span> Load a College Save<input type="file" id="careerBaseInput"></label>
-      ${here && !here.ok ? `<p class="note small muted">The loaded save can't start one: ${esc(here.why)}</p>` : ''}
     </div></fieldset>` });
 };
-function careerBegin(save) {
+function careerBegin(save, fileName) {
   const c = CS.checkBase(save);
   if (!c.ok) { SFX.play('error'); toast('Can’t start a career from this save', c.why, 4600, true); return; }
-  state.newCareer = { save, li: c.li, p: CS.blankRecruit(save, c.li) };
+  state.newCareer = { save, li: c.li, p: CS.blankRecruit(save, c.li), fileName };
   state.cp = null;
   go('creator');
 }
-actions.careerUseLoaded = () => careerBegin(parseSave(serializeSave(state.data)));
 async function careerBaseFile(file) {
   const o = overlay('<div class="spinner"></div><p class="note">Reading the save…</p>');
   await nextFrame();
   let save = null;
   try { save = parseSave(await file.text()); } catch (e) { o.remove(); toast('Couldn’t read that file', e.message, 4200, true); return; }
   o.remove();
-  careerBegin(save);
+  careerBegin(save, file.name);
 }
-// His hometown on the map: a player from the same place (either league) lends his spot, so offers can say how far.
-function careerHome(p) {
-  const N = state.newCareer, want = (p.home || '').trim().toLowerCase();
-  N.homeKnown = false;
-  if (!want) return;
-  for (const L of N.save.seasonLeagues) for (const q of [...L.teams.flatMap(t => t.roster), ...(L.freeAgents || [])]) if (q !== p && q.loc && (q.home || '').trim().toLowerCase() === want) { p.loc = { ...q.loc }; N.homeKnown = true; return; }
-}
-const PED_NAMES = { 3: 'Three-star recruit', 4: 'Four-star recruit', 5: 'Five-star recruit', 6: 'Top-10 recruit' };
-screens.careerOffers = () => {
+// Pick a school: every program, by conference. Tap one for a closer look, then sign.
+screens.careerSchool = () => {
   const N = state.newCareer;
   if (!N) { goHome(); return; }
-  const L = N.save.seasonLeagues[N.li], p = N.p, list = N.offers ||= CS.offers(N.save, N.li, p, N.pedigree);
+  const L = N.save.seasonLeagues[N.li], p = N.p, info = N.info ||= new Map(CS.schools(N.save, N.li, p).map(x => [x.t.id, x]));
+  const sel = info.get(N.sel) || null;
   const ord = n => `${n}${['th', 'st', 'nd', 'rd'][(n % 100 >= 11 && n % 100 <= 13) ? 0 : n % 10] || 'th'}`;
-  const home = x => { if (!N.homeKnown || x.homeRank == null) return ''; const f = x.homeRank / x.of; return f <= 0.12 ? '🏠 Close to home' : f <= 0.35 ? '🚗 In the region' : '✈️ Far from home'; };
-  const card = x => `<fieldset class="frame"><legend>${esc(x.t.city)} ${esc(x.t.name)}</legend><div class="stack">
-      <div class="sd-head">${logoImg(x.t)}<div class="sd-ranks">
-        <span class="sd-line">Prestige <b>${ord(x.prestigeRank)}</b> <span class="small muted">of ${x.of}</span></span>
-        <span class="sd-line">Team <b>${ord(x.strengthRank)}</b> <span class="small muted">best roster</span></span>
-        ${x.conf ? `<span class="sd-line small">${esc(x.conf)}</span>` : ''}${home(x) ? `<span class="sd-line small">${home(x)}</span>` : ''}</div></div>
-      <p class="note small"><b>${esc(x.role)}</b> · about ${x.minutes} minutes · ${x.ahead ? `${x.ahead} of the ${CS.GROUP_NAMES[[0, 0, 0, 1, 1, 1, 2, 2, 2][p.pos]]} ${x.ahead === 1 ? 'is' : 'are'} as good as him or better${x.best ? `; the best is ${esc(playerName(x.best))} (Lv ${CS.levelOf(x.best)})` : ''}` : `nobody at his spot is as good as him`}.</p>
-      <button class="btn" data-act="careerCommit" data-id="${x.t.id}">✍️ Commit to ${esc(x.t.city)}</button></div></fieldset>`;
-  layout({ title: 'Your Offers', body: `<p class="note"><b>${esc(playerName(p))}</b> · ${esc(PED_NAMES[N.pedigree] || 'Recruit')} · Lv ${CS.levelOf(p)} · ${list.length} scholarship offers. Weigh the program, the team and how much he'll play.${N.homeKnown ? '' : ' (Give him a hometown that matches a player in the league to see how far each school is.)'}</p>
-      ${list.length ? list.map(card).join('') : '<p class="note">No school has a roster spot open.</p>'}
+  const full = t => `${t.city || ''} ${t.name || ''}`.trim() || t.shortName, short = t => t.city || t.name || t.shortName;
+  const tile = x => `<button class="team-tile ${sel === x ? 'sel' : ''} ${x.full ? 'off' : ''}" data-act="careerSel" data-id="${x.t.id}">${x.t.logoURL ? logoImg(x.t, '') : `<div class="fallback">${esc(x.t.shortName)}</div>`}<span>${esc(x.t.shortName)}</span></button>`;
+  const detail = x => `<fieldset class="frame start-detail"><legend>${esc(full(x.t))}</legend><div class="stack">
+      <div class="sd-head">${logoImg(x.t)}<div class="sd-ranks"><span class="sd-line">Prestige <b>${ord(x.prestigeRank)}</b> <span class="small muted">of ${x.of}</span></span><span class="sd-line">Roster <b>${ord(x.strengthRank)}</b> <span class="small muted">best</span></span>${x.conf ? `<span class="sd-line small">${esc(x.conf)}</span>` : ''}</div></div>
+      <p class="note small"><b>${esc(x.role)}</b> · about ${x.minutes} minutes · ${x.ahead ? `${x.ahead} of the ${CS.GROUP_NAMES[CS.group(p.pos)]} ${x.ahead === 1 ? 'is' : 'are'} as good as him or better${x.best ? `; the best is ${esc(playerName(x.best))} (Lv ${CS.levelOf(x.best)})` : ''}` : 'nobody at his spot is as good as him'}.</p>
+      ${x.full ? '<p class="note small down">The roster is full.</p>' : `<button class="btn" data-act="careerCommit" data-id="${x.t.id}">🎓 Sign with ${esc(short(x.t))}</button>`}</div></fieldset>`;
+  const confs = new Map();
+  for (const x of [...info.values()].sort((a, b) => full(a.t).localeCompare(full(b.t)))) (confs.get(x.conf || 'Schools') || confs.set(x.conf || 'Schools', []).get(x.conf || 'Schools')).push(x);
+  layout({ title: 'Pick Your School', body: `<p class="note"><b>${esc(playerName(p))}</b> · Lv ${CS.levelOf(p)} · ${esc(posName(p))}. Pick where he plays his freshman season. Tap a school for a closer look.</p>
+      ${sel ? detail(sel) : ''}
+      ${[...confs].map(([c, xs]) => `<fieldset class="frame"><legend>${esc(c)}</legend><div class="team-grid cs-grid">${xs.map(tile).join('')}</div></fieldset>`).join('')}
       <button class="btn small" data-act="nav" data-to="creator">‹ Back to Create Your Player</button>` });
 };
+actions.careerSel = d => { const N = state.newCareer; if (!N) return; N.sel = N.sel === +d.id ? null : +d.id; if (N.sel != null) state.glideTo = '.start-detail'; replace('careerSchool'); };
 actions.careerCommit = async d => {
   const N = state.newCareer; if (!N) return;
   const t = N.save.seasonLeagues[N.li].teams.find(x => x.id === +d.id); if (!t) return;
-  if (!(await confirmBox(`Commit to <b>${esc(t.city)} ${esc(t.name)}</b>? ${esc(playerName(N.p))} starts his freshman season there, and the save becomes a Career save.`, 'Commit'))) return;
+  if (!(await confirmBox(`Sign with <b>${esc(`${t.city || ''} ${t.name || ''}`.trim())}</b>? ${esc(playerName(N.p))} joins their roster for his freshman season. Every other roster stays as it is.`, 'Sign'))) return;
   CS.commit(N.save, N.li, N.p, t.id, N.num);
-  const name = `Career · ${playerName(N.p)} · ${t.city}.txt`;
-  state.newCareer = null; state.cp = null; state.dirty = false;
-  await loadFile(new File([serializeSave(N.save)], name, { type: 'text/plain' }));
-  const me = CAR.careerPlayer(league());
-  if (me?.team) { try { applyLu(me.team, defaultPlan(me.team)); } catch { /* the game sets it */ } }
-  const st = careerStore(); st.started = { yr: league().season.currentYear, school: t.id }; careerSave(st);
-  state.dirty = true;
+  // His team's minutes, with him in the rotation (the only other change to the file).
+  try { CS.teamMinutes(N.save.seasonLeagues[N.li], t, (team, game) => { const plan = LU.planLineup(team, { mode: 'normal', game }); LU.applyLineup(team, plan); }); } catch { /* the game sets them */ }
+  const base = (N.fileName || 'College').replace(/\.txt$/i, '');
+  N.out = new File([serializeSave(N.save)], `${base} · Career · ${playerName(N.p)}.txt`, { type: 'text/plain' });
+  N.school = t;
   SFX.play('success');
-  toast(`${playerName(N.p)} commits to ${t.city}`, 'Export the save and load it in Hoop Land to play his freshman season.', 5200);
+  replace('careerDone');
+  giveFile(N.out);
+};
+screens.careerDone = () => {
+  const N = state.newCareer;
+  if (!N?.out) { goHome(); return; }
+  layout({ title: 'Career Ready', body: `<fieldset class="frame"><legend>🎓 ${esc(playerName(N.p))} · ${esc(N.school.city || N.school.name)}</legend><div class="stack">
+      <p class="note">Your career save is ready: <b>${esc(N.out.name)}</b>. Load it in Hoop Land to start his freshman season. It's the file you loaded with only him added and his team's minutes set.</p>
+      <button class="btn big focus" data-act="careerGive"><span class="ico">💾</span> Save the File Again</button>
+      <button class="btn" data-act="careerOpen"><span class="ico">📂</span> Open It in the App</button>
+      <p class="note small muted">Opening it here is optional. If you export it from the app later, the app's usual season passes run on it like any other save.</p>
+    </div></fieldset>` });
+};
+actions.careerGive = () => { const N = state.newCareer; if (N?.out) giveFile(N.out); };
+actions.careerOpen = async () => {
+  const N = state.newCareer; if (!N?.out) return;
+  state.dirty = false;
+  await loadFile(N.out);
+  const st = careerStore(); st.started = { yr: league().season.currentYear, school: N.school.id }; careerSave(st);
+  state.newCareer = null; state.cp = null;
   goHome();
 };
 
