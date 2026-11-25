@@ -79,7 +79,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.188';
+const APP_VERSION = '0.365.189';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5424,116 +5424,108 @@ function creatorCard() {
 function crDefaults(p) {
   const slot = { 0: 1, 1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 4, 7: 4, 8: 5 }[p.pos] ?? 3;
   const arch = { 1: 'general', 2: 'sharp', 3: '3lvl', 4: 'stretch', 5: 'anchor' }[slot];
-  return { fn: p.fn, ln: p.ln, home: p.home || '', num: p.num ?? 0, school: CR.HIGH_SCHOOLS[0], slot, slot2: null, ht: p.ht, wt: p.wt, arch, arch2: null, addons: [], pot: Math.max(8, Math.min(10, p.pot || 9)), pedigree: 5 };
+  return { v: 2, fn: p.fn, ln: p.ln, home: p.home || '', num: p.num ?? 0, school: CR.HIGH_SCHOOLS[0], slot, slot2: null, ht: p.ht, wt: p.wt, arch, sec: null, pot: Math.max(8, Math.min(10, p.pot || 9)), pedigree: 5, spent: null, skills: [], skillSel: null };
 }
 const crO = () => (state.cp ||= {});
+const CR_GRP = { LAY: 'fin', DNK: 'fin', INS: 'fin', MID: 'sho', TPT: 'sho', FTS: 'sho', DRB: 'pla', PAS: 'pla', ORE: 'pla', DRE: 'def', STL: 'def', BLK: 'def', SPD: 'phy', STR: 'phy', STM: 'phy' };
+const CR_NAMES = { LAY: 'Layup', DNK: 'Dunking', INS: 'Inside Shooting', MID: 'Mid Range', TPT: 'Three Point', FTS: 'Free Throw', DRB: 'Dribbling', PAS: 'Passing', ORE: 'Off. Rebounding', DRE: 'Def. Rebounding', STL: 'Stealing', BLK: 'Blocking', SPD: 'Speed', STR: 'Strength', STM: 'Stamina' };
 screens.creator = () => {
   const r = CR.careerRecruit(state.data);
   if (!r) { goHome(); return; }
   if (!crData) { crLoad(); layout({ title: 'Create Your Player', body: '<div class="spinner"></div><p class="note center">Getting the archetypes…</p>' }); return; }
-  const o = state.cp?.pid === r.p.id ? state.cp : (state.cp = { pid: r.p.id, ...crDefaults(r.p) });
-  // An archetype that doesn't fit the position falls back to the position's first.
+  const o = state.cp?.pid === r.p.id && state.cp.v === 2 ? state.cp : (state.cp = { pid: r.p.id, ...crDefaults(r.p) });
   const fits = CR.archsFor(crData, o.slot);
   if (!fits.some(a => a.id === o.arch)) o.arch = fits[0].id;
-  if (o.arch2 && !fits.some(a => a.id === o.arch2)) o.arch2 = null;
   const b = CR.build(crData, o);
   const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="btn small ${o[k] === v ? 'on focus' : 'off'}" data-act="cpSet" data-k="${k}" data-v='${JSON.stringify(v)}'>${esc(l)}</button>`).join('')}</div>`;
   const step = (k, label, val) => `<div class="pts-row"><span class="grow">${label}</span><button class="btn square" data-act="cpStep" data-k="${k}" data-d="-1" aria-label="Less">−</button><span class="pts-val">${val}</span><button class="btn square" data-act="cpStep" data-k="${k}" data-d="1" aria-label="More">+</button></div>`;
   const ft = h => `${Math.floor(h / 12)}'${h % 12}"`;
+  const stars = v => `${'★'.repeat(Math.floor(v / 2))}${v % 2 ? '½' : ''}`;
   const families = [...new Set(fits.map(a => a.family))];
-  // Archetype cards: the style, how it plays, and who plays it at his position.
+  // 1. Potential, 2. primary archetype (sets the ceilings), 3. secondary trait (bends them).
   const shadesAt = a => { const d = a.slots[o.slot] || {}, lg = (d.legends || []).slice(0, 2); return CR.shadesLine({ legends: lg, today: (d.shades || []).filter(n => !lg.includes(n)).slice(0, 2) }); };
-  const archCard = (k, a) => `<button class="cp-acard ${o[k] === a.id ? 'sel' : ''}" data-act="cpSet" data-k="${k}" data-v='"${a.id}"'><b>${esc(a.name)}</b><span class="small">${esc(CR.ARCH_DESC[a.id] || '')}</span>${shadesAt(a) ? `<span class="small muted">Shades of ${esc(shadesAt(a))}</span>` : ''}</button>`;
-  const archList = (k, allowNone) => `${allowNone ? `<button class="btn small ${!o[k] ? 'on focus' : 'off'}" data-act="cpSet" data-k="${k}" data-v='null'>No secondary</button>` : ''}${families.map(f => `<p class="note small muted cp-fam">${esc(f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(a => archCard(k, a)).join('')}</div>`).join('')}`;
-  // Each rating in the game's colors (finishing blue, shooting green, creating orange, defense red, physicals purple),
-  // with its own − and + for where he starts and how far he can grow.
-  const GRP = { LAY: 'fin', DNK: 'fin', INS: 'fin', MID: 'sho', TPT: 'sho', FTS: 'sho', DRB: 'pla', PAS: 'pla', ORE: 'pla', DRE: 'def', STL: 'def', BLK: 'def', SPD: 'phy', STR: 'phy', STM: 'phy' };
-  const NAMES = { LAY: 'Layup', DNK: 'Dunking', INS: 'Inside', MID: 'Mid-Range', TPT: 'Three-Point', FTS: 'Free Throw', DRB: 'Dribbling', PAS: 'Passing', ORE: 'Off. Rebounding', DRE: 'Def. Rebounding', STL: 'Stealing', BLK: 'Blocking', SPD: 'Speed', STR: 'Strength', STM: 'Stamina' };
-  const pm = (k, w, d, t) => `<button class="btn tiny" data-act="cpRate" data-k="${k}" data-w="${w}" data-d="${d}" data-repeat="1" aria-label="${t}">${d > 0 ? '+' : '−'}</button>`;
-  const rateRow = k => { const [n, c] = b.attributes[k], phys = GRP[k] === 'phy'; return `<div class="cp-row g-${GRP[k]}"><span class="cp-k">${k}<small>${NAMES[k]}</small></span><span class="cp-bar"><i class="cp-c" style="width:${c * 5}%"></i><i class="cp-n" style="width:${n * 5}%"></i></span>
-    <span class="cp-ed">${pm(k, 0, -1, 'Lower')}<b>${n}</b>${pm(k, 0, 1, 'Raise')}</span>${phys ? '<span class="cp-ed"></span>' : `<span class="cp-ed ceil">${pm(k, 1, -1, 'Lower ceiling')}<b>${c}</b>${pm(k, 1, 1, 'Raise ceiling')}</span>`}</div>`; };
+  const archCard = a => `<button class="cp-acard ${o.arch === a.id ? 'sel' : ''}" data-act="cpSet" data-k="arch" data-v='"${a.id}"'><b>${esc(a.name)}</b><span class="small">${esc(CR.ARCH_DESC[a.id] || '')}</span>${shadesAt(a) ? `<span class="small muted">Shades of ${esc(shadesAt(a))}</span>` : ''}</button>`;
+  const secCard = ([id, x]) => `<button class="cp-acard ${o.sec === id ? 'sel' : ''}" data-act="cpSet" data-k="sec" data-v='${o.sec === id ? 'null' : `"${id}"`}'><b>${esc(x.name)}</b><span class="small">${esc(x.note)}</span></button>`;
+  // 4. Ratings: the base, his points on top, his ceiling behind; one pool for any rating.
+  const pm = (k, d) => `<button class="btn tiny" data-act="cpPt" data-k="${k}" data-d="${d}" data-repeat="1" aria-label="${d > 0 ? 'Add a point' : 'Take a point back'}" ${d > 0 ? (b.left <= 0 || b.attributes[k][0] >= 20 ? 'disabled' : '') : ((b.spent[k] || 0) <= 0 ? 'disabled' : '')}>${d > 0 ? '+' : '−'}</button>`;
+  const rateRow = k => { const [n, c] = b.attributes[k], phys = CR_GRP[k] === 'phy', base = phys ? b.body[k] : b.base[k], sp = b.spent[k] || 0;
+    return `<div class="cp-row g-${CR_GRP[k]}"><span class="cp-k">${k}<small>${CR_NAMES[k]}</small></span><span class="cp-bar"><i class="cp-c" style="width:${(phys ? n : c) * 5}%"></i><i class="cp-n" style="width:${n * 5}%"></i></span>
+      <span class="cp-ed">${pm(k, -1)}<b>${n}</b>${pm(k, 1)}</span><span class="cp-cap ${phys ? '' : n > b.ceil[k] ? 'down' : ''}">${phys ? '' : `/${b.ceil[k]}`}${sp ? `<small class="up">+${sp}</small>` : ''}</span></div>`; };
   const groups = [['Finishing', ['LAY', 'DNK', 'INS']], ['Shooting', ['MID', 'TPT', 'FTS']], ['Creating', ['DRB', 'PAS', 'ORE']], ['Defense', ['DRE', 'STL', 'BLK']], ['Physicals', ['SPD', 'STR', 'STM']]];
-  const bars = `<div class="cp-cols"><span></span><span></span><span class="small muted">Now</span><span class="small muted">Ceiling</span></div>${groups.map(([g, ks]) => `<p class="cp-grp g-${GRP[ks[0]]}">${g}</p>${ks.map(rateRow).join('')}`).join('')}`;
-  const lvStep = (k, label, val, note) => `<div class="pts-row"><span class="grow">${label}<br><span class="muted small">${note}</span></span><button class="btn square" data-act="cpLv" data-k="${k}" data-d="-1" data-repeat="1" aria-label="Lower">−</button><span class="pts-val">${val}</span><button class="btn square" data-act="cpLv" data-k="${k}" data-d="1" data-repeat="1" aria-label="Raise">+</button></div>`;
-  // Skills: every skill in the game, by category, in its color; leveled skills get a level.
+  const bars = groups.map(([g, ks]) => `<p class="cp-grp g-${CR_GRP[ks[0]]}">${g}</p>${ks.map(rateRow).join('')}`).join('');
+  // 5. Skills: icons only; tap one for what it does and to equip it.
   const have = new Map((o.skills || []).map(x => [x.id, x]));
   const RNAME = { INS: 'Inside Shooting', DNK: 'Dunking', TPT: 'Three Point Shooting', MID: 'Mid Range Shooting', DRB: 'Dribbling', PAS: 'Passing', STL: 'Stealing', BLK: 'Blocking' };
-  const spUsed = [...have.keys()].reduce((n, id) => n + CR.skillStars(id), 0);
-  // The game's skill screen: icon, stars, what it does, its cost; elite skills want 8 in their rating, 4 a category.
-  const skillsBox = SKILL_CATEGORIES.map(c => { const g = SKILL_GROUP[c.name], n = c.skills.filter(id => have.has(id)).length;
-    return `<p class="cp-grp g-${g}">${c.name} <span class="muted">${n}/${CR.PER_CATEGORY} Skills</span></p><div class="cp-sklist">${c.skills.map(id => { const h = have.get(id), lev = isLeveled(id), need = ELITE_REQUIREMENTS[id], v = need ? b.attributes[need][0] : 0, locked = need && v < CR.CAREER_ELITE_MIN, st = CR.skillStars(id);
-      return `<div class="cp-sk g-${g} ${h ? 'on' : ''} ${locked ? 'locked' : ''}"><button class="cp-skrow" data-act="cpSkill" data-id="${id}"><img class="sk-ico" src="img/skills/${id}.png" alt=""><span class="cp-skt"><span><b>${esc(skillName(id).toUpperCase())}</b> <span class="cp-stars">${'★'.repeat(st)}</span>${locked ? ' <span class="small muted">LOCKED</span>' : ''}${h ? ' <span class="cp-on">✓</span>' : ''}</span><span class="small">${esc(skillDoes(id))}</span>${locked ? `<span class="small down">Minimum ${CR.CAREER_ELITE_MIN} ${RNAME[need] || need} Required (${v / 2})</span>` : ''}</span><span class="cp-cost">Cost: ${st} SP</span></button>${h && lev ? `<span class="cp-ed cp-lv">Level ${['−', '+'].map((x, i) => `<button class="btn tiny" data-act="cpSkillLv" data-id="${id}" data-d="${i ? 1 : -1}">${x}</button>`).join(`<b>${h.level}</b>`)}</span>` : ''}</div>`; }).join('')}</div>`; }).join('');
+  const sel = o.skillSel;
+  const skillGrid = SKILL_CATEGORIES.map(c => { const g = SKILL_GROUP[c.name], n = c.skills.filter(id => have.has(id)).length;
+    return `<div class="cp-skcat g-${g}"><p class="cp-grp g-${g}">${c.name} <span class="muted">${n}/${CR.PER_CATEGORY}</span></p><div class="cp-icons">${c.skills.map(id => `<button class="cp-ico ${have.has(id) ? 'on' : ''} ${sel === id ? 'sel' : ''}" data-act="cpSkillSel" data-id="${id}" aria-label="${esc(skillName(id))}"><img src="img/skills/${id}.png" alt="">${have.has(id) ? '<i>✓</i>' : ''}</button>`).join('')}</div></div>`; }).join('');
+  const skillCard = (() => {
+    if (!sel) return '<p class="note small muted cp-skhint">Tap a skill to see what it does and equip it.</p>';
+    const h = have.get(sel), st = CR.skillStars(sel), need = ELITE_REQUIREMENTS[sel], v = need ? b.attributes[need][0] : 0, locked = need && v < CR.CAREER_ELITE_MIN, cat = SKILL_CATEGORIES.find(c => c.skills.includes(sel));
+    return `<div class="cp-skcard g-${SKILL_GROUP[cat.name]}"><img src="img/skills/${sel}.png" alt=""><div class="cp-skt"><span><b>${esc(skillName(sel).toUpperCase())}</b> <span class="cp-stars">${'★'.repeat(st)}</span> <span class="small muted">${esc(cat.name)} · Cost: ${st} SP</span></span>
+      <span>${esc(skillDoes(sel))}</span>${locked ? `<span class="small down">Minimum ${CR.CAREER_ELITE_MIN} ${RNAME[need] || need} Required (${v / 2})</span>` : ''}
+      <div class="row cp-skbtns"><button class="btn small ${h ? 'off' : 'focus'}" data-act="cpSkill" data-id="${sel}">${h ? 'Unequip' : 'Equip'}</button>${h && isLeveled(sel) ? `<span class="cp-ed">Level ${['−', '+'].map((x, i) => `<button class="btn tiny" data-act="cpSkillLv" data-id="${sel}" data-d="${i ? 1 : -1}">${x}</button>`).join(`<b>${h.level}</b>`)}</span>` : ''}</div></div></div>`;
+  })();
   const ped = CR.PEDIGREE[o.pedigree];
   layout({
     title: 'Create Your Player',
     body: `
       <fieldset class="frame cp-preview"><legend>${esc(b.name)}</legend>
         <div class="cp-head"><b>${esc(`${o.fn} ${o.ln}`.trim() || 'Your player')}</b> <span class="gold">Lv ${b.lvNow}</span> <span class="muted small">→ ${b.lvCeil} ceiling</span><br>
-          <span class="small">${esc(CR.posLabel(o.slot, o.slot2))} · ${ft(o.ht)} · ${o.wt} lb · <span class="stars">${'★'.repeat(Math.floor(o.pot / 2))}${o.pot % 2 ? '½' : ''}</span></span><br>
+          <span class="small">${esc(CR.posLabel(o.slot, o.slot2))} · ${ft(o.ht)} · ${o.wt} lb · <span class="stars">${stars(o.pot)}</span></span><br>
           <span class="small muted">${esc(ped.name)} out of ${esc(o.school)}${b.shades.legends.length || b.shades.today.length ? ` · Shades of <b>${esc(CR.shadesLine(b.shades))}</b>` : ''}</span></div>
-        ${lvStep('floorLv', 'Floor', `Lv ${b.lvNow}`, 'Where he starts')}${lvStep('ceilLv', 'Ceiling', `Lv ${b.lvCeil}`, `His potential tops out at Lv ${b.lvPot}${b.pastPot ? ' · <span class="down">past it</span>' : ''}`)}
-        <div class="cp-bars">${bars}</div>
-        <p class="note small muted">Bright: where he starts. Faded: how far he can grow${b.noRoom ? ' · <span class="down">no room left to grow</span>' : ` · ${b.room} points of room`}.</p>
-        <div class="grid2"><button class="btn small" data-act="cpMax">⬆ Max Everything</button><button class="btn small off" data-act="cpReset">↺ Back to the Build</button></div>
       </fieldset>
+      <fieldset class="frame"><legend>1 · Potential</legend>${seg('pot', [[8, '4★ · Lv 86'], [9, '4.5★ · Lv 93'], [10, '5★ · Lv 100']])}<p class="note small muted">How good he can get: his ceilings add up to it.</p></fieldset>
+      <fieldset class="frame"><legend>2 · Primary Archetype</legend><p class="note small muted">His style sets his ceilings: where the potential goes, rating by rating.</p>${families.map(f => `<p class="note small muted cp-fam">${esc(f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(archCard).join('')}</div>`).join('')}</fieldset>
+      <fieldset class="frame"><legend>3 · Secondary</legend><p class="note small muted">What he adds on top: it bends his ceilings toward it. Tap again to clear.</p><div class="cp-acards">${Object.entries(CR.SECONDARY).map(secCard).join('')}</div></fieldset>
+      <fieldset class="frame"><legend>4 · Upgrade Points</legend>
+        <div class="cp-pool"><span>Points left</span><b class="${b.left ? 'gold' : ''}">${o.pedigree === 9 ? '∞' : b.left}</b><span class="muted small">of ${o.pedigree === 9 ? 'unlimited' : b.pool}</span></div>
+        <p class="note small muted">Put them anywhere: all of them into the three if you want. A rating can go past its ceiling, but past his potential he has no room left to grow there. Bright: now · faded: ceiling · green: your points.</p>
+        <div class="cp-bars">${bars}</div>
+        <div class="grid2"><button class="btn small" data-act="cpAuto">✨ Spend for Me</button><button class="btn small off" data-act="cpClear">↺ Take All Back</button></div>
+      </fieldset>
+      <fieldset class="frame"><legend>5 · Skills (${have.size})</legend><div class="cp-skgrid">${skillGrid}</div>${skillCard}</fieldset>
       <fieldset class="frame"><legend>Who He Is</legend><div class="stack">
         <div class="grid2"><label class="field"><span>First name</span><input data-cp="fn" value="${esc(o.fn)}" maxlength="20"></label><label class="field"><span>Last name</span><input data-cp="ln" value="${esc(o.ln)}" maxlength="24"></label></div>
         <div class="grid2"><label class="field"><span>Hometown</span><input data-cp="home" value="${esc(o.home)}" placeholder="City, ST" maxlength="32"></label><label class="field"><span>Number</span><input data-cp="num" value="${esc(o.num)}" inputmode="numeric" maxlength="2"></label></div>
         <label class="field"><span>High school</span><select data-cp="school">${CR.HIGH_SCHOOLS.map(h => `<option ${h === o.school ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select></label>
-        <span class="note small">Pedigree</span>${seg('pedigree', [[3, '3★'], [4, '4★'], [5, '5★'], [6, 'Top 10']])}
-        <span class="note small muted">How highly he's recruited sets where his ratings start, not how good he can get.</span>
+        <span class="note small">Pedigree <span class="muted">(how many upgrade points he gets)</span></span>${seg('pedigree', [[3, '3★'], [4, '4★'], [5, '5★'], [6, 'Top 10'], [9, 'Sandbox']])}
       </div></fieldset>
       <fieldset class="frame"><legend>Position & Body</legend><div class="stack">
         <span class="note small">Primary position</span>${seg('slot', [1, 2, 3, 4, 5].map(s => [s, CR.SLOT_SHORT[s]]))}
         <span class="note small">Secondary position</span>${seg('slot2', [[null, 'None'], ...[1, 2, 3, 4, 5].filter(s => s !== o.slot).map(s => [s, CR.SLOT_SHORT[s]])])}
         <span class="note small muted">${esc(CR.posLabel(o.slot, o.slot2))}: the game plays him at ${esc(POSITIONS[b.pos] ?? '')}; the app keeps both for lineups and minutes.</span>
         ${step('ht', 'Height', ft(o.ht))}${step('wt', 'Weight', `${o.wt} lb`)}
-      </div></fieldset>
-      <fieldset class="frame"><legend>Archetype</legend><div class="stack">
-        <span class="note small">Primary</span>${archList('arch', false)}
-        <span class="note small">Secondary</span>${archList('arch2', true)}
-        <span class="note small">Add-ons <span class="muted">(they move points, they don't add them)</span></span>
-        <div class="cp-arch">${Object.entries(CR.ADDONS).map(([id, a]) => `<button class="btn small ${o.addons.includes(id) ? 'on focus' : 'off'}" data-act="cpAddon" data-id="${id}" title="${esc(a.note)}">${esc(a.name)}</button>`).join('')}</div>
-      </div></fieldset>
-      <fieldset class="frame"><legend>Skills (${have.size})</legend><p class="note small muted">Every skill in the game, as its skill screen shows it. Tap to add or remove (up to ${CR.PER_CATEGORY} a category); the 2- and 3-star ones take a level. ${spUsed} skill point${spUsed === 1 ? '' : 's'} worth picked.</p>${skillsBox}</fieldset>
-      <fieldset class="frame"><legend>Potential</legend>${seg('pot', [[8, '4★ · Lv 86'], [9, '4.5★ · Lv 93'], [10, '5★ · Lv 100']])}</fieldset>`,
+      </div></fieldset>`,
     action: { act: 'cpApply', label: 'Create Him' },
   });
 };
-actions.cpSet = d => { const o = crO(); o[d.k] = JSON.parse(d.v); if (d.k === 'pot') { delete o.ceilLv; o.edits = {}; } if (d.k === 'pedigree') { delete o.floorLv; o.edits = {}; } if (d.k === 'slot' && o.slot2 === o.slot) o.slot2 = null; if (d.k === 'slot') { const H = { 1: 75, 2: 77, 3: 80, 4: 82, 5: 84 }[o.slot], W = { 1: 190, 2: 205, 3: 220, 4: 235, 5: 250 }[o.slot]; o.ht = H; o.wt = W; } render(); };
-actions.cpStep = d => { const o = crO(); if (d.k === 'ht') o.ht = Math.max(68, Math.min(90, o.ht + +d.d)); else o.wt = Math.max(160, Math.min(320, o.wt + 5 * +d.d)); render(); };
+// Anything that reshapes the build (potential, style, secondary, position, body, pedigree) starts the points over,
+// spent for you; your own spending stays only while the build stays the same.
+const CR_RESHAPE = new Set(['pot', 'arch', 'sec', 'slot', 'slot2', 'pedigree']);
+actions.cpSet = d => { const o = crO(); o[d.k] = JSON.parse(d.v); if (d.k === 'slot' && o.slot2 === o.slot) o.slot2 = null; if (d.k === 'slot') { o.ht = { 1: 75, 2: 77, 3: 80, 4: 82, 5: 84 }[o.slot]; o.wt = { 1: 190, 2: 205, 3: 220, 4: 235, 5: 250 }[o.slot]; } if (CR_RESHAPE.has(d.k)) o.spent = null; render(); cpWarn(); };
+actions.cpStep = d => { const o = crO(); if (d.k === 'ht') o.ht = Math.max(68, Math.min(90, o.ht + +d.d)); else o.wt = Math.max(160, Math.min(320, o.wt + 5 * +d.d)); o.spent = null; render(); };
+// A point on (or off) one rating, from the one pool.
+actions.cpPt = d => {
+  const o = crO(), b = CR.build(crData, o), sp = { ...b.spent }, k = d.k;
+  if (+d.d > 0) { if (b.left <= 0 || b.attributes[k][0] >= 20) return; sp[k] = (sp[k] || 0) + 1; }
+  else { if (!(sp[k] > 0)) return; sp[k] -= 1; }
+  o.spent = sp; render(); cpWarn();
+};
+actions.cpAuto = () => { crO().spent = null; render(); cpWarn(); };
+actions.cpClear = () => { crO().spent = {}; render(); cpWarn(); };
 // Past his potential or out of room to grow: say so once, when he crosses the line.
 function cpWarn() {
   const r = CR.careerRecruit(state.data), o = state.cp; if (!r || !o || !crData) return;
-  const b = CR.build(crData, o);
-  const stars = `${'★'.repeat(Math.floor(o.pot / 2))}${o.pot % 2 ? '½' : ''}`, msg = [];
-  if (b.pastPot && !o.warnPot) msg.push(`<b>Past his potential.</b> His ceilings add up to Lv ${b.lvCeil}, more than his ${stars} potential allows (Lv ${b.lvPot}). Everything above it is handed to him: there's no more room for progression past his potential.`);
+  const b = CR.build(crData, o), msg = [];
+  if (b.pastPot && !o.warnPot) msg.push(`<b>Past his potential.</b> Some of his ratings are above their ceiling: his ${'★'.repeat(Math.floor(o.pot / 2))}${o.pot % 2 ? '½' : ''} potential won't take them any higher. There's no more room for progression there.`);
   if (b.noRoom && !o.warnRoom) msg.push(`<b>No more room for progression.</b> He starts at his ceiling (Lv ${b.lvNow}): games, practice and upgrade points have nothing left to raise.`);
   o.warnPot = b.pastPot; o.warnRoom = b.noRoom;
   if (msg.length) { SFX.play('error'); choiceBox(msg.join('<br><br>'), [['ok', 'Got It', 'focus']]); }
 }
-actions.cpLv = d => {
-  const o = crO(), b = CR.build(crData, { ...o, edits: {} });
-  const cur = { floorLv: b.lvNow, ceilLv: b.lvCeil }[d.k];
-  o[d.k] = Math.max(d.k === 'floorLv' ? 20 : 30, Math.min(136, (o[d.k] ?? cur) + +d.d));
-  if (d.k === 'floorLv' && o.floorLv > (o.ceilLv ?? b.lvCeil)) o.ceilLv = o.floorLv;
-  if (d.k === 'ceilLv' && o.ceilLv < (o.floorLv ?? b.lvNow)) o.floorLv = o.ceilLv;
-  o.edits = {};   // a new level reshapes every rating
-  render(); cpWarn();
-};
-actions.cpRate = d => {
-  const o = crO(), b = CR.build(crData, o), [n, c] = b.attributes[d.k], phys = ['SPD', 'STR', 'STM'].includes(d.k);
-  let nn = n, cc = c;
-  if (+d.w === 0) { nn = Math.max(1, Math.min(20, n + +d.d)); if (nn > cc || phys) cc = Math.max(cc, nn); if (phys) cc = nn; }
-  else { cc = Math.max(1, Math.min(20, c + +d.d)); if (cc < nn) nn = cc; }
-  (o.edits ||= {})[d.k] = [nn, cc];
-  render(); cpWarn();
-};
-actions.cpMax = () => { const o = crO(); o.edits = Object.fromEntries([...CR.RATINGS, 'SPD', 'STR', 'STM'].map(k => [k, [20, 20]])); render(); cpWarn(); };
-actions.cpReset = () => { const o = crO(); o.edits = {}; delete o.floorLv; delete o.ceilLv; render(); cpWarn(); };
-actions.cpSkill = d => { const o = crO(); o.skills ||= []; const i = o.skills.findIndex(x => x.id === d.id); if (i >= 0) o.skills.splice(i, 1); else { const cat = SKILL_CATEGORIES.find(c => c.skills.includes(d.id)); if (o.skills.filter(x => cat.skills.includes(x.id)).length >= CR.PER_CATEGORY) { toast(`${cat.name} is full`, `${CR.PER_CATEGORY} skills a category, as in the game. Drop one to add ${skillName(d.id)}.`, 3200, true); return; } o.skills.push({ id: d.id, level: 1 }); } render(); };
+actions.cpSkillSel = d => { const o = crO(); o.skillSel = o.skillSel === d.id ? null : d.id; render(); };
+actions.cpSkill = d => { const o = crO(); o.skills ||= []; const i = o.skills.findIndex(x => x.id === d.id); if (i >= 0) o.skills.splice(i, 1); else { const cat = SKILL_CATEGORIES.find(c => c.skills.includes(d.id)); if (o.skills.filter(x => cat.skills.includes(x.id)).length >= CR.PER_CATEGORY) { toast(`${cat.name} is full`, `${CR.PER_CATEGORY} skills a category, as in the game. Unequip one to add ${skillName(d.id)}.`, 3200, true); return; } o.skills.push({ id: d.id, level: 1 }); SFX.play('coin'); } render(); };
 actions.cpSkillLv = d => { const o = crO(), x = (o.skills || []).find(y => y.id === d.id); if (x) x.level = Math.max(1, Math.min(SKILL_MAX_LEVEL, x.level + +d.d)); render(); };
-actions.cpAddon = d => { const o = crO(); o.addons = o.addons.includes(d.id) ? o.addons.filter(x => x !== d.id) : o.addons.length >= 2 ? [...o.addons.slice(1), d.id] : [...o.addons, d.id]; render(); };
 $app.addEventListener('change', e => { const k = e.target.dataset?.cp; if (!k || !state.cp) return; state.cp[k] = e.target.value; render(); });
 actions.cpApply = async () => {
   const r = CR.careerRecruit(state.data), o = state.cp;

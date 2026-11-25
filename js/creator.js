@@ -1,9 +1,9 @@
 // Create Your Player: the app's deeper version of the game's creator, for a career save at its start (the high school
 // showcase, before the college offers). The archetypes come from the real NBA file (data/creator/archetypes.json): for
 // each one and each position, how the players who play that way spread their ratings, their habits, and who they are
-// ("shades of"). The build is a primary and a secondary archetype (60/40), add-ons that trade points rather than add
-// them, a primary and a secondary position, a body, a potential (4, 4.5 or 5 stars: the ceilings' total) and a
-// pedigree (how highly recruited he is: where his ratings start).
+// ("shades of"). The build: a potential (4, 4.5 or 5 stars), a primary archetype that sets his ceilings to it, a
+// secondary trait that bends those ceilings a little (High-Flying, 2-Way, Crafty...), then a pool of upgrade points
+// you spend on any rating you like (the game splits its points by category; here it's one pool).
 //
 // What the game expects of a recruit, read off its own career saves: he sits on a showcase team (starTeams) at 17,
 // ratings stored [now, ceiling], tendencies -5..5, no skills yet, arc empty until the game names him.
@@ -26,18 +26,27 @@ export function posLabel(slot, slot2) {
   return combo || `${SLOT_SHORT[slot]} / ${SLOT_SHORT[slot2]}`;
 }
 
-export const ADDONS = {
-  twoway: { name: '2-Way', note: 'Defense versatility: points move into steals, blocks and defensive boards', w: { STL: 1.45, BLK: 1.35, DRE: 1.3 } },
-  crafty: { name: 'Crafty', note: 'Touch: layups, the mid-range and free throws', w: { LAY: 1.2, MID: 1.2, FTS: 1.15 } },
-  athletic: { name: 'Athletic', note: 'Above the rim: dunks, and a step quicker', w: { DNK: 1.35 }, phys: { SPD: 1.5 } },
-  glass: { name: 'Glass-Cleaning', note: 'Crashes both boards', w: { ORE: 1.45, DRE: 1.35 } },
-  range: { name: 'Deep Range', note: 'Three-point range on top of his game', w: { TPT: 1.35 } },
-  handles: { name: 'Tight Handles', note: 'Dribbling and passing', w: { DRB: 1.3, PAS: 1.15 } },
+// Secondary traits: what he adds on top of his primary style. Each one bends his ceilings toward it (points move, the
+// total doesn't), and a couple add to his body.
+export const SECONDARY = {
+  flyer: { name: 'High-Flying', note: 'Super athletic: speed and dunking', w: { DNK: 1.45, LAY: 1.1 }, body: { SPD: 2 }, lead: 'High-Flying' },
+  twoway: { name: '2-Way', note: 'Defense on top of his game: steals, blocks, defensive boards', w: { STL: 1.45, BLK: 1.35, DRE: 1.3 }, lead: '2-Way' },
+  crafty: { name: 'Crafty', note: 'Touch around the basket: layups and inside scoring', w: { LAY: 1.35, INS: 1.35 }, lead: 'Crafty' },
+  sniper: { name: 'Sharpshooting', note: 'Range: the three and the mid-range', w: { TPT: 1.45, MID: 1.15 }, lead: 'Sharpshooting' },
+  handles: { name: 'Playmaking', note: 'Handle and vision: dribbling and passing', w: { DRB: 1.3, PAS: 1.35 }, lead: 'Playmaking' },
+  glass: { name: 'Glass-Cleaning', note: 'Crashes both boards', w: { ORE: 1.5, DRE: 1.35 }, body: { STR: 1 }, lead: 'Rebounding' },
+  power: { name: 'Bruiser', note: 'Strength and post scoring', w: { INS: 1.35, DNK: 1.15 }, body: { STR: 2 }, lead: 'Bruising' },
+  lockdown: { name: 'Lockdown', note: 'A stopper on the ball: steals and quick feet', w: { STL: 1.6 }, body: { SPD: 1 }, lead: 'Lockdown' },
 };
+export const ADDONS = SECONDARY;   // the old name
+// Upgrade points: his pedigree sets how many he gets to spend (on top of a base every recruit starts with). Sandbox: as
+// many as it takes to max everything.
+export const BASE_LV = 40;
 // Potential: the ceilings' total (the app's cap: 168 at 5 stars, 14 fewer each half star down).
 export const TIERS = { 8: { stars: '4', cap: 140 }, 9: { stars: '4.5', cap: 154 }, 10: { stars: '5', cap: 168 } };
 // Pedigree: how highly he was recruited sets where his ratings start (the game's own 5-star showcase kids run 58-70).
-export const PEDIGREE = { 3: { name: 'Three-star recruit', lv: 52 }, 4: { name: 'Four-star recruit', lv: 57 }, 5: { name: 'Five-star recruit', lv: 62 }, 6: { name: 'Top-10 recruit in the country', lv: 66 } };
+export const PEDIGREE = { 3: { name: 'Three-star recruit', lv: 52 }, 4: { name: 'Four-star recruit', lv: 57 }, 5: { name: 'Five-star recruit', lv: 62 }, 6: { name: 'Top-10 recruit in the country', lv: 66 }, 9: { name: 'Sandbox', lv: 136 } };
+export const POINTS = ped => 168 - 2 * (100 - PEDIGREE[ped].lv) - (168 - 2 * (100 - BASE_LV));
 export const HIGH_SCHOOLS = [
   'Montverde Academy (FL)', 'IMG Academy (FL)', 'Oak Hill Academy (VA)', 'Sierra Canyon (CA)', 'La Lumiere School (IN)', 'Prolific Prep (CA)',
   'Link Academy (MO)', 'Brewster Academy (NH)', 'Columbus (Miami, FL)', 'Duncanville (TX)', 'Mater Dei (CA)', 'Long Island Lutheran (NY)',
@@ -102,70 +111,67 @@ export const archById = (data, id) => data.archetypes.find(a => a.id === id);
 export const archsFor = (data, slot) => data.archetypes.filter(a => a.slots[slot]);
 const slotData = (a, slot) => a.slots[slot] || a.slots[Object.keys(a.slots).map(Number).sort((x, y) => Math.abs(x - slot) - Math.abs(y - slot))[0]];
 
-// The whole build. o: { slot, slot2, ht, wt, arch, arch2, addons: [], pot (8|9|10), pedigree (3..6) }.
+// The whole build. o: { slot, slot2, ht, wt, arch, sec, pot (8|9|10), pedigree, spent: { rating: points } | null }.
+// Ceilings: the primary archetype at his position, scaled to his potential, bent by the secondary trait. Ratings: a
+// base in the same shape, then the points (spent: yours; null: spent for you along the build).
 export function build(data, o) {
   const slot = o.slot, slot2 = o.slot2 && o.slot2 !== o.slot ? o.slot2 : null;
   const B = data.base[slot], B2 = slot2 ? data.base[slot2] : null;
-  // His position's shape, a quarter of the way toward the second position's.
   const shape = Object.fromEntries(RATINGS.map(k => [k, B2 ? B.shape[k] * 0.75 + B2.shape[k] * 0.25 : B.shape[k]]));
-  const a1 = archById(data, o.arch), a2 = o.arch2 && o.arch2 !== o.arch ? archById(data, o.arch2) : null;
-  const e1 = slotData(a1, slot), e2 = a2 ? slotData(a2, slot) : null;
+  const a1 = archById(data, o.arch), e1 = slotData(a1, slot), S = SECONDARY[o.sec] || null;
   const w = {};
   for (const k of RATINGS) {
-    let e = e2 ? (e1.emph[k] ** 0.6) * (e2.emph[k] ** 0.4) : e1.emph[k];
+    let e = e1.emph[k];
     if (a1.sig.includes(k)) e *= 1.25;
-    if (a2?.sig.includes(k)) e *= 1.12;
-    for (const id of o.addons || []) e *= ADDONS[id]?.w?.[k] || 1;
+    if (S?.w?.[k]) e *= S.w[k];
     w[k] = shape[k] * e ** 1.6;
   }
   const cap = Object.fromEntries(RATINGS.map(k => [k, sizeCap(k, o.ht)]));
-  // Floors for what his position needs at any archetype: a guard handles it, a big blocks and rebounds.
   const NEED = { 1: { DRB: 12, PAS: 9 }, 2: { DRB: 10 }, 3: {}, 4: { BLK: 8, DRE: 11, ORE: 7, INS: 9 }, 5: { BLK: 9, DRE: 12, ORE: 8, INS: 10, DNK: 9 } }[slot];
-  // Ceiling: his ceiling level (the potential's by default; you can set it anywhere, up to every rating at 20).
-  const ceilLv = o.ceilLv ?? lvOf(TIERS[o.pot].cap);
-  let ceilT = clamp(totalFor(ceilLv), 24, 240);
-  const roomAll = RATINGS.reduce((s, k) => s + cap[k], 0);
-  const cap2 = ceilT > roomAll ? Object.fromEntries(RATINGS.map(k => [k, 20])) : cap;   // past what his size allows: the size caps lift
-  const ceil = spread(w, ceilT, cap2, Object.fromEntries(RATINGS.map(k => [k, Math.min(cap2[k], NEED[k] ?? 3)])));
-  // Floor: where he starts (his pedigree's level by default; you can set it), never above a ceiling.
-  const floorLv = o.floorLv ?? Math.min(PEDIGREE[o.pedigree].lv + (o.pot - 9), lvOf(TIERS[o.pot].cap) - 10);
-  const now = spread(w, Math.min(clamp(totalFor(floorLv), 12, 240), RATINGS.reduce((s, k) => s + ceil[k], 0)), ceil);
+  const ceil = spread(w, TIERS[o.pot].cap, cap, Object.fromEntries(RATINGS.map(k => [k, Math.min(cap[k], NEED[k] ?? 3)])));
   // Body: strength from his weight against his position, speed the other way; stamina high (he's 17).
   const ph = B.phys, wtD = (o.wt - B.wt);
-  const athletic = (o.addons || []).includes('athletic') ? 1.5 : 0;
-  const STR = clamp(Math.round(ph.STR - 2 + wtD / 10), 3, 20), SPD = clamp(Math.round(ph.SPD - 0.5 - wtD / 14 + athletic), 3, 20), STM = clamp(Math.round(ph.STM), 10, 20);
-  const attributes = Object.fromEntries(RATINGS.map(k => [k, [now[k], ceil[k]]]));
-  Object.assign(attributes, { STR: [STR, STR], SPD: [SPD, SPD], STM: [STM, STM] });
-  // Your own edits on top, rating by rating (now, ceiling): anything from 1 to 20, a ceiling never under now.
-  for (const [k, [n, c]] of Object.entries(o.edits || {})) if (attributes[k]) { const nn = clamp(n, 1, 20); attributes[k] = [nn, clamp(Math.max(c, nn), 1, 20)]; }
-  // Habits: his position's, bent by what his archetypes do more (or less) than the position does.
+  const body = { STR: clamp(Math.round(ph.STR - 2 + wtD / 10 + (S?.body?.STR || 0)), 3, 20), SPD: clamp(Math.round(ph.SPD - 0.5 - wtD / 14 + (S?.body?.SPD || 0)), 3, 20), STM: clamp(Math.round(ph.STM), 10, 20) };
+  // The base every recruit starts from, and the points on top.
+  const base = spread(w, totalFor(BASE_LV), ceil);
+  const ALL = [...RATINGS, 'SPD', 'STR', 'STM'];
+  const pool = POINTS(o.pedigree);
+  const spent = o.spent || autoSpend(w, base, ceil, pool);
+  const used = ALL.reduce((n, k) => n + (spent[k] || 0), 0);
+  const now = Object.fromEntries(RATINGS.map(k => [k, clamp(base[k] + (spent[k] || 0), 1, 20)]));
+  const attributes = Object.fromEntries(RATINGS.map(k => [k, [now[k], Math.max(ceil[k], now[k])]]));
+  for (const k of ['SPD', 'STR', 'STM']) { const v = clamp(body[k] + (spent[k] || 0), 1, 20); attributes[k] = [v, v]; }
+  // Habits: his position's, bent by what his style does more (or less) than the position does.
   const tend = {};
   for (const k of data.tendKeys) {
-    const v = (B.tend[k] ?? 0) + (e1.tend[k] ?? 0) * 0.7 + (e2 ? (e2.tend[k] ?? 0) * 0.4 : 0) + ((o.addons || []).includes('twoway') && /steal|block|takeCharge/.test(k) ? 1 : 0)
-      + ((o.addons || []).includes('range') && k === 'threePoint' ? 1 : 0) + ((o.addons || []).includes('athletic') && /dunk|lob/.test(k) ? 1 : 0) + ((o.addons || []).includes('glass') && /Reb/.test(k) ? 1 : 0);
+    const v = (B.tend[k] ?? 0) + (e1.tend[k] ?? 0) * 0.8 + (o.sec === 'twoway' && /steal|block|takeCharge/.test(k) ? 1 : 0) + (o.sec === 'sniper' && k === 'threePoint' ? 2 : 0)
+      + (o.sec === 'flyer' && /dunk|lob/.test(k) ? 2 : 0) + (o.sec === 'glass' && /Reb/.test(k) ? 2 : 0) + (o.sec === 'crafty' && /floater|twoPoint/.test(k) ? 1 : 0)
+      + (o.sec === 'handles' && /pass|cross/.test(k) ? 1 : 0) + (o.sec === 'power' && /post|hook/.test(k) ? 2 : 0) + (o.sec === 'lockdown' && k === 'stealOnBall' ? 2 : 0);
     tend[k] = clamp(Math.round(v), -5, 5);
   }
-  const nowT = RATINGS.reduce((s, k) => s + attributes[k][0], 0), ceilSum = RATINGS.reduce((s, k) => s + attributes[k][1], 0), potCap = TIERS[o.pot].cap;
+  const nowT = RATINGS.reduce((n, k) => n + attributes[k][0], 0), ceilT = RATINGS.reduce((n, k) => n + ceil[k], 0), potCap = TIERS[o.pot].cap;
   return {
-    attributes, tendencies: tend, pos: gamePos(slot, slot2), lvNow: lvOf(nowT), lvCeil: lvOf(ceilSum), lvPot: lvOf(potCap),
-    pastPot: ceilSum > potCap,             // his ceilings run past what his potential allows
-    noRoom: nowT >= ceilSum,               // he starts at his ceiling: nothing left to grow into
-    room: ceilSum - nowT, name: archName(data, o), shades: shadesFor(data, o),
+    attributes, base, ceil, body, spent, pool, used, left: pool - used, tendencies: tend, pos: gamePos(slot, slot2),
+    lvNow: lvOf(nowT), lvCeil: lvOf(RATINGS.reduce((n, k) => n + attributes[k][1], 0)), lvPot: lvOf(potCap),
+    pastPot: RATINGS.some(k => now[k] > ceil[k]),   // points past a ceiling: beyond what his potential lets him grow to
+    noRoom: nowT >= ceilT,
+    name: archName(data, o), shades: shadesFor(data, o),
   };
+}
+// Points spent for you: along the build's shape, up to each ceiling.
+function autoSpend(w, base, ceil, pool) {
+  const target = spread(w, Math.min(RATINGS.reduce((n, k) => n + base[k], 0) + pool, RATINGS.reduce((n, k) => n + ceil[k], 0)), ceil, base);
+  return Object.fromEntries(RATINGS.map(k => [k, target[k] - base[k]]));
 }
 // The archetype's name: "2-Way 3-Level Scorer", "Crafty Playmaking Big" (2-Way always leads).
 export function archName(data, o) {
-  const a1 = archById(data, o.arch), a2 = o.arch2 && o.arch2 !== o.arch ? archById(data, o.arch2) : null;
-  const ad = o.addons || [];
-  const lead = [ad.includes('twoway') && '2-Way', ad.includes('crafty') && 'Crafty', ad.includes('athletic') && 'Athletic'].filter(Boolean);
-  const mid = a2 ? ({ sharp: 'Sharpshooting', spot: 'Floor-Spacing', slasher: 'Slashing', flyer: 'High-Flying', general: 'Playmaking', playscorer: 'Playmaking', pointfwd: 'Playmaking', playbig: 'Playmaking', glass: 'Rebounding', anchor: 'Rim-Protecting', lockdown: 'Lockdown', creator: 'Shot-Creating', midrange: 'Mid-Range', post: 'Post', '3lvl': '3-Level', insideout: 'Inside-Out', stretch: 'Stretch', runner: 'Rim-Running', switch: 'Switchable', unicorn: 'Unicorn' }[a2.id] || '') : '';
-  return [...lead, mid, a1.name].filter(Boolean).join(' ');
+  const a1 = archById(data, o.arch), S = SECONDARY[o.sec];
+  return [S?.lead, a1.name].filter(Boolean).join(' ');
 }
 // Shades of: the all-time greats who played his primary style at his spot, and today's 4.5- and 5-star players who do
 // (his secondary style's when they share names, then the rest).
 export function shadesFor(data, o) {
-  const a1 = archById(data, o.arch), a2 = o.arch2 && o.arch2 !== o.arch ? archById(data, o.arch2) : null;
-  const d1 = slotData(a1, o.slot) || {}, d2 = a2 ? (slotData(a2, o.slot) || {}) : {};
+  const a1 = archById(data, o.arch), d1 = slotData(a1, o.slot) || {}, d2 = {};
   const pick = (x, y, n) => { const both = (x || []).filter(v => (y || []).includes(v)); return [...new Set([...both, ...(x || []), ...(y || [])])].slice(0, n); };
   const legends = pick(d1.legends, d2.legends, 2);
   return { legends, today: pick(d1.shades, d2.shades, 4).filter(n => !legends.includes(n)).slice(0, 2) };
