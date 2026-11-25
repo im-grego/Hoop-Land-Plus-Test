@@ -161,13 +161,16 @@ export function archName(data, o) {
   const mid = a2 ? ({ sharp: 'Sharpshooting', spot: 'Floor-Spacing', slasher: 'Slashing', flyer: 'High-Flying', general: 'Playmaking', playscorer: 'Playmaking', pointfwd: 'Playmaking', playbig: 'Playmaking', glass: 'Rebounding', anchor: 'Rim-Protecting', lockdown: 'Lockdown', creator: 'Shot-Creating', midrange: 'Mid-Range', post: 'Post', '3lvl': '3-Level', insideout: 'Inside-Out', stretch: 'Stretch', runner: 'Rim-Running', switch: 'Switchable', unicorn: 'Unicorn' }[a2.id] || '') : '';
   return [...lead, mid, a1.name].filter(Boolean).join(' ');
 }
-// Shades of: the real players who play his primary style at his position (and his secondary's, if there's room).
+// Shades of: the all-time greats who played his primary style at his spot, and today's 4.5- and 5-star players who do
+// (his secondary style's when they share names, then the rest).
 export function shadesFor(data, o) {
   const a1 = archById(data, o.arch), a2 = o.arch2 && o.arch2 !== o.arch ? archById(data, o.arch2) : null;
-  const s1 = slotData(a1, o.slot).shades || [], s2 = a2 ? (slotData(a2, o.slot).shades || []) : [];
-  const both = s1.filter(n => s2.includes(n));
-  return [...new Set([...both, ...s1, ...s2])].slice(0, 3);
+  const d1 = slotData(a1, o.slot) || {}, d2 = a2 ? (slotData(a2, o.slot) || {}) : {};
+  const pick = (x, y, n) => { const both = (x || []).filter(v => (y || []).includes(v)); return [...new Set([...both, ...(x || []), ...(y || [])])].slice(0, n); };
+  return { legends: pick(d1.legends, d2.legends, 2), today: pick(d1.shades, d2.shades, 2) };
 }
+// "Shades of Kobe Bryant, Dwyane Wade · today: Devin Booker"
+export const shadesLine = sh => [sh.legends.length ? sh.legends.join(', ') : '', sh.today.length ? `today: ${sh.today.join(', ')}` : ''].filter(Boolean).join(' · ');
 // The game's career recruit in a save at the start of a career: on a showcase team, before the college offers.
 export function careerRecruit(save) {
   for (let li = 0; li < (save?.seasonLeagues || []).length; li++) {

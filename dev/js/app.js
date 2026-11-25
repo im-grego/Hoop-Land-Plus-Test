@@ -79,7 +79,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.186';
+const APP_VERSION = '0.365.187';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = APP_VERSION;
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -5442,8 +5442,8 @@ screens.creator = () => {
   const ft = h => `${Math.floor(h / 12)}'${h % 12}"`;
   const families = [...new Set(fits.map(a => a.family))];
   // Archetype cards: the style, how it plays, and who plays it at his position.
-  const shadesAt = a => (a.slots[o.slot] || {}).shades || [];
-  const archCard = (k, a) => `<button class="cp-acard ${o[k] === a.id ? 'sel' : ''}" data-act="cpSet" data-k="${k}" data-v='"${a.id}"'><b>${esc(a.name)}</b><span class="small">${esc(CR.ARCH_DESC[a.id] || '')}</span>${shadesAt(a).length ? `<span class="small muted">Shades of ${esc(shadesAt(a).slice(0, 2).join(', '))}</span>` : ''}</button>`;
+  const shadesAt = a => { const d = a.slots[o.slot] || {}; return CR.shadesLine({ legends: (d.legends || []).slice(0, 2), today: (d.shades || []).slice(0, 2) }); };
+  const archCard = (k, a) => `<button class="cp-acard ${o[k] === a.id ? 'sel' : ''}" data-act="cpSet" data-k="${k}" data-v='"${a.id}"'><b>${esc(a.name)}</b><span class="small">${esc(CR.ARCH_DESC[a.id] || '')}</span>${shadesAt(a) ? `<span class="small muted">Shades of ${esc(shadesAt(a))}</span>` : ''}</button>`;
   const archList = (k, allowNone) => `${allowNone ? `<button class="btn small ${!o[k] ? 'on focus' : 'off'}" data-act="cpSet" data-k="${k}" data-v='null'>No secondary</button>` : ''}${families.map(f => `<p class="note small muted cp-fam">${esc(f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(a => archCard(k, a)).join('')}</div>`).join('')}`;
   // Each rating in the game's colors (finishing blue, shooting green, creating orange, defense red, physicals purple),
   // with its own − and + for where he starts and how far he can grow.
@@ -5470,7 +5470,7 @@ screens.creator = () => {
       <fieldset class="frame cp-preview"><legend>${esc(b.name)}</legend>
         <div class="cp-head"><b>${esc(`${o.fn} ${o.ln}`.trim() || 'Your player')}</b> <span class="gold">Lv ${b.lvNow}</span> <span class="muted small">→ ${b.lvCeil} ceiling</span><br>
           <span class="small">${esc(CR.posLabel(o.slot, o.slot2))} · ${ft(o.ht)} · ${o.wt} lb · <span class="stars">${'★'.repeat(Math.floor(o.pot / 2))}${o.pot % 2 ? '½' : ''}</span></span><br>
-          <span class="small muted">${esc(ped.name)} out of ${esc(o.school)}${b.shades.length ? ` · Shades of <b>${esc(b.shades.join(', '))}</b>` : ''}</span></div>
+          <span class="small muted">${esc(ped.name)} out of ${esc(o.school)}${b.shades.legends.length || b.shades.today.length ? ` · Shades of <b>${esc(CR.shadesLine(b.shades))}</b>` : ''}</span></div>
         ${lvStep('floorLv', 'Floor', `Lv ${b.lvNow}`, 'Where he starts')}${lvStep('ceilLv', 'Ceiling', `Lv ${b.lvCeil}`, `His potential tops out at Lv ${b.lvPot}${b.pastPot ? ' · <span class="down">past it</span>' : ''}`)}
         <div class="cp-bars">${bars}</div>
         <p class="note small muted">Bright: where he starts. Faded: how far he can grow${b.noRoom ? ' · <span class="down">no room left to grow</span>' : ` · ${b.room} points of room`}.</p>
