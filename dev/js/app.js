@@ -83,7 +83,7 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.203';
+const APP_VERSION = '0.365.204';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
 const SHOWN_VERSION = 'Beta 0.2.1';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
@@ -1932,6 +1932,8 @@ function buildExport() {
   // Skills go into the file best first (a skill that overtook another moves ahead of it).
   for (const L of state.data.seasonLeagues) for (const p of [...L.teams.flatMap(t => t.roster), ...(L.freeAgents || []), ...(L.draftClass || [])]) sortSkills(p);
   floorPhysicals(state.data);
+  // The game's CPU Trading setting for the pro league, from the app's (on unless you turn it off).
+  for (const L of state.data.seasonLeagues) if (L.leagueType === 0 && L.season) L.season.cpuTrading = state.params.cpuTrading !== false;
   // The game's cap becomes this season's 2nd apron (room for in-season
   // moves), with the max contract tiers scaled so a max is still 25 / 30 /
   // 35% of the real cap.
@@ -5125,11 +5127,17 @@ function tradeBlockCard() {
 // The app's own data files (the season list and season starts): from this site, and when that can't be reached (a
 // network blip, a domain hiccup), the same file from a public mirror of the live repo.
 const DATA_MIRROR = 'https://cdn.jsdelivr.net/gh/im-grego/hoop-land-plus@main/';
+// An 8-second limit for an answer (not the whole download), so a host that's stuck falls through to the mirror.
+async function fetchWithin(url, opts = {}, ms = 8000) {
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), ms) : null;
+  try { return await fetch(url, ctl ? { ...opts, signal: ctl.signal } : opts); } finally { if (timer) clearTimeout(timer); }
+}
 async function fetchData(path, opts = {}) {
   let err;
-  try { const r = await fetch(path, opts); if (r.ok) return r; err = new Error(`${r.status}`); } catch (e) { err = e; }
+  try { const r = await fetchWithin(path, opts); if (r.ok) return r; err = new Error(`${r.status}`); } catch (e) { err = e.name === 'AbortError' ? new Error('the site took too long') : e; }
   if (liveSite()) {
-    try { const r = await fetch(DATA_MIRROR + path, { cache: 'no-cache' }); if (r.ok) return r; } catch { /* the first error stands */ }
+    try { const r = await fetchWithin(DATA_MIRROR + path, { cache: 'no-cache' }, 15000); if (r.ok) return r; } catch { /* the first error stands */ }
   }
   throw err;
 }
@@ -15493,6 +15501,7 @@ screens.settings = (args) => {
       ${setGroup('Look', [options('Potential', 'hidePotential', [[false, 'Show'], [true, 'Hide']], 'Hide: potential stars, potential up or down and regression age stay out of sight everywhere (scouting reports too), like the game\'s Hide Potential. Edit mode still shows them.'), options('Button icons', 'pixelIcons', [[true, 'Pixel'], [false, 'Emoji']], 'Pixel: white pixel icons like the game\'s. Emoji: the colored emoji.'), options('Sound effects', 'sound', [[true, 'On'], [false, 'Off']], 'Retro blips on taps, tabs and pop-ups, and a bigger sound for the big moments (a trade, your draft pick, a saved file).'), state.params.sound !== false ? options('Volume', 'soundVol', [[0.25, 'Low'], [0.5, 'Medium'], [1, 'High']]) + `<div class="set-row col"><span class="grow">Hear them</span><div class="sfx-test">${[['tap', 'Tap'], ['nav', 'Forward'], ['back', 'Back'], ['toggle', 'Switch'], ['open', 'Pop-up'], ['notify', 'Notice'], ['success', 'Success'], ['error', 'No'], ['pick', 'Draft pick'], ['swish', 'Swish'], ['buzzer', 'Buzzer'], ['crowd', 'Crowd'], ['cheer', 'Cheers'], ['boo', 'Boos']].map(([k, l]) => `<button class="btn tiny" data-act="sfxTest" data-sfx="${k}">${l}</button>`).join('')}</div></div>` : '', state.data ? `<button class="btn" data-act="nav" data-to="faces">🙂 Player Faces${state.faces?.size ? ` · ${state.faces.size}` : ''}</button><span class="note muted small">Cut players' faces from screenshots of the game's roster screen.</span>` : ''])}`;
   } else if (tab === 'ai') {
     body = setGroup('CPU Teams', [
+      options('CPU trading in the game', 'cpuTrading', [[true, 'On'], [false, 'Off']], 'The game\'s own CPU Trading setting: On lets CPU teams trade with each other in Hoop Land during the season. Written into the save when you export.'),
       options('Draft-day trades', 'liveCpuTradeChance', [[0, 'Off'], [5, 'Rare'], [10, 'Normal'], [20, 'Busy']], 'How often CPU teams trade picks around each CPU pick in the live draft.'),
       options('Coaching changes', 'cpuCoachChanges', [[true, 'On'], [false, 'Off']], 'CPU teams can fire coaches on the hot seat and hire from the pool. Off keeps every coach where your file has him.'),
       options('Upgrade points', 'spendCpuPoints', [[false, 'Hold for Game'], [true, 'Spend Now']], 'CPU players\' offseason upgrade points: left for the game to spend, or spent on ratings here.'),

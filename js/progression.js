@@ -19,6 +19,7 @@ export const DEFAULT_PARAMS = {
   sound: true,   // app sound effects
   soundVol: 0.5,   // their volume (0.25 low, 0.5 medium, 1 high)
   hidePotential: false,   // app look: hide potential, its ups and downs and regression age (Edit mode still shows them)
+  cpuTrading: true,   // the game's CPU Trading setting, written into the pro league on export (on by default)
   // Upgrade points by age band: [maxAge, minPts, maxPts]. Older players get none.
   ageBands: [
     [20, 4, 6],
