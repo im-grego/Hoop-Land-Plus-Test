@@ -136,6 +136,33 @@
             ],
             "rumorDays": 21
           }
+        },
+        {
+          "date": "2026-11-27",
+          "file": "data/seasons/2026-27/2026-11-27.txt.gz",
+          "through": "2026-11-26",
+          "opening": false,
+          "injuries": true,
+          "days": 99,
+          "snap": {
+            "east": {
+              "team": "PHI",
+              "name": "Philadelphia 76ers",
+              "w": 15,
+              "l": 4
+            },
+            "west": {
+              "team": "LAL",
+              "name": "Los Angeles Lakers",
+              "w": 15,
+              "l": 3
+            },
+            "ppg": {
+              "name": "Luka Doncic",
+              "team": "LAL",
+              "ppg": 36.6
+            }
+          }
         }
       ],
       "rosterUpdate": {
