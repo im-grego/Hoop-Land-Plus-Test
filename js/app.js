@@ -1,7 +1,5 @@
+import * as TREE from './playertree.js';
 import * as TRN from './training.js';
-import * as ACH from './achievements.js';
-import * as CS from './careerstart.js';
-import * as FOL from './followers.js';
 import * as CR from './creator.js';
 import * as SFX from './sfx.js';
 import {
@@ -83,9 +81,9 @@ import { presserQuestions, presserStories, promiseStories, leagueGram, teamSitua
 import { runCombine, hoopGram, DRILLS, MEASURES, inchStr, fracIn, fmtDrill, medicalFlag, combinePct, pctTier } from './predraft.js';
 import { BUILT_IN_APP_KEY, dropboxFetchShared, dropboxShareLink, dropboxUploadFixed, dropboxConfig, saveDropboxConfig, dropboxConnected, disconnectDropbox, dropboxAuthUrl, dropboxFinishAuth, dropboxUpload, dropboxPath, dropboxPut, dropboxGet } from './dropbox.js';
 
-const APP_VERSION = '0.365.204';
+const APP_VERSION = '0.365.195';
 // What players see: the public beta's own count. APP_VERSION stays the build number (cache, bug reports).
-const SHOWN_VERSION = 'Beta 0.2.1';
+const SHOWN_VERSION = '0.365.195';
 // The dev log: what each release added, biggest first. Tapping the version opens it; a red dot marks a release
 // the player hasn't looked at yet.
 const DEVLOG = [
@@ -863,7 +861,7 @@ function gramBox() {
   try {
     if (!state.data || isCollege() || CAR.isCareer(league())) return '';
     const cur = state.stack[state.stack.length - 1]?.name;
-    return `<span class="gram-wrap"><button class="btn gram-box ${['gramProfile', 'rumors', 'news', 'gramMine', 'transactions'].includes(cur) ? 'on focus' : ''}" data-act="gramBox" aria-label="Hoop Gram"><i class="px px-gram" aria-hidden="true"></i></button>${ndot(rumorUnread())}</span>`;
+    return `<span class="gram-wrap"><button class="btn gram-box ${['rumors', 'news', 'gramMine', 'transactions'].includes(cur) ? 'focus' : ''}" data-act="gramBox" aria-label="Hoop Gram"><i class="px px-gram" aria-hidden="true"></i></button>${ndot(rumorUnread())}</span>`;
   } catch { return ''; }
 }
 // My League: the league's numbers in one place, a tab row on top of each of its screens.
@@ -969,10 +967,11 @@ function render() {
   loadFaces();
   document.documentElement.dataset.px = state.params.pixelIcons === false ? 'off' : 'on';
   SFX.setSound(state.params.sound !== false, state.params.soundVol ?? 0.5);
-  if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); setSalaryScale(FA.capSystemOn() ? Math.max(0.6, FA.capLines(league()).cap / 165) : 1); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) { fitClassIncoming(); realClassCheck(); } if (CAR.isCareer(league())) careerTokSync(); }
+  if (state.data) { FA.setQualifyingOffers(optStore().qo); FA.setCapSystem(isComplete() && state.params.capSystem !== false && !isCollege()); FA.setComplete(isComplete() && !isCollege(), FA.capLines(league()).cap); setSalaryScale(FA.capSystemOn() ? Math.max(0.6, FA.capLines(league()).cap / 165) : 1); FX.setFacilitiesOn(isComplete() && !isCollege()); if (!isCollege()) syncGrudges(); if (!isCollege()) syncDead(); FA.setHoldTeams(league().teams.filter(isUserTeam).map(t => t.id)); FA.setHoldDay(league().season.phase === 6 ? league().season.currentDay : 0); syncTpes(); syncExpansion(); if (!isCollege()) { fitClassIncoming(); realClassCheck(); } }
   if (state.data && isCollege() && state.cal) { try { localStorage.setItem(collegeCalKey(), JSON.stringify(state.cal)); } catch { /* ignore */ } }
   if (state.data && !isCollege()) { seasonDrift(); cpuComebacks(); cpuNumbers(); cpuJerseys(); realAllStarHost(); if (state.retFixed !== saveTag()) { state.retFixed = saveTag(); fixRetiredNumbers(); } if (state.awFixed !== saveTag()) { state.awFixed = saveTag(); if (PO.dedupeAwards(league())) state.dirty = true; const r = PO.repairSave(league()); if (r.contracts || r.ceilings || r.coaches) state.dirty = true; if (otherCoachFix()) state.dirty = true; } glSettle(); taxSettle(); cpuShifts(); }   // once an offseason each (the G League once a season)
   if (state.data && !isCollege()) { careerSync(); syncScarcity(); poSettle(); campAuto(); }
+  if (state.data) treeSettle();
   const top = state.stack[state.stack.length - 1];
   const view = `${state.stack.length}:${top.name}:${top.args?.tab ?? ''}:${top.name === 'fa' ? '' : top.args?.view ?? ''}:${top.args?.id ?? ''}`;
   const y = window.scrollY;
@@ -1152,7 +1151,6 @@ for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev
 
 $app.addEventListener('change', e => {
   if (e.target.id === 'fileInput' && e.target.files[0]) loadFile(e.target.files[0]);
-  if (e.target.id === 'careerBaseInput' && e.target.files[0]) careerBaseFile(e.target.files[0]);
   if (e.target.id === 'origInput' && e.target.files[0]) loadReference(e.target.files[0]);
 });
 
@@ -1923,6 +1921,7 @@ function capFreeThrows() {
   return n;
 }
 function buildExport() {
+  treeSnapAll();
   cupSchedule();
   capFreeThrows();
   restoreCap = null;
@@ -1932,8 +1931,6 @@ function buildExport() {
   // Skills go into the file best first (a skill that overtook another moves ahead of it).
   for (const L of state.data.seasonLeagues) for (const p of [...L.teams.flatMap(t => t.roster), ...(L.freeAgents || []), ...(L.draftClass || [])]) sortSkills(p);
   floorPhysicals(state.data);
-  // The game's CPU Trading setting for the pro league, from the app's (on unless you turn it off).
-  for (const L of state.data.seasonLeagues) if (L.leagueType === 0 && L.season) L.season.cpuTrading = state.params.cpuTrading !== false;
   // The game's cap becomes this season's 2nd apron (room for in-season
   // moves), with the max contract tiers scaled so a max is still 25 / 30 /
   // 35% of the real cap.
@@ -2157,7 +2154,7 @@ actions.share = async () => {
 // Checkpoints before big moves: the last three are kept (each is a full copy of the save, so no more than that on a
 // phone), and Settings → Data can go back to any of them.
 function checkpoint(label) {
-  state.undo = { label, text: serializeSave(state.data), dirty: state.dirty, at: Date.now(), cal: JSON.stringify(state.cal || {}), ledgerN: ledgerLen(), buysN: state.data && CAR.isCareer(league()) ? careerBuys().length : null };
+  state.undo = { label, text: serializeSave(state.data), dirty: state.dirty, at: Date.now(), cal: JSON.stringify(state.cal || {}), ledgerN: ledgerLen() };
   state.undoList = [state.undo, ...(state.undoList || [])].slice(0, 3);
 }
 function undoHistoryBox() {
@@ -2172,7 +2169,7 @@ actions.undoTo = async d => {
   const o = overlay('<div class="spinner"></div><p class="note">Restoring…</p>');
   await nextFrame();
   installData(parseSave(u.text), true);
-  ledgerRewind(u.ledgerN); buysRewind(u.buysN);   // coins and fans go back with the save
+  ledgerRewind(u.ledgerN);   // coins and fans go back with the save
   try { state.cal = JSON.parse(u.cal || '{}'); } catch { /* keep */ }
   if (!isCollege()) { saveDrift(); saveTraitStore(); saveComeback(); saveJersey(); }
   state.undoList = state.undoList.slice(+d.i + 1);
@@ -4041,7 +4038,7 @@ actions.undoAdvance = async () => {
   const o = overlay('<div class="spinner"></div><p class="note">Restoring…</p>');
   await nextFrame();
   installData(parseSave(u.text), true);
-  ledgerRewind(u.ledgerN); buysRewind(u.buysN);
+  ledgerRewind(u.ledgerN);
   state.undo = null;
   state.dirty = u.dirty;
   o.remove();
@@ -5127,17 +5124,11 @@ function tradeBlockCard() {
 // The app's own data files (the season list and season starts): from this site, and when that can't be reached (a
 // network blip, a domain hiccup), the same file from a public mirror of the live repo.
 const DATA_MIRROR = 'https://cdn.jsdelivr.net/gh/im-grego/hoop-land-plus@main/';
-// An 8-second limit for an answer (not the whole download), so a host that's stuck falls through to the mirror.
-async function fetchWithin(url, opts = {}, ms = 8000) {
-  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timer = ctl ? setTimeout(() => ctl.abort(), ms) : null;
-  try { return await fetch(url, ctl ? { ...opts, signal: ctl.signal } : opts); } finally { if (timer) clearTimeout(timer); }
-}
 async function fetchData(path, opts = {}) {
   let err;
-  try { const r = await fetchWithin(path, opts); if (r.ok) return r; err = new Error(`${r.status}`); } catch (e) { err = e.name === 'AbortError' ? new Error('the site took too long') : e; }
+  try { const r = await fetch(path, opts); if (r.ok) return r; err = new Error(`${r.status}`); } catch (e) { err = e; }
   if (liveSite()) {
-    try { const r = await fetchWithin(DATA_MIRROR + path, { cache: 'no-cache' }, 15000); if (r.ok) return r; } catch { /* the first error stands */ }
+    try { const r = await fetch(DATA_MIRROR + path, { cache: 'no-cache' }); if (r.ok) return r; } catch { /* the first error stands */ }
   }
   throw err;
 }
@@ -5356,7 +5347,6 @@ screens.main = () => {
           <div class="stack">
             <p class="note">Load a <b>Franchise</b> save from the end of the playoffs (Pre-Lottery) and run the whole offseason here: the lottery, the draft, free agency and player development. Export once at the end and load it back into Hoop Land. A save from later in the offseason picks up where it left off.</p>
             <button class="btn big focus" data-act="nav" data-to="start"><span class="ico">🏀</span> Start a Franchise</button>
-            ${careerOn() ? '<button class="btn big" data-act="nav" data-to="careerStart"><span class="ico">👤</span> Start a Career</button>' : ''}
             <label class="btn big"><span class="ico">📂</span> Load Season File
               <input type="file" id="fileInput"></label>
             ${dbxOn() ? linkLoadBox() : ''}
@@ -5429,7 +5419,7 @@ function crLoad() {
   crLoading = true;
   fetchData('data/creator/archetypes.json').then(r => r.json()).then(d => { crData = d; crLoading = false; render(); }).catch(() => { crLoading = false; toast('Couldn’t load the archetypes', 'Check your connection and try again.', 4000, true); });
 }
-const creatorOn = () => careerOn() && !!CR.careerRecruit(state.data) && !careerStore().started;
+const creatorOn = () => careerOn() && !!CR.careerRecruit(state.data);
 function creatorCard() {
   if (!state.data || !creatorOn()) return '';
   const r = CR.careerRecruit(state.data);
@@ -5443,10 +5433,8 @@ function crDefaults(p) {
 const crO = () => (state.cp ||= {});
 const CR_GRP = { LAY: 'fin', DNK: 'fin', INS: 'fin', MID: 'sho', TPT: 'sho', FTS: 'sho', DRB: 'pla', PAS: 'pla', ORE: 'pla', DRE: 'def', STL: 'def', BLK: 'def', SPD: 'phy', STR: 'phy', STM: 'phy' };
 const CR_NAMES = { LAY: 'Layup', DNK: 'Dunking', INS: 'Inside Shooting', MID: 'Mid Range', TPT: 'Three Point', FTS: 'Free Throw', DRB: 'Dribbling', PAS: 'Passing', ORE: 'Off. Rebounding', DRE: 'Def. Rebounding', STL: 'Stealing', BLK: 'Blocking', SPD: 'Speed', STR: 'Strength', STM: 'Stamina' };
-// The recruit Create Your Player works on: a new career's blank recruit (Start a Career), or the game's own.
-const crRecruit = () => (state.newCareer ? { L: state.newCareer.save.seasonLeagues[state.newCareer.li], li: state.newCareer.li, p: state.newCareer.p, team: null, stage: 'new' } : CR.careerRecruit(state.data));
 screens.creator = () => {
-  const r = crRecruit();
+  const r = CR.careerRecruit(state.data);
   if (!r) { goHome(); return; }
   if (!crData) { crLoad(); layout({ title: 'Create Your Player', body: '<div class="spinner"></div><p class="note center">Getting the archetypes…</p>' }); return; }
   const o = state.cp?.pid === r.p.id && state.cp.v === 2 ? state.cp : (state.cp = { pid: r.p.id, ...crDefaults(r.p) });
@@ -5494,16 +5482,10 @@ screens.creator = () => {
           <span class="small">${esc(CR.posLabel(o.slot, o.slot2))} · ${ft(o.ht)} · ${o.wt} lb · <span class="stars">${stars(o.pot)}</span></span><br>
           <span class="small muted">${esc(ped.name)} out of ${esc(o.school)}${b.shades.legends.length || b.shades.today.length ? ` · Shades of <b>${esc(CR.shadesLine(b.shades))}</b>` : ''}</span></div>
       </fieldset>
-      <fieldset class="frame"><legend>1 · Position & Body</legend><div class="stack">
-        <span class="note small">Primary position</span>${seg('slot', [1, 2, 3, 4, 5].map(s => [s, CR.SLOT_SHORT[s]]))}
-        <span class="note small">Secondary position</span>${seg('slot2', [[null, 'None'], ...[1, 2, 3, 4, 5].filter(s => s !== o.slot).map(s => [s, CR.SLOT_SHORT[s]])])}
-        <span class="note small muted">${esc(CR.posLabel(o.slot, o.slot2))}: the game plays him at ${esc(POSITIONS[b.pos] ?? '')}; the app keeps both for lineups and minutes.</span>
-        ${step('ht', 'Height', ft(o.ht))}${step('wt', 'Weight', `${o.wt} lb`)}
-      </div></fieldset>
-      <fieldset class="frame"><legend>2 · Potential</legend>${seg('pot', [[8, '4★ · Lv 86'], [9, '4.5★ · Lv 93'], [10, '5★ · Lv 100']])}<p class="note small muted">How good he can get: his ceilings add up to it.</p></fieldset>
-      <fieldset class="frame"><legend>3 · Primary Archetype</legend><p class="note small muted">His style sets his ceilings: where the potential goes, rating by rating.</p>${families.map(f => `<p class="note small muted cp-fam">${esc(['Point Guard', 'Wing', 'Forward', 'Center'].includes(f) ? `${f} styles` : f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(archCard).join('')}</div>`).join('')}</fieldset>
-      <fieldset class="frame"><legend>4 · Secondary</legend><p class="note small muted">What he adds on top: it bends his ceilings toward it. Tap again to clear.</p><div class="cp-acards">${Object.entries(CR.SECONDARY).map(secCard).join('')}</div></fieldset>
-      <fieldset class="frame"><legend>5 · Upgrade Points</legend>
+      <fieldset class="frame"><legend>1 · Potential</legend>${seg('pot', [[8, '4★ · Lv 86'], [9, '4.5★ · Lv 93'], [10, '5★ · Lv 100']])}<p class="note small muted">How good he can get: his ceilings add up to it.</p></fieldset>
+      <fieldset class="frame"><legend>2 · Primary Archetype</legend><p class="note small muted">His style sets his ceilings: where the potential goes, rating by rating.</p>${families.map(f => `<p class="note small muted cp-fam">${esc(['Point Guard', 'Wing', 'Forward', 'Center'].includes(f) ? `${f} styles` : f)}</p><div class="cp-acards">${fits.filter(a => a.family === f).map(archCard).join('')}</div>`).join('')}</fieldset>
+      <fieldset class="frame"><legend>3 · Secondary</legend><p class="note small muted">What he adds on top: it bends his ceilings toward it. Tap again to clear.</p><div class="cp-acards">${Object.entries(CR.SECONDARY).map(secCard).join('')}</div></fieldset>
+      <fieldset class="frame"><legend>4 · Upgrade Points</legend>
         <span class="note small">Where he starts <span class="muted">(set your own difficulty: a 5★ potential can start at 1½★, or start at 4★ right away)</span></span>
         <div class="cp-startseg">${seg('start', [...CR.START_STARS.map(h => [h, `${Math.floor(h / 2)}${h % 2 ? '½' : ''}★`]), ['free', 'No limit']])}</div>
         <div class="cp-pool"><span>Points left</span><b class="${b.left ? 'gold' : ''}">${o.start === 'free' ? '∞' : b.left}</b><span class="muted small">${o.start === 'free' ? 'no limit' : `of ${b.pool} · starts him at Lv ${CR.startLvFor(o.start)}`}</span></div>
@@ -5511,14 +5493,19 @@ screens.creator = () => {
         <div class="cp-bars">${bars}</div>
         <div class="grid2"><button class="btn small" data-act="cpAuto">✨ Spend for Me</button><button class="btn small off" data-act="cpClear">↺ Take All Back</button></div>
       </fieldset>
-      <fieldset class="frame"><legend>6 · Skills (${have.size})</legend>${recBox}<div class="cp-skgrid">${skillGrid}</div>${skillCard}</fieldset>
+      <fieldset class="frame"><legend>5 · Skills (${have.size})</legend>${recBox}<div class="cp-skgrid">${skillGrid}</div>${skillCard}</fieldset>
       <fieldset class="frame"><legend>Who He Is</legend><div class="stack">
         <div class="grid2"><label class="field"><span>First name</span><input data-cp="fn" value="${esc(o.fn)}" maxlength="20"></label><label class="field"><span>Last name</span><input data-cp="ln" value="${esc(o.ln)}" maxlength="24"></label></div>
         <div class="grid2"><label class="field"><span>Hometown</span><input data-cp="home" value="${esc(o.home)}" placeholder="City, ST" maxlength="32"></label><label class="field"><span>Number</span><input data-cp="num" value="${esc(o.num)}" inputmode="numeric" maxlength="2"></label></div>
         <label class="field"><span>High school</span><select data-cp="school">${CR.HIGH_SCHOOLS.map(h => `<option ${h === o.school ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select></label>
         <span class="note small">Recruiting pedigree <span class="muted">(his story: how highly ranked he was)</span></span>${seg('pedigree', [[3, '3★'], [4, '4★'], [5, '5★'], [6, 'Top 10']])}
       </div></fieldset>
-      `,
+      <fieldset class="frame"><legend>Position & Body</legend><div class="stack">
+        <span class="note small">Primary position</span>${seg('slot', [1, 2, 3, 4, 5].map(s => [s, CR.SLOT_SHORT[s]]))}
+        <span class="note small">Secondary position</span>${seg('slot2', [[null, 'None'], ...[1, 2, 3, 4, 5].filter(s => s !== o.slot).map(s => [s, CR.SLOT_SHORT[s]])])}
+        <span class="note small muted">${esc(CR.posLabel(o.slot, o.slot2))}: the game plays him at ${esc(POSITIONS[b.pos] ?? '')}; the app keeps both for lineups and minutes.</span>
+        ${step('ht', 'Height', ft(o.ht))}${step('wt', 'Weight', `${o.wt} lb`)}
+      </div></fieldset>`,
     action: { act: 'cpApply', label: 'Create Him' },
   });
 };
@@ -5538,7 +5525,7 @@ actions.cpAuto = () => { crO().spent = null; render(); cpWarn(); };
 actions.cpClear = () => { crO().spent = {}; render(); cpWarn(); };
 // Past his potential or out of room to grow: say so once, when he crosses the line.
 function cpWarn() {
-  const r = crRecruit(), o = state.cp; if (!r || !o || !crData) return;
+  const r = CR.careerRecruit(state.data), o = state.cp; if (!r || !o || !crData) return;
   const b = CR.build(crData, o), msg = [];
   if (b.pastPot && !o.warnPot) msg.push(`<b>Past his potential.</b> Some of his ratings are above their ceiling: his ${'★'.repeat(Math.floor(o.pot / 2))}${o.pot % 2 ? '½' : ''} potential won't take them any higher. There's no more room for progression there.`);
   if (b.noRoom && !o.warnRoom) msg.push(`<b>No more room for progression.</b> He starts at his ceiling (Lv ${b.lvNow}): games, practice and upgrade points have nothing left to raise.`);
@@ -5550,18 +5537,9 @@ actions.cpSkill = d => { const o = crO(); o.skills ||= []; const i = o.skills.fi
 actions.cpSkillLv = d => { const o = crO(), x = (o.skills || []).find(y => y.id === d.id); if (x) x.level = Math.max(1, Math.min(SKILL_MAX_LEVEL, x.level + +d.d)); render(); };
 $app.addEventListener('change', e => { const k = e.target.dataset?.cp; if (!k || !state.cp) return; state.cp[k] = e.target.value; render(); });
 actions.cpApply = async () => {
-  const r = crRecruit(), o = state.cp;
+  const r = CR.careerRecruit(state.data), o = state.cp;
   if (!r || !o || !crData) return;
   const b = CR.build(crData, o);
-  if (r.stage === 'new') {   // Start a Career: build him, then his offers
-    if (!(await confirmBox(`Create <b>${esc(`${o.fn} ${o.ln}`)}</b>, a ${esc(b.name)} (Lv ${b.lvNow}, ceiling ${b.lvCeil})? Next: his scholarship offers.`, 'Create Him'))) return;
-    CR.applyBuild(r.p, o, b);
-    careerHome(r.p);
-    state.newCareer.num = o.num; state.newCareer.pedigree = +o.pedigree || 4; state.newCareer.offers = null;
-    SFX.play('success');
-    go('careerOffers');
-    return;
-  }
   if (!(await confirmBox(`Create <b>${esc(`${o.fn} ${o.ln}`)}</b>, a ${esc(b.name)} (Lv ${b.lvNow}, ceiling ${b.lvCeil})? His ratings, potential, position and body replace the ones from the game's creator.`, 'Create Him'))) return;
   checkpoint('Create your player');
   CR.applyBuild(r.p, o, b);
@@ -5571,141 +5549,13 @@ actions.cpApply = async () => {
   goHome();
 };
 
-// ---------------------------------------------------------------------------
-// Start a Career (js/careerstart.js): a college save at the start of a season, Create Your Player on a blank recruit,
-// then his school. The file that comes out is the one you loaded with only him added: on that school's roster, the
-// save set to Career, and that team's minutes worked out with him in the rotation. Nothing else in the league changes,
-// and the app's own passes never touch it: it goes straight to you.
-// The college league for a new career: the site's (data/career/index.json), a Campus save at the start of a season.
-async function careerCollegeBase() {
-  const idx = await (await fetchData('data/career/index.json', { cache: 'no-cache' })).json(), c = idx.college;
-  const r = await fetchData(c.file);
-  const text = /\.gz$/.test(c.file) && typeof DecompressionStream !== 'undefined' && !(r.headers.get('content-encoding') || '').includes('gzip') ? await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text() : await r.text();
-  return { save: parseSave(text), label: c.label };
-}
-screens.careerStart = () => {
-  layout({ title: 'Start a Career', body: `<fieldset class="frame"><legend>👤 Start a Career</legend><div class="stack">
-      <p class="note">Create your player, weigh his scholarship offers and commit, then start his freshman season. The college league is the site's, as it stands; only your player joins it. The pro league is the newest NBA rosters at Opening Night.</p>
-      <button class="btn big focus" data-act="careerSite"><span class="ico">👤</span> Start</button>
-      <details class="start-older"><summary class="small link">Use my own college save instead</summary><div class="stack">
-        <p class="note small">A college (Campus) save from the start of a season, before the first game.</p>
-        <label class="btn"><span class="ico">📂</span> Load a College Save<input type="file" id="careerBaseInput"></label></div></details>
-    </div></fieldset>` });
-};
-actions.careerSite = async () => {
-  const o = overlay('<div class="spinner"></div><p class="note">Getting the college league…</p>');
-  try { const b = await careerCollegeBase(); o.remove(); careerBegin(b.save, b.label); } catch (e) { o.remove(); toast('Couldn’t get the college league', e.message, 4200, true); }
-};
-function careerBegin(save, fileName) {
-  const c = CS.checkBase(save);
-  if (!c.ok) { SFX.play('error'); toast('Can’t start a career from this save', c.why, 4600, true); return; }
-  const N = state.newCareer = { save, li: c.li, p: CS.blankRecruit(save, c.li), fileName };
-  state.cp = null;
-  careerProLeague().then(x => {
-    const cy = save.seasonLeagues[c.li].season.currentYear;
-    if (x.league.season.currentYear !== cy) N.proErr = `it's the ${x.league.season.currentYear} season and the college save is ${cy}`;
-    else N.pro = x;
-  }).catch(e => { N.proErr = e.message; }).finally(() => { if (state.newCareer === N && state.stack.at(-1)?.name === 'careerOffers') replace('careerOffers'); });
-  go('creator');
-}
-async function careerBaseFile(file) {
-  const o = overlay('<div class="spinner"></div><p class="note">Reading the save…</p>');
-  await nextFrame();
-  let save = null;
-  try { save = parseSave(await file.text()); } catch (e) { o.remove(); toast('Couldn’t read that file', e.message, 4200, true); return; }
-  o.remove();
-  careerBegin(save, file.name);
-}
-// The pro league for a new career: the newest NBA start on the site (the latest date of the newest season).
-async function careerProLeague() {
-  const idx = await seasonIndex();
-  const season = [...idx.seasons].sort((a, b) => String(b.id).localeCompare(String(a.id)))[0];
-  const start = [...(season?.starts || [])].sort((a, b) => b.date.localeCompare(a.date))[0];
-  if (!start) throw new Error('No NBA file on the site');
-  const read = async file => { const r = await fetchData(file); return /\.gz$/.test(file) && typeof DecompressionStream !== 'undefined' && !(r.headers.get('content-encoding') || '').includes('gzip') ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text() : r.text(); };
-  const P = parseSave(await read(start.file)).seasonLeagues.find(L => L.leagueType === 0);
-  if (!P) throw new Error('The NBA file has no pro league');
-  // Back to Opening Night: today's league, the season from its first day (no scores, no stats, 0-0).
-  const open = (season.starts || []).find(x => x.opening);
-  if (open && open.file !== start.file) {
-    const O = parseSave(await read(open.file)).seasonLeagues.find(L => L.leagueType === 0);
-    if (O) return { league: CS.openingPro(P, O), label: `${season.label} · rosters as of ${fmtDay(start.date)}, from Opening Night` };
-  }
-  return { league: P, label: `${season.label} · ${fmtDay(start.date)}` };
-}
-// His hometown on the map: a player from the same place (either league) lends his spot, so offers can say how far.
-function careerHome(p) {
-  const N = state.newCareer, want = (p.home || '').trim().toLowerCase();
-  N.homeKnown = false;
-  if (!want) return;
-  for (const L of N.save.seasonLeagues) for (const q of [...L.teams.flatMap(t => t.roster), ...(L.freeAgents || [])]) if (q !== p && q.loc && (q.home || '').trim().toLowerCase() === want) { p.loc = { ...q.loc }; N.homeKnown = true; return; }
-}
-const PED_NAMES = { 3: 'Three-star recruit', 4: 'Four-star recruit', 5: 'Five-star recruit', 6: 'Top-10 recruit' };
-// His scholarship offers: the program, the team, how much he'd play, how far from home. He signs with one; the CPU
-// schools do nothing else.
-screens.careerOffers = () => {
-  const N = state.newCareer;
-  if (!N) { goHome(); return; }
-  const p = N.p, list = N.offers ||= CS.offers(N.save, N.li, p, N.pedigree);
-  const ord = n => `${n}${['th', 'st', 'nd', 'rd'][(n % 100 >= 11 && n % 100 <= 13) ? 0 : n % 10] || 'th'}`;
-  const full = t => `${t.city || ''} ${t.name || ''}`.trim() || t.shortName, short = t => t.city || t.name || t.shortName;
-  const home = x => { if (!N.homeKnown || x.homeRank == null) return ''; const f = x.homeRank / x.of; return f <= 0.12 ? '🏠 Close to home' : f <= 0.35 ? '🚗 In the region' : '✈️ Far from home'; };
-  const card = x => `<fieldset class="frame"><legend>${esc(full(x.t))}</legend><div class="stack">
-      <div class="sd-head">${logoImg(x.t)}<div class="sd-ranks">
-        <span class="sd-line">Prestige <b>${ord(x.prestigeRank)}</b> <span class="small muted">of ${x.of}</span></span>
-        <span class="sd-line">Roster <b>${ord(x.strengthRank)}</b> <span class="small muted">best</span></span>
-        ${x.conf ? `<span class="sd-line small">${esc(x.conf)}</span>` : ''}${home(x) ? `<span class="sd-line small">${home(x)}</span>` : ''}</div></div>
-      <p class="note small"><b>${esc(x.role)}</b> · about ${x.minutes} minutes · ${x.ahead ? `${x.ahead} of the ${CS.GROUP_NAMES[CS.group(p.pos)]} ${x.ahead === 1 ? 'is' : 'are'} as good as him or better${x.best ? `; the best is ${esc(playerName(x.best))} (Lv ${CS.levelOf(x.best)})` : ''}` : 'nobody at his spot is as good as him'}.</p>
-      <button class="btn" data-act="careerCommit" data-id="${x.t.id}">✍️ Commit to ${esc(short(x.t))}</button></div></fieldset>`;
-  const pro = N.pro ? `<p class="note small muted">Pro league: your newest NBA file (${esc(N.pro.label)}).</p>` : N.proErr ? `<p class="note small down">Couldn't get your NBA file (${esc(N.proErr)}): the save keeps its own pro league.</p>` : '<p class="note small muted">Getting your newest NBA file for the pro league…</p>';
-  layout({ title: 'Your Offers', body: `<p class="note"><b>${esc(playerName(p))}</b> · ${esc(PED_NAMES[N.pedigree] || 'Recruit')} · Lv ${CS.levelOf(p)} · ${list.length} scholarship offers. Weigh the program, the team and how much he'll play.${N.homeKnown ? '' : ' (Give him a hometown that matches a player in the league to see how far each school is.)'}</p>
-      ${pro}
-      ${list.length ? list.map(card).join('') : '<p class="note">No school has a roster spot open.</p>'}
-      <button class="btn small" data-act="nav" data-to="creator">‹ Back to Create Your Player</button>` });
-};
-actions.careerCommit = async d => {
-  const N = state.newCareer; if (!N) return;
-  const t = N.save.seasonLeagues[N.li].teams.find(x => x.id === +d.id); if (!t) return;
-  if (!(await confirmBox(`Commit to <b>${esc(`${t.city || ''} ${t.name || ''}`.trim())}</b>? ${esc(playerName(N.p))} joins their roster for his freshman season. Every other roster stays as it is.`, 'Commit'))) return;
-  if (N.pro) { const basePro = N.save.seasonLeagues.find(L => L.leagueType === 0); CS.swapPro(N.save, CS.baseSchedule(N.pro.league, basePro)); N.li = N.save.seasonLeagues.findIndex(L => L.leagueType === 1); }
-  CS.commit(N.save, N.li, N.p, t.id, N.num);
-  // His team's minutes, with him in the rotation (the only other change to the file).
-  try { CS.teamMinutes(N.save.seasonLeagues[N.li], t, (team, game) => { const plan = LU.planLineup(team, { mode: 'normal', game }); LU.applyLineup(team, plan); }); } catch { /* the game sets them */ }
-  const base = (N.fileName || 'College').replace(/\.txt$/i, '');
-  N.out = new File([serializeSave(N.save)], `${base} · Career · ${playerName(N.p)}.txt`, { type: 'text/plain' });
-  N.school = t;
-  SFX.play('success');
-  replace('careerDone');
-  giveFile(N.out);
-};
-screens.careerDone = () => {
-  const N = state.newCareer;
-  if (!N?.out) { goHome(); return; }
-  layout({ title: 'Career Ready', body: `<fieldset class="frame"><legend>👤 ${esc(playerName(N.p))} · ${esc(N.school.city || N.school.name)}</legend><div class="stack">
-      <p class="note">Your career save is ready: <b>${esc(N.out.name)}</b>. Load it in Hoop Land to start his freshman season. It's the college league you loaded with only him added and his team's minutes set${N.pro ? `, and your newest NBA file (${esc(N.pro.label)}) as the pro league` : ''}.</p>
-      <button class="btn big focus" data-act="careerGive"><span class="ico">💾</span> Save the File Again</button>
-      <button class="btn" data-act="careerOpen"><span class="ico">📂</span> Open It in the App</button>
-      <p class="note small muted">Opening it here is optional. If you export it from the app later, the app's usual season passes run on it like any other save.</p>
-    </div></fieldset>` });
-};
-actions.careerGive = () => { const N = state.newCareer; if (N?.out) giveFile(N.out); };
-actions.careerOpen = async () => {
-  const N = state.newCareer; if (!N?.out) return;
-  state.dirty = false;
-  await loadFile(N.out);
-  const st = careerStore(); st.started = { yr: league().season.currentYear, school: N.school.id }; careerSave(st);
-  state.newCareer = null; state.cp = null;
-  goHome();
-};
-
 screens.career = (args = {}) => {
   if (!careerOn()) { goHome(); return; }
   const L = league(), me = CAR.careerPlayer(L);
   if (!me) { layout({ title: 'My Career', body: '<p class="note">This save has no career player.</p>' }); return; }
   const tab = args.tab || 'hub';
-  const tabs = `<div class="tabs fa-tabs">${[['hub', 'Me'], ['train', 'Training'], ['ach', 'Achievements'], ['moves', 'Moves'], ['story', 'Story'], ['legacy', 'Legacy']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="careerTab" data-t="${k}">${l}</button>`).join('')}</div>`;
-  careerTokSync();
-  if (tab !== 'hub') { layout({ title: 'My Career', body: tabs + ({ train: careerTrainTab, ach: careerAchTab, moves: careerMovesTab, story: careerStoryTab, legacy: careerLegacyTab }[tab])(L, me.p, me.team) }); return; }
+  const tabs = `<div class="tabs fa-tabs">${[['hub', 'Me'], ['tree', 'Player Tree'], ['train', 'Training'], ['moves', 'Moves'], ['story', 'Story'], ['legacy', 'Legacy']].map(([k, l]) => `<button class="btn small ${k === tab ? 'on focus' : 'off'}" data-act="careerTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+  if (tab !== 'hub') { layout({ title: 'My Career', body: tabs + ({ tree: careerTreeTab, train: careerTrainTab, moves: careerMovesTab, story: careerStoryTab, legacy: careerLegacyTab }[tab])(L, me.p, me.team) }); return; }
   const { p, team } = me, cr = L.career || {}, r = CAR.rankIdx(p), tro = CAR.trophies(p);
   const st = CAR.standing(L, p, team, valueOf), fo = CAR.frontOffice(L, p, team), room = CAR.lockerRoom(L, p, team);
   const c = p.contract || {};
@@ -5749,83 +5599,110 @@ screens.career = (args = {}) => {
   });
 };
 
-// Career Tokens (js/achievements.js): earned by achievements, spent in the Training Center. Like Franchise Tokens they
-// live only in the app (this browser, per save), never in the file. careerStore().ach is the book of what's been earned,
-// careerStore().buys the purchases ({ id, yr, tok }), so an undo can drop a purchase with the save.
-const careerDone = () => { const s = league().season; return y => y < s.currentYear || (y === s.currentYear && s.phase === 11); };   // 11: champion crowned, the season's done
-function careerTokSync(quiet = false) {
-  const L = league(); if (!CAR.isCareer(L)) return [];
-  const me = CAR.careerPlayer(L); if (!me) return [];
-  const st = careerStore(), book = (st.ach ||= {}), flags = (book.flags ||= {}), yr = L.season.currentYear;
-  // Lines the game doesn't count (a quadruple-double, a 5x5): his last game's box and the app's game log.
-  const lines = me.p.gameStats?.GP > 0 ? [me.p.gameStats] : [];
-  if (me.team) for (const e of Object.values(lsGet(`hlc:gameLog:${saveTag()}:${yr}:${me.team.id}`, {}))) { const r = e.rows?.[me.p.id]; if (r) lines.push({ PTS: r[0], REB: r[1], AST: r[2], STL: r[3], BLK: r[4] }); }
-  for (const r of lines) { if (!flags.qd && ACH.isQuad(r)) flags.qd = yr; if (!flags.five && ACH.isFive(r)) flags.five = yr; }
-  const got = ACH.settle(book, ACH.context(me.p, state.leagueIdx, careerDone(), flags), yr);
-  if (!got.length) return got;
-  careerSave(st);
-  if (!quiet) {
-    const n = got.reduce((a, g) => a + g.tok, 0), shown = got.slice(0, 3).map(g => `${g.icon} ${g.name}`).join(' · ');
-    SFX.play('coin');
-    toast(got.length === 1 ? `${got[0].icon} ${got[0].name}` : `${got.length} achievements`, `${got.length === 1 ? '' : `${shown}${got.length > 3 ? ` · +${got.length - 3} more` : ''} · `}+${n} Career Token${n === 1 ? '' : 's'}`, 4200);
-  }
-  return got;
-}
-const careerBuys = () => careerStore().buys || [];
-const careerTokens = () => ACH.earned(careerStore().ach || {}) - careerBuys().reduce((a, b) => a + b.tok, 0);
-const CAREER_TOK = '<img class="coin-ico" src="icons/credit.png" alt="" title="Career Tokens">';
-const careerTokTag = n => `<span class="coin-tag">${n}${CAREER_TOK}</span>`;
-
-// The Training Center: programs bought with Career Tokens (js/training.js), on top of the game's Practice Facility.
+// The Training Center: programs bought with career coins (js/training.js), on top of the game's Practice Facility.
 function trainCtx(L, p, team) {
   const coach = (team?.frontOffice?.staff || []).find(x => x.pos === 1) || null;
   const r = CAR.rankIdx(p);
-  return { career: L.career, tokens: careerTokens(), coach, mates: team ? team.roster.filter(m => m.id !== p.id) : [], rank: r, rankName: CAR.RANKS[Math.max(0, r)] };
+  return { career: L.career, coach, mates: team ? team.roster.filter(m => m.id !== p.id) : [], rank: r, rankName: CAR.RANKS[Math.max(0, r)] };
 }
-function trainUsed() {
-  const yr = league().season.currentYear, season = {}, life = {};
-  for (const b of careerBuys()) { life[b.id] = (life[b.id] || 0) + 1; if (b.yr === yr) season[b.id] = (season[b.id] || 0) + 1; }
-  return { season, life };
-}
+function trainUsed() { const { st, cy } = careerYear(); return { season: cy.train || {}, life: st.trainLife || {} }; }
+const COIN = '<img class="coin-ico" src="img/coin.png" alt="coins">';
 function careerTrainTab(L, p, team) {
   const x = trainCtx(L, p, team), used = trainUsed();
-  const row = pg => { const c = TRN.check(pg, p, x, used), times = used.season[pg.id] || 0;
+  const row = pg0 => { const pg = { ...pg0, cost: TREE.trainPrice(pg0, careerStore()) }, c = TRN.check(pg, p, x, used), times = used.season[pg.id] || 0;
     return `<div class="tr-row ${c.ok ? '' : 'off'}"><span class="tr-ico">${pg.icon}</span><span class="grow"><b>${esc(pg.name)}</b>${pg.rank != null ? ` <span class="small muted">· ${esc(CAR.RANKS[pg.rank])}+</span>` : ''}<br><span class="small">${esc(pg.says)}</span>${(pg.per || 1) > 1 ? `<br><span class="small muted">${times}/${pg.per} this season</span>` : ''}${c.ok ? '' : `<br><span class="small down">${esc(c.why)}</span>`}</span>
-      <button class="btn small ${c.ok ? 'focus' : 'off'}" data-act="trainBuy" data-id="${pg.id}" ${c.ok ? '' : 'disabled'}>${careerTokTag(pg.cost)}</button></div>`; };
-  return `<fieldset class="frame"><legend>Training Center</legend><p class="note small">Programs the game's Practice Facility doesn't have, paid for with Career Tokens. You earn tokens by hitting achievements: big nights, big seasons, career milestones. They stay in the app; the programs go into the save as soon as you buy them: export and load it in Hoop Land.</p>
-      <div class="cp-pool"><span>Career Tokens</span><b class="gold">${x.tokens.toLocaleString()}</b><span class="muted small">${CAREER_TOK} · ${esc(CAR.RANKS[x.rank])}</span></div>
-      <button class="btn small" data-act="careerTab" data-t="ach">🏆 Achievements ›</button></fieldset>
+      <button class="btn small ${c.ok ? 'focus' : 'off'}" data-act="trainBuy" data-id="${pg.id}" ${c.ok ? '' : 'disabled'}>${pg.cost < pg0.cost ? `<s class="muted">${pg0.cost}</s> ` : ''}${pg.cost} ${COIN}</button></div>`; };
+  return `<fieldset class="frame"><legend>Training Center</legend><p class="note small">Programs the game's Practice Facility doesn't have, paid for with his coins. They go into the save as soon as you buy them: export and load it in Hoop Land.</p>
+      <div class="cp-pool"><span>Coins</span><b class="gold">${(L.career?.coins || 0).toLocaleString()}</b><span class="muted small">${COIN} · ${esc(CAR.RANKS[x.rank])}</span></div></fieldset>
     ${TRN.GROUPS.map(g => `<fieldset class="frame"><legend>${g}</legend><div class="stack">${TRN.PROGRAMS.filter(pg => pg.group === g).map(row).join('')}</div></fieldset>`).join('')}`;
-}
-// Achievements: every badge, locked or earned (and when), what pays every season, and the token totals.
-function careerAchTab(L, p) {
-  const book = careerStore().ach || {}, b = book.badges || {}, have = ACH.BADGES.filter(x => b[x.id]).length;
-  const spent = careerBuys().reduce((a, x) => a + x.tok, 0), earned = ACH.earned(book);
-  const tile = x => { const e = b[x.id];
-    return `<div class="ach-tile ${e ? 'on' : 'off'}"><span class="ach-ico">${e ? x.icon : '🔒'}</span><b>${esc(x.name)}</b><span class="small">${esc(x.says)}</span><span class="small ${e ? 'up' : 'muted'}">${e ? `${careerTokTag(`+${x.tok}`)} · ${e.yr}` : careerTokTag(x.tok)}</span></div>`; };
-  const marks = Object.entries(book.marks || {}).map(([k, n]) => { const [id, y] = k.split(':'), m = ACH.MARKS.find(z => z.id === id); return m ? { y: +y, t: `${m.icon} ${m.name}`, n } : null; }).filter(Boolean).sort((a, z) => z.y - a.y);
-  return `<fieldset class="frame"><legend>Achievements</legend>
-      <div class="cp-pool"><span>Career Tokens</span><b class="gold">${careerTokens().toLocaleString()}</b><span class="muted small">${CAREER_TOK} · ${earned} earned · ${spent} spent</span></div>
-      <p class="note small">${have} of ${ACH.BADGES.length} unlocked. Each badge pays once. Some marks pay every season they happen: ${ACH.MARKS.map(m => `${m.name} ${m.tok}`).join(', ')}. Every triple-double and every game-winner pays a token. Tokens stay in the app: spend them in the <button class="btn tiny" data-act="careerTab" data-t="train">Training Center</button>.</p>
-      <p class="note small muted">Checked against the save each time you open it: his career highs, totals, season lines and awards. A quadruple-double or a 5x5 shows up once the app sees that game's box score.</p></fieldset>
-    ${ACH.GROUPS.map(g => `<fieldset class="frame"><legend>${g}</legend><div class="ach-grid">${ACH.BADGES.filter(x => x.group === g).map(tile).join('')}</div></fieldset>`).join('')}
-    ${marks.length ? `<fieldset class="frame"><legend>Every Season</legend><div class="stack">${marks.map(m => `<div class="set-row"><span class="grow small">${esc(m.t)} <span class="muted">· ${m.y}</span></span>${careerTokTag(`+${m.n}`)}</div>`).join('')}</div></fieldset>` : ''}`;
 }
 actions.trainBuy = async d => {
   const L = league(), me = CAR.careerPlayer(L); if (!me) return;
-  const pg = TRN.PROGRAMS.find(x => x.id === d.id), x = trainCtx(L, me.p, me.team), used = trainUsed();
+  const pg0 = TRN.PROGRAMS.find(x => x.id === d.id), pg = pg0 && { ...pg0, cost: TREE.trainPrice(pg0, careerStore()) }, x = trainCtx(L, me.p, me.team), used = trainUsed();
   if (!pg || !TRN.check(pg, me.p, x, used).ok) return;
-  if (!(await confirmBox(`${pg.icon} <b>${esc(pg.name)}</b> for <b>${pg.cost}</b> Career Token${pg.cost === 1 ? '' : 's'}? ${esc(pg.says)}.`, `Buy · ${pg.cost} tokens`))) return;
+  if (!(await confirmBox(`${pg.icon} <b>${esc(pg.name)}</b> for <b>${pg.cost}</b> coins? ${esc(pg.says)}.`, `Buy · ${pg.cost} coins`))) return;
   checkpoint(`Training: ${pg.name}`);
+  L.career.coins -= pg.cost;
   const what = pg.run(me.p, x);
-  const st = careerStore();
-  (st.buys ||= []).push({ id: pg.id, yr: L.season.currentYear, tok: pg.cost });
+  const { st, cy } = careerYear();
+  (cy.train ||= {})[pg.id] = (cy.train[pg.id] || 0) + 1;
+  (st.trainLife ||= {})[pg.id] = (st.trainLife[pg.id] || 0) + 1;
   careerSave(st);
   state.dirty = true;
   SFX.play('coin');
-  toast(`${pg.name}`, `${what}. ${careerTokens()} Career Tokens left.`);
+  toast(`${pg.name}`, `${what}. ${L.career.coins} coins left.`);
   render();
 };
+
+// The Player Tree (js/playertree.js): franchise tokens from his career, spent on abilities the app can really make
+// happen. The store is the career's own (by the career league, so a campus career keeps it from the college side).
+const ptKey = L => `hlc:career:${saveTag(L)}`;
+const ptStore = L => { try { return JSON.parse(localStorage.getItem(ptKey(L))) || {}; } catch { return {}; } };
+const ptSave = (L, st) => { try { localStorage.setItem(ptKey(L), JSON.stringify(st)); } catch { /* ignore */ } };
+function treeTokens(L, p, st) { const a = TREE.achievementsOf(p, CAR.rankIdx(p), CAR.trophies(p)); return { earned: a.earned, done: a.done, left: a.earned - TREE.spent(st) }; }
+function treeCtx(L, me) { const coach = (me.team?.frontOffice?.staff || []).find(x => x.pos === 1) || null; return { coach, mates: me.team ? me.team.roster.filter(m => m.id !== me.p.id) : [], declining: declineYear(me.p) }; }
+function careerTreeTab(L, p, team) {
+  const st = ptStore(L), r = CAR.rankIdx(p), tk = treeTokens(L, p, st);
+  const node = n => { const own = TREE.owned(st, n.id), c = TREE.canUnlock(n, st, r, tk.left, CAR.RANKS);
+    return `<div class="pt-node ${own ? 'own' : c.ok ? 'open' : 'locked'}"><span class="pt-tier">T${n.tier}</span><span class="grow"><b>${esc(n.name)}</b><br><span class="small">${esc(n.says)}</span><br><span class="small muted pt-kind k-${n.kind}">${esc(TREE.KIND_LABEL[n.kind])}</span>${!own && !c.ok ? `<br><span class="small down">${esc(c.why)}</span>` : ''}</span>
+      ${own ? '<span class="pt-own">✓</span>' : `<button class="btn small ${c.ok ? 'focus' : 'off'}" data-act="treeBuy" data-id="${n.id}" ${c.ok ? '' : 'disabled'}>${n.cost} 🎟️</button>`}</div>`; };
+  return `<fieldset class="frame"><legend>Player Tree</legend>
+      <p class="note small">Franchise tokens live in the app: one to start, then more for each achievement his save shows (big games, triple-doubles, seasons, career marks, honors, legacy ranks). Each tier needs the one before it and a legacy rank.</p>
+      <div class="cp-pool"><span>Tokens</span><b class="gold">${tk.left}</b><span class="muted small">🎟️ of ${tk.earned} earned · ${esc(CAR.RANKS[r])}</span></div>
+      <p class="note small muted"><b>Written into the save</b>: once, when you unlock it. <b>Every season</b>: once a season. <b>Each time the save comes through the app</b>: the app reads what happened in the game since your last export and heals, boosts or tops it up, so bring the save through often.</p></fieldset>
+    ${TREE.BRANCHES.map(b => `<fieldset class="frame"><legend>${b.icon} ${esc(b.name)}</legend><div class="stack">${TREE.NODES.filter(n => n.branch === b.id).map(node).join('')}</div></fieldset>`).join('')}
+    <fieldset class="frame"><legend>🏆 Achievements · ${tk.done.length}/${TREE.ACHIEVEMENTS.length}</legend><p class="note small muted">Read off his save: career single-game highs, his seasons, career totals, awards, legacy rank. Tokens next to each.</p>
+      ${TREE.ACH_GROUPS.map(g => `<p class="cp-grp">${g}</p><div class="ach-grid">${TREE.ACHIEVEMENTS.filter(a => a.group === g).map(a => { const got = tk.done.includes(a); return `<div class="ach ${got ? 'got' : ''}"><span>${a.icon}</span><span class="grow small">${esc(a.name)}</span><b class="small">${got ? '✓ ' : ''}+${a.tokens}</b></div>`; }).join('')}</div>`).join('')}
+    </fieldset>`;
+}
+actions.treeBuy = async d => {
+  const L = league(), me = CAR.careerPlayer(L); if (!me) return;
+  const st = ptStore(L), n = TREE.NODES.find(x => x.id === d.id), tk = treeTokens(L, me.p, st);
+  if (!n || !TREE.canUnlock(n, st, CAR.rankIdx(me.p), tk.left, CAR.RANKS).ok) return;
+  if (!(await confirmBox(`Unlock <b>${esc(n.name)}</b> for ${n.cost} token${n.cost === 1 ? '' : 's'}? ${esc(n.says)}.`, 'Unlock'))) return;
+  checkpoint(`Player Tree: ${n.name}`);
+  ((st.tree ||= {}).nodes ||= []).push(n.id);
+  let what = '';
+  if (n.kind === 'save') what = n.unlock(me.p, treeCtx(L, me));
+  if (n.kind === 'season') { what = n.season(me.p, treeCtx(L, me)) || ''; (st.tree.seasonDone ||= {})[n.id] = L.season.currentYear; }
+  if (n.kind === 'load') { st.tree.handled ||= []; const out = TREE.settleLoad(me.p, st, { ...treeCtx(L, me), snap: null, handled: st.tree.handled }); what = out.join('; '); }
+  ptSave(L, st);
+  state.dirty = true;
+  SFX.play('success');
+  toast(n.name, what || TREE.KIND_LABEL[n.kind]);
+  render();
+};
+// Each time a career save comes in: the season's nodes (once a year), then everything settled against what the app
+// exported last time. Remembered at export so the next load can read the game's changes against it.
+function treeSettle() {
+  if (!state.data || state.treeFor === state.data) return;
+  state.treeFor = state.data;
+  const lines = [];
+  for (const L of state.data.seasonLeagues) {
+    if (!CAR.isCareer(L)) continue;
+    const me = CAR.careerPlayer(L); if (!me || me.retired) continue;
+    const st = ptStore(L); if (!st.tree?.nodes?.length) continue;
+    const x = treeCtx(L, me);
+    for (const n of TREE.NODES.filter(n => n.kind === 'season' && TREE.owned(st, n.id))) {
+      if ((st.tree.seasonDone ||= {})[n.id] === L.season.currentYear) continue;
+      const w = n.season(me.p, x); st.tree.seasonDone[n.id] = L.season.currentYear; if (w) lines.push(`${n.name}: ${w}`);
+    }
+    st.tree.handled ||= [];
+    for (const w of TREE.settleLoad(me.p, st, { ...x, snap: st.tree.snap || null, handled: st.tree.handled })) lines.push(w);
+    st.tree.handled = st.tree.handled.slice(-30);
+    st.tree.snap = TREE.snapshot(me.p, x);
+    ptSave(L, st);
+  }
+  if (lines.length) { state.dirty = true; setTimeout(() => toast('🌳 Player Tree', lines.slice(0, 4).join(' · '), 6000), 600); }
+}
+function treeSnapAll() {
+  for (const L of state.data?.seasonLeagues || []) {
+    if (!CAR.isCareer(L)) continue;
+    const me = CAR.careerPlayer(L); if (!me) continue;
+    const st = ptStore(L); if (!st.tree?.nodes?.length) continue;
+    st.tree.snap = TREE.snapshot(me.p, treeCtx(L, me)); ptSave(L, st);
+  }
+}
 
 // Right now: every decision waiting on the other tabs (a box there with a career button in it), so the hub says
 // what this point in the calendar needs. The ones that are always open sit in a fold.
@@ -6577,8 +6454,6 @@ function writeLedger() {
   for (const k of Object.keys(LEDGER)) ledgerSet(k, Math.max(0, state.ledgerIn[k] + ledgerNet(k)));
 }
 const ledgerLen = () => Object.fromEntries(Object.keys(LEDGER).map(k => [k, (state.ledger?.[k] || []).length]));
-// Training Center purchases made after a checkpoint go back with the save (their tokens come back).
-function buysRewind(n) { if (n == null) return; const st = careerStore(); if ((st.buys || []).length > n) { st.buys = st.buys.slice(0, n); careerSave(st); } }
 function ledgerRewind(lens) { if (state.ledger && lens) for (const k of Object.keys(LEDGER)) state.ledger[k] = (state.ledger[k] || []).slice(0, lens[k] ?? state.ledger[k]?.length); }
 function careerChips() {
   if (!state.data) return '';
@@ -6591,7 +6466,7 @@ function careerChips() {
   }
   const on = state.stack[state.stack.length - 1]?.name === 'ledger';
   const chip = k => { const net = ledgerNet(k); return `<button class="btn tiny coin-chip" data-act="nav"${on ? ' data-replace="1"' : ''} data-to="ledger" data-arg="${k}" aria-label="${LEDGER[k].label}">${LEDGER[k].icon} ${ledgerGet(k).toLocaleString()}${net ? ` <span class="${net > 0 ? 'up' : 'down'}">${net > 0 ? '+' : ''}${net.toLocaleString()}</span>` : ''}</button>`; };
-  return `<div class="career-chips">${chip('coins')}${chip('fans')}<button class="btn tiny coin-chip" data-act="careerTab" data-t="ach" aria-label="Career Tokens: achievements">${careerTokTag(careerTokens())}</button></div>`;
+  return `<div class="career-chips">${chip('coins')}${chip('fans')}</div>`;
 }
 // Chemistry: the locker room's mood (average morale) and how each player's moved since the offseason began.
 function chemOf(t) {
@@ -13002,7 +12877,7 @@ function labProspects(prev) {
   return `<details class="frame" ${edit || state.labListOpen ? 'open' : ''}><summary>All ${prev.length} prospects</summary><div class="stack">${rows.map(p => {
     const m = meta[p.id] || {}, tags = (m.tags || []).map(t => CG.STORY_LABEL[t] || t);
     return `<div class="drill-row"><span class="grow"><b>${esc(playerName(p))}</b> <span class="gold small">${labStars(p)}</span>${tags.length ? ` <span class="small up">${esc(tags.join(' · '))}</span>` : ''}<br><span class="small muted">${esc(posName(p))} · ${p.age}y · ${heightStr(p.ht)} · Lv ${shownLevel(p)}${m.arch ? ` · ${esc(fixArcPos(CG.ARCHETYPES[m.arch]?.label || '', p.pos))}` : ''}${p.ctry && p.ctry !== 'US' ? ` · ${esc(p.ctry)}` : ''} · ${esc(CG.schoolOf(D, p) || 'no school')}</span></span>
-      <button class="btn tiny ${locked.has(p.id) ? 'on focus' : 'off'}" data-act="labLock" data-id="${p.id}" title="Keep when you regenerate">${locked.has(p.id) ? '🔒' : '🔓'}</button><button class="btn tiny off" data-act="labReroll" data-id="${p.id}" title="Reroll">🎲</button><button class="btn tiny off" data-act="labEditOpen" data-id="${p.id}" title="Edit">✏️</button></div>
+      <button class="btn tiny ${locked.has(p.id) ? 'focus' : 'off'}" data-act="labLock" data-id="${p.id}" title="Keep when you regenerate">${locked.has(p.id) ? '🔒' : '🔓'}</button><button class="btn tiny off" data-act="labReroll" data-id="${p.id}" title="Reroll">🎲</button><button class="btn tiny off" data-act="labEditOpen" data-id="${p.id}" title="Edit">✏️</button></div>
       ${edit === p ? labEditForm(p) : ''}`;
   }).join('')}</div></details>`;
 }
@@ -13441,12 +13316,12 @@ actions.medPick = d => {
 };
 
 // ---- League News: rumors, transactions, coaching moves, CPU trades and (at Opening Night) the report card, as tabs.
-const NEWS_TABS = [['profile', 'Profile'], ['rumors', 'Feed'], ['team', 'Team'], ['mentions', 'Mentions'], ['report', 'Report Card']];
+const NEWS_TABS = [['rumors', 'Feed'], ['team', 'Team'], ['mentions', 'Mentions'], ['report', 'Report Card']];
 const newsTabs = cur => { const u = gramUnseen(); return `<div class="tabs fa-tabs news-tabs">${NEWS_TABS.filter(([k]) => k !== 'report' || league().season.phase === 6).map(([k, l]) => `<button class="btn small ${k === cur ? 'on focus' : 'off'}" data-act="newsTab" data-t="${k}">${l}${k !== cur && u[k] ? '<span class="tab-dot"></span>' : ''}</button>`).join('')}</div>`; };
 actions.gramBox = () => {
-  if (['gramProfile', 'rumors', 'news', 'gramMine', 'transactions'].includes(state.stack[state.stack.length - 1]?.name)) return;
-  // Your profile, like Instagram's home: a red dot on Mentions when something new is said about you.
-  const to = gramSubject() ? ['gramProfile', {}] : rumorUnread() ? ['gramMine', { tab: 'mentions' }] : ['rumors', {}];
+  if (['rumors', 'news', 'gramMine', 'transactions'].includes(state.stack[state.stack.length - 1]?.name)) return;
+  // Straight to Mentions when something new is said about you, else the Feed.
+  const to = rumorUnread() ? ['gramMine', { tab: 'mentions' }] : ['rumors', {}];
   if (state.stack.length === 1) go(...to); else { state.stack[state.stack.length - 1].y = window.scrollY; state.stack.push({ name: to[0], args: to[1] }); history.pushState({ depth: state.stack.length }, ''); render(); }
 };
 // Back to the title screen (the save closes; export first to keep today's changes).
@@ -13455,7 +13330,7 @@ actions.toTitle = async () => {
   state.data = null; state.dirty = false; state.stack = [{ name: 'main', args: {} }];
   window.scrollTo(0, 0); render();
 };
-actions.newsTab = d => (d.t === 'profile' ? replace('gramProfile', {}) : d.t === 'moves' ? replace('transactions', { tab: 'sign' }) : d.t === 'rumors' ? replace('rumors', {}) : d.t === 'block' ? replace('transactions', { tab: 'block', only: true }) : d.t === 'team' || d.t === 'mentions' ? replace('gramMine', { tab: d.t }) : replace('news', { tab: d.t }));
+actions.newsTab = d => (d.t === 'rumors' ? replace('rumors', {}) : d.t === 'block' ? replace('transactions', { tab: 'block', only: true }) : d.t === 'team' || d.t === 'mentions' ? replace('gramMine', { tab: d.t }) : replace('news', { tab: d.t }));
 
 // The injury report: everyone in the league who's out right now, on one sheet. Tap a column to sort by it, tap it
 // again to flip it. Out: the longest first (major injuries ahead of minor ones at the same length).
@@ -13882,74 +13757,6 @@ function syncMentions() {
   offSet('hgMentions', { list: list.slice(-300) });
   return [...list].sort((a, b) => b.d - a.d);
 }
-// ---------------------------------------------------------------------------
-// Hoop Gram profile (js/followers.js): your page, set up like an Instagram profile. A franchise's team page, or the
-// career player's own. Followers move with winning, titles, stars and awards; the app logs them day by day.
-function gramSubject() {
-  if (!state.data) return null;
-  const L = league();
-  if (CAR.isCareer(L)) {
-    const me = CAR.careerPlayer(L); if (!me) return null;
-    const lv = shownLevel(me.p), college = isCollege();
-    return { kind: 'player', id: me.p.id, p: me.p, team: me.team, name: playerName(me.p), handle: pTag(me.p), av: faceImg(me.p, 'face') || (me.team ? logoImg(me.team, 'logo') : ''),
-      cat: college ? 'Student athlete' : 'Athlete', followers: FOL.playerFollowers(me.p, { level: lv, college, career: L.career, li: state.leagueIdx }), following: FOL.following(me.p.id), posts: me.team ? teamPostsOf(me.team) : [] };
-  }
-  const t = myTeam(); if (!t) return null;
-  const college = isCollege(), levels = t.roster.map(shownLevel);
-  return { kind: 'team', id: t.id, t, team: t, name: `${t.city} ${t.name}`, handle: tTag(t), av: logoImg(t, 'logo'), cat: college ? 'College athletics' : 'Sports team',
-    followers: FOL.teamFollowers(t, { college, yr: L.season.currentYear, levels }), following: FOL.following(t.id), posts: teamPostsOf(t) };
-}
-const GRAM_BIO_KEY = () => `hlc:gramBio:${saveTag()}`;
-function gramDefaultBio(S) {
-  const L = league(), yr = L.season.currentYear;
-  if (S.kind === 'team') {
-    const r = S.t.season?.find(x => x.yr === yr)?.seasonStats || {}, titles = (S.t.championships?.yearsWon || []).length;
-    return [`🏀 ${r.W || 0}-${r.L || 0} this season`, S.t.arenaName ? `🏟️ ${S.t.arenaName}` : '', titles ? `🏆 ${titles}× champions` : '', `📍 ${S.t.city}`].filter(Boolean).join('\n');
-  }
-  const tro = CAR.trophies(S.p);
-  return [`${posName(S.p)}${S.team ? ` · ${S.team.city} ${S.team.name} #${S.p.num}` : ' · Free agent'}`, [tro.rings && `🏆 ${tro.rings}×`, tro.mvp && `🏅 ${tro.mvp}× MVP`, tro.allStar && `🌟 ${tro.allStar}× All-Star`].filter(Boolean).join(' · '), S.p.home ? `📍 ${S.p.home}` : ''].filter(Boolean).join('\n');
-}
-const gramTileText = html => (/<span class="hg-text">([\s\S]*?)<\/span>(?:<span class="hg-foot">|<\/span>)/.exec(html)?.[1] || '').replace(/<br\s*\/?>/g, ' · ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
-screens.gramProfile = () => {
-  const S = gramSubject();
-  if (!S) { replace('rumors', {}); return; }
-  const L = league(), s = L.season, ph = { 9: 0, 11: 1, 2: 2, 4: 3, 5: 4, 6: 5 }[s.phase] ?? 0, day = s.currentYear * 1000 + ph * 150 + (s.currentDay || 0);
-  const logK = `hlc:gramFol:${saveTag()}:${S.kind}${S.id}`, log = lsGet(logK, {}), moved = FOL.track(log, day, S.followers); lsSet(logK, log);
-  let bio = null; try { bio = localStorage.getItem(GRAM_BIO_KEY()); } catch { /* none */ }
-  bio = bio ?? gramDefaultBio(S);
-  const posts = [...S.posts].sort((a, b) => b.d - a.d), u = gramUnseen();
-  state.gramTiles = posts.map(x => x.html);
-  const color = S.team?.teamColors?.[0] ? `#${String(S.team.teamColors[0]).replace(/^#/, '')}` : '';
-  const tile = (x, i) => `<button class="ig-tile" data-act="gramTile" data-i="${i}" ${color ? `style="--tc:${esc(color)}"` : ''}><span class="ig-tile-t">${esc(gramTileText(x.html).slice(0, 90))}</span></button>`;
-  const hl = [['rumors', 'Feed', '📰'], ['team', 'Team', '🏀'], ['mentions', 'Mentions', '💬'], ['transactions', 'Moves', '🔁']];
-  layout({ title: 'Hoop Gram', body: `${newsTabs('profile')}<div class="ig-prof">
-      <div class="ig-handle">@${esc(S.handle)} <i class="hg-ver" aria-hidden="true"></i></div>
-      <div class="ig-top"><span class="ig-av ${u.team || u.mentions ? 'ring' : ''}">${S.av || '<i class="px px-gram" aria-hidden="true"></i>'}</span>
-        <div class="ig-stats"><span><b>${FOL.fmt(posts.length)}</b>posts</span><span><b>${FOL.fmt(S.followers)}</b>followers</span><span><b>${FOL.fmt(S.following)}</b>following</span></div></div>
-      <div class="ig-name"><b>${esc(S.name)}</b></div><div class="ig-cat">${esc(S.cat)}</div>
-      <div class="ig-bio">${esc(bio).replace(/\n/g, '<br>')}</div>
-      ${moved ? `<div class="ig-insight ${moved > 0 ? 'up' : 'down'}">${moved > 0 ? '▲' : '▼'} ${FOL.fmt(Math.abs(moved))} followers this week</div>` : ''}
-      <div class="ig-btns"><button class="btn small" data-act="gramBio">Edit bio</button><button class="btn small" data-act="newsTab" data-t="mentions">Mentions${u.mentions ? '<span class="tab-dot"></span>' : ''}</button></div>
-      <div class="ig-hl">${hl.map(([k, l, ic]) => `<button class="ig-hl-b" data-act="newsTab" data-t="${k === 'transactions' ? 'moves' : k}"><span class="ig-hl-c">${ic}</span><span class="small">${l}</span></button>`).join('')}</div>
-      <div class="ig-tabbar"><span class="on">▦ Posts</span></div>
-      ${posts.length ? `<div class="ig-grid">${posts.map(tile).join('')}</div>` : '<p class="note small muted center">No posts yet. Finals and moves show up here.</p>'}
-    </div>` });
-};
-actions.gramTile = d => {
-  const html = (state.gramTiles || [])[+d.i]; if (!html) return;
-  const o = overlay(`<div class="stack hg-list">${html}</div><button class="btn" data-close>Close</button>`);
-  o.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === o) o.remove(); });
-};
-actions.gramBio = () => {
-  const S = gramSubject(); if (!S) return;
-  let cur = null; try { cur = localStorage.getItem(GRAM_BIO_KEY()); } catch { /* none */ }
-  askValues('Edit bio', [{ k: 'b', label: 'Bio (use | for a new line; empty for the default)', value: (cur ?? gramDefaultBio(S)).replace(/\n/g, ' | '), type: 'text' }], v => {
-    const b = v.b.split('|').map(x => x.trim()).filter(Boolean).join('\n').slice(0, 300);
-    try { if (b) localStorage.setItem(GRAM_BIO_KEY(), b); else localStorage.removeItem(GRAM_BIO_KEY()); } catch { /* storage off */ }
-    render(); return '';
-  });
-};
-
 screens.gramMine = (args = {}) => {
   const tab = args.tab === 'team' ? 'team' : 'mentions', me = myTeam();
   const posts = tab === 'team' ? teamPostsOf(me) : syncMentions();
@@ -15501,7 +15308,6 @@ screens.settings = (args) => {
       ${setGroup('Look', [options('Potential', 'hidePotential', [[false, 'Show'], [true, 'Hide']], 'Hide: potential stars, potential up or down and regression age stay out of sight everywhere (scouting reports too), like the game\'s Hide Potential. Edit mode still shows them.'), options('Button icons', 'pixelIcons', [[true, 'Pixel'], [false, 'Emoji']], 'Pixel: white pixel icons like the game\'s. Emoji: the colored emoji.'), options('Sound effects', 'sound', [[true, 'On'], [false, 'Off']], 'Retro blips on taps, tabs and pop-ups, and a bigger sound for the big moments (a trade, your draft pick, a saved file).'), state.params.sound !== false ? options('Volume', 'soundVol', [[0.25, 'Low'], [0.5, 'Medium'], [1, 'High']]) + `<div class="set-row col"><span class="grow">Hear them</span><div class="sfx-test">${[['tap', 'Tap'], ['nav', 'Forward'], ['back', 'Back'], ['toggle', 'Switch'], ['open', 'Pop-up'], ['notify', 'Notice'], ['success', 'Success'], ['error', 'No'], ['pick', 'Draft pick'], ['swish', 'Swish'], ['buzzer', 'Buzzer'], ['crowd', 'Crowd'], ['cheer', 'Cheers'], ['boo', 'Boos']].map(([k, l]) => `<button class="btn tiny" data-act="sfxTest" data-sfx="${k}">${l}</button>`).join('')}</div></div>` : '', state.data ? `<button class="btn" data-act="nav" data-to="faces">🙂 Player Faces${state.faces?.size ? ` · ${state.faces.size}` : ''}</button><span class="note muted small">Cut players' faces from screenshots of the game's roster screen.</span>` : ''])}`;
   } else if (tab === 'ai') {
     body = setGroup('CPU Teams', [
-      options('CPU trading in the game', 'cpuTrading', [[true, 'On'], [false, 'Off']], 'The game\'s own CPU Trading setting: On lets CPU teams trade with each other in Hoop Land during the season. Written into the save when you export.'),
       options('Draft-day trades', 'liveCpuTradeChance', [[0, 'Off'], [5, 'Rare'], [10, 'Normal'], [20, 'Busy']], 'How often CPU teams trade picks around each CPU pick in the live draft.'),
       options('Coaching changes', 'cpuCoachChanges', [[true, 'On'], [false, 'Off']], 'CPU teams can fire coaches on the hot seat and hire from the pool. Off keeps every coach where your file has him.'),
       options('Upgrade points', 'spendCpuPoints', [[false, 'Hold for Game'], [true, 'Spend Now']], 'CPU players\' offseason upgrade points: left for the game to spend, or spent on ratings here.'),
